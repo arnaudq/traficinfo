@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.traficinfo</groupId>
+    <artifactId>root-pom</artifactId>
+    <name>Root - Pom</name>
+    <description>Root project</description>
+    <packaging>pom</packaging>
+    <version>1.0-SNAPSHOT</version>
+
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <fdk.version>1.0.185</fdk.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>com.fnproject.fn</groupId>
+                <artifactId>api</artifactId>
+                <version>${fdk.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.oracle.oci.sdk</groupId>
+                <artifactId>oci-java-sdk-bom</artifactId>
+                <version>3.37.1</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-simple</artifactId>
+                <!-- aligning our version on the one used by OCI SDK -->
+                <version>1.7.33</version>
+            </dependency>
+            <!-- Test dependencies -->
+            <dependency>
+                <groupId>com.fnproject.fn</groupId>
+                <artifactId>testing-core</artifactId>
+                <version>${fdk.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fnproject.fn</groupId>
+                <artifactId>testing-junit4</artifactId>
+                <version>${fdk.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>junit</groupId>
+                <artifactId>junit</artifactId>
+                <version>4.12</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <modules>
+	    <module>ds3mfunction</module>
+    </modules>
+
+</project>
