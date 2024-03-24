@@ -1,4 +1,4 @@
-package org.traficinfo.ds3mfunction;
+package org.traficinfo.m3m.dsfunction;
 
 import org.junit.Test;
 

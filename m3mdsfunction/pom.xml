@@ -11,7 +11,7 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>ds3mfunction</artifactId>
+    <artifactId>m3mdsfunction</artifactId>
 
     <dependencies>
         <dependency>

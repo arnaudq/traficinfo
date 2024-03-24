@@ -1,4 +1,4 @@
-package org.traficinfo.ds3mfunction;
+package org.traficinfo.m3m.dsfunction;
 
 import com.fnproject.fn.api.FnConfiguration;
 import com.fnproject.fn.api.RuntimeContext;
@@ -6,24 +6,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URI;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
-public class DataSource3MFunction {
+public class DataSourceFunction {
 
     public static final String CONFIG_KEY_NAMESPACE = "NAMESPACE";
     public static final String CONFIG_KEY_BUCKET_NAME = "BUCKETNAME";
     public static final String CONFIG_KEY_USE_RESOURCE_PRINCIPAL = "USE_RESOURCE_PRINCIPAL";
 
 
-    private static final Logger LOG = LoggerFactory.getLogger(DataSource3MFunction.class);
+    private static final Logger LOG = LoggerFactory.getLogger(DataSourceFunction.class);
 
     private String namespace;
     private String bucketName;
@@ -31,7 +23,7 @@ public class DataSource3MFunction {
     private HttpClient httpClient;
     private ObjectStoreClient oosClient;
 
-    public DataSource3MFunction() {
+    public DataSourceFunction() {
         LOG.info("DataSource3M Function booting");
     }
 
@@ -74,7 +66,7 @@ public class DataSource3MFunction {
         String currentEtag = null;
         if (metadata !=  null) {
             currentEtag = metadata.getETag();
-            LOG.info("Current known ETag for csv = {}", currentEtag);
+            LOG.info("Current known ETag for {} = {}", oosName, currentEtag);
         } else {
             LOG.info("No previous version stored in OOS");
         }

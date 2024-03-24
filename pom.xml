@@ -58,7 +58,7 @@
     </dependencyManagement>
 
     <modules>
-	    <module>ds3mfunction</module>
+	    <module>m3mdsfunction</module>
     </modules>
 
 </project>
