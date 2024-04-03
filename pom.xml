@@ -38,6 +38,16 @@
                 <!-- aligning our version on the one used by OCI SDK -->
                 <version>1.7.33</version>
             </dependency>
+            <dependency>
+                <groupId>com.opencsv</groupId>
+                <artifactId>opencsv</artifactId>
+                <version>5.2</version>
+            </dependency>
+            <dependency>
+                <groupId>de.grundid.opendatalab</groupId>
+                <artifactId>geojson-jackson</artifactId>
+                <version>1.14</version>
+            </dependency>
             <!-- Test dependencies -->
             <dependency>
                 <groupId>com.fnproject.fn</groupId>
@@ -59,6 +69,7 @@
 
     <modules>
 	    <module>m3mdsfunction</module>
+        <module>m3mparser</module>
     </modules>
 
 </project>

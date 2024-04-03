@@ -1,0 +1,47 @@
+{
+	"type" : "FeatureCollection",
+	"name" : "MMM_MMM_Comptage",
+	"features" : [
+		{
+			"type" : "Feature",
+			"geometry" : {
+				"type" : "LineString",
+				"coordinates" : [
+					[ 3.8866735006, 43.6033959005 ],
+					[ 3.8850328002, 43.6032927003 ],
+					[ 3.8848509003, 43.6032812 ]
+				]
+			},
+			"properties" : {
+				"objectid" : 392,
+				"id_centrale" : 972,
+				"code_centrale" : "100457",
+				"libelle_centrale" : "MONTPELLIER. Boulevard de Strasbourg",
+				"annee" : "2024",
+				"libelle_groupage" : "Palavas_Comte Melgueil",
+				"type_compteur" : "compteur feux",
+				"type_comptage" : "comptage unidirectionnel",
+				"nb_canaux" : 1,
+				"nb_annee" : 9,
+				"code_canal" : "1",
+				"mja_jo" : 577,
+				"mja_tcj" : 647,
+				"mja_pl_tcj" : null,
+				"hp_johvs_matin" : "72 (8h00 - 9h00)",
+				"hp_johvs_soir" : "43 (17h00 - 18h00)",
+				"tir_tcj" : null,
+				"v85ma_tcj" : null,
+				"vtma_tcj" : null,
+				"descriptif_periode" : "du 01/01/2024 au 25/02/2024",
+				"time_days" : 55,
+				"name" : "Boulevard de Strasbourg",
+				"oneway" : "YES",
+				"ref_mmm" : " ",
+				"highway" : "secondary",
+				"nom_commune" : "Montpellier",
+				"cycles" : "Bande cyclable droite",
+				"osm_id" : 370743659
+			}
+		}
+	]
+}

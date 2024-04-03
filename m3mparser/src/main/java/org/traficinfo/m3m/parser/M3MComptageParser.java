@@ -1,6 +1,8 @@
 package org.traficinfo.m3m.parser;
 
 import com.opencsv.bean.CsvToBeanBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.FileReader;
@@ -12,6 +14,8 @@ import java.util.Map;
 import java.util.Properties;
 
 public final class M3MComptageParser implements ComptageParser {
+
+  private static final Logger LOG = LoggerFactory.getLogger(M3MComptageParser.class);
 
   private static final Map<String, Comptage.Type> TYPE_MAP = new HashMap<>();
   static {
@@ -37,7 +41,7 @@ public final class M3MComptageParser implements ComptageParser {
 
     setComptageVoieTypeAndDirection(comptages, idToDisplayNames);
 
-    System.err.println("Nb comptages:" + comptages.size());
+    LOG.info("Nb comptages: {}", comptages.size());
     return comptages;
   }
 
@@ -62,7 +66,7 @@ public final class M3MComptageParser implements ComptageParser {
       String normalizedDisplayName = idToVoiesProps.getProperty(mmmComptage.getCodeCentrale());
       if (normalizedDisplayName != null ) {
         if (displayName != null && !displayName.equals(normalizedDisplayName)) {
-          System.err.printf("Mismatch in displayName for %s: %s versus %s%n",
+          LOG.warn("Mismatch in displayName for {}: {} versus {}",
             mmmComptage.getCodeCentrale(), displayName, normalizedDisplayName);
         }
       } else {
@@ -72,7 +76,7 @@ public final class M3MComptageParser implements ComptageParser {
       mmmComptage.setBidirectionnelle("Z".equals(mmmComptage.getCodeCanal()));
       Comptage.Type type = TYPE_MAP.get(mmmComptage.getTypeCompteur());
       if (type == null) {
-        System.err.printf("UNKNOWN TYPE FOR %s\n", mmmComptage);
+        LOG.warn("UNKNOWN TYPE FOR {}\n", mmmComptage);
         type = Comptage.Type.VEHICULES;
       }
       mmmComptage.setType(type);

@@ -8,7 +8,7 @@ import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 
-public class M3MComptageParserTest {
+public class M3MComptageParserTest extends ParserBaseTest {
 
   @Test
   public void testParse() throws Exception {
@@ -34,13 +34,5 @@ public class M3MComptageParserTest {
     assertEquals("43 (17h00 - 18h00)", c.getMoyenneHeureDePointeSoir());
     assertEquals(Comptage.Type.VEHICULES, c.getType());
     assertEquals(false, c.isBidirectionnelle());
-  }
-
-  private Reader getReaderFromResource(String filename) throws IOException {
-    InputStream inputStream = this.getClass().getResourceAsStream("/" + filename);
-    if (inputStream == null) {
-      throw new IOException("failed to load " + filename);
-    }
-    return new InputStreamReader(inputStream, StandardCharsets.UTF_8);
   }
 }
