@@ -19,6 +19,9 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.zip.GZIPOutputStream;
 
 /**
  * ObjectStore client.
@@ -61,19 +64,37 @@ public class ObjectStoreClient {
         this.bucketName = bucketName;
     }
 
+    ObjectStoreClient(ObjectStorage client, String namespace, String bucketName) {
+        this.client = client;
+        this.namespaceName = namespace;
+        this.bucketName = bucketName;
+    }
+
     public void putResource(String resourceName, String contentType, OOSResourceMetadata metadata,
-                              InputStream inputStream) {
-        PutObjectRequest request = PutObjectRequest.builder()
-                .namespaceName(namespaceName)
-                .bucketName(bucketName)
-                .objectName(resourceName)
-                .contentType(contentType)
-                .opcMeta(metadata.getMetadata())
-                .putObjectBody(inputStream).build();
+                              InputStream inputStream) throws IOException {
+        // Stage compressed bytes on disk to avoid buffering an entire dataset in memory.
+        Path compressedFile = Files.createTempFile("m3mds-", ".gz");
+        try {
+            try (GZIPOutputStream gzip = new GZIPOutputStream(Files.newOutputStream(compressedFile))) {
+                inputStream.transferTo(gzip);
+            }
+            try (InputStream compressedInput = Files.newInputStream(compressedFile)) {
+                PutObjectRequest request = PutObjectRequest.builder()
+                        .namespaceName(namespaceName)
+                        .bucketName(bucketName)
+                        .objectName(resourceName)
+                        .contentType(contentType)
+                        .contentEncoding("gzip")
+                        .contentLength(Files.size(compressedFile))
+                        .opcMeta(metadata.getMetadata())
+                        .putObjectBody(compressedInput).build();
 
-        final PutObjectResponse response = client.putObject(request);
-
-        LOG.info("OOS PUT response = {}", response.toString());
+                final PutObjectResponse response = client.putObject(request);
+                LOG.info("OOS PUT response = {}", response.toString());
+            }
+        } finally {
+            Files.deleteIfExists(compressedFile);
+        }
     }
 
     public OOSResourceMetadata getResourceMetadata(String resourceName) {

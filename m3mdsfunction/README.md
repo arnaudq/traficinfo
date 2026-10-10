@@ -2,6 +2,13 @@ The ds3mfunction downloads the csv and geojson files from
 
 and store them in a bucket named ds3mbucket
 
+Files are gzip-compressed before upload, keeping their original object names and
+content types with `Content-Encoding: gzip`. Compression uses a temporary file
+that is deleted after the upload, including on failure. Readers must support
+gzip content decoding (or explicitly decompress the downloaded body).
+Existing objects remain uncompressed until a changed source file is uploaded;
+the source ETag check still skips unchanged files.
+
 fn list context 
 fn list apps
 
