@@ -1,4 +1,4 @@
-package org.traficinfo.m3m.dsfunction;
+package org.traficinfo.dsfunctions.m3m;
 
 import com.oracle.bmc.objectstorage.ObjectStorage;
 import com.oracle.bmc.objectstorage.requests.PutObjectRequest;

@@ -1,4 +1,4 @@
-package org.traficinfo.m3m.dsfunction;
+package org.traficinfo.dsfunctions.m3m;
 
 import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.client.ClientBuilder;

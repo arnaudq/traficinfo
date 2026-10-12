@@ -68,7 +68,7 @@
     </dependencyManagement>
 
     <modules>
-	    <module>m3mdsfunction</module>
+	    <module>dsfunctions</module>
         <module>parsers</module>
     </modules>
 

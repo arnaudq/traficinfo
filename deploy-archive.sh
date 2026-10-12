@@ -6,9 +6,9 @@ root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 app_name=3MOpenDataProcessor
 function_name=3MOpenDataSource
 runtime_name=java21.ol9
-handler=org.traficinfo.m3m.dsfunction.DataSourceFunction::handleRequest
+handler=org.traficinfo.dsfunctions.m3m.DataSourceFunction::handleRequest
 bucket_name=ds3mbucket
-jar_file="$root_dir/m3mdsfunction/target/m3mdsfunction-1.0-SNAPSHOT-jar-with-dependencies.jar"
+jar_file="$root_dir/dsfunctions/target/dsfunctions-1.0-SNAPSHOT-jar-with-dependencies.jar"
 
 resolve_application_id() {
   local application_id compartment_id
@@ -39,7 +39,7 @@ find_function_id() {
 
 build_jar() {
   printf 'Building %s\n' "$jar_file"
-  mvn -f "$root_dir/pom.xml" -pl m3mdsfunction -am -DskipTests package
+  mvn -f "$root_dir/pom.xml" -pl dsfunctions -am -DskipTests package
 }
 
 validate_jar() {
@@ -48,7 +48,7 @@ validate_jar() {
     printf 'The fat JAR was not produced: %s\n' "$jar_file" >&2
     return 1
   fi
-  if ! jar tf "$jar_file" | grep -Fx 'org/traficinfo/m3m/dsfunction/DataSourceFunction.class' >/dev/null; then
+  if ! jar tf "$jar_file" | grep -Fx 'org/traficinfo/dsfunctions/m3m/DataSourceFunction.class' >/dev/null; then
     printf 'The fat JAR does not contain the configured handler class.\n' >&2
     return 1
   fi

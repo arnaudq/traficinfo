@@ -1,4 +1,4 @@
-package org.traficinfo.m3m.dsfunction;
+package org.traficinfo.dsfunctions.m3m;
 
 import com.oracle.bmc.ConfigFileReader;
 import com.oracle.bmc.auth.BasicAuthenticationDetailsProvider;

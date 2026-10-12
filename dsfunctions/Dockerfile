@@ -9,5 +9,5 @@
 FROM fnproject/fn-java-fdk:jre17-1.0.185
 WORKDIR /function
 #COPY --from=build-stage /function/target/*.jar /function/app/
-COPY ./target/m3mdsfunction-1.0-SNAPSHOT-jar-with-dependencies.jar /function/app/
-CMD ["org.traficinfo.m3m.dsfunction.DataSourceFunction::handleRequest"]
+COPY ./target/dsfunctions-1.0-SNAPSHOT-jar-with-dependencies.jar /function/app/
+CMD ["org.traficinfo.dsfunctions.m3m.DataSourceFunction::handleRequest"]

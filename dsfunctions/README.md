@@ -1,4 +1,4 @@
-The ds3mfunction downloads the csv and geojson files from
+The M3M function in the dsfunctions module downloads the csv and geojson files from
 
 and store them in a bucket named ds3mbucket
 
