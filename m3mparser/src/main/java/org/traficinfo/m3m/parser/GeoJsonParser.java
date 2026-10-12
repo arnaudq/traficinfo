@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.time.Year;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -46,8 +47,10 @@ public class GeoJsonParser {
 //    private static final Set<String> CITIES_FILTER = new HashSet<>(Arrays.asList("Montpellier"));
     private static final Set<String> CITIES_FILTER = new HashSet<>();
 
-    private static final Set<Integer> ANNEES_CSVFILTER = new HashSet<>(
-            Arrays.asList(2014,2015,2016,2017,2018,2019,2020,2021,2022,2023,2024));
+    /**
+     * Number of years to look back from the current year, including both endpoints.
+     */
+    private static final int NB_YEARS = 10;
     //private static Set<String> GID_CSVFILTER = new HashSet<>(Arrays.asList("4465"));
     private static final Set<String> GID_CSVFILTER = new HashSet<>();
 //    private static final Set<EnumSet<Comptage.Type>> COMPTAGE_TYPES_FILTERS = new HashSet<>(Arrays.asList(
@@ -92,8 +95,10 @@ public class GeoJsonParser {
 
     static FeatureCollection buildForType(final List<Feature> unfilteredFeatures, final List<? extends Comptage> comptages,
                                           final EnumSet<Comptage.Type> typeFilter) {
+        int currentYear = Year.now().getValue();
         Map<String, List<Comptage>> idToComptagesMap = comptages.stream()
-          .filter(comptage -> ANNEES_CSVFILTER.contains(comptage.getAnnee()))
+          .filter(comptage -> comptage.getAnnee() >= currentYear - NB_YEARS
+                  && comptage.getAnnee() <= currentYear)
           .filter(comptage -> GID_CSVFILTER.isEmpty() || GID_CSVFILTER.contains(comptage.getCodeCentrale()))
           .filter (comptage -> CITIES_FILTER.isEmpty() || CITIES_FILTER.contains(comptage.getCityName()))
           .filter(comptage -> typeFilter.contains(comptage.getType()))
