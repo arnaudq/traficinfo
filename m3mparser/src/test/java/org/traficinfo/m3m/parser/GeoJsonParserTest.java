@@ -58,7 +58,7 @@ public class GeoJsonParserTest extends ParserBaseTest {
         try (Reader csvReader = getReaderFromResource("M3MSample.csv");
              Reader geojsonReader = getReaderFromResource("M3MSample.json")) {
 
-            GeoJsonParser.parseAndMerge(csvReader, geojsonReader, writer);
+            GeoJsonParser.parseAndMerge(GeoJsonParser.DataSource.M3MV2, csvReader, geojsonReader, writer);
         }
 
         FeatureCollection featureCollection = GeoJsonParser.parseGeoJSON(new StringReader(writer.toString()));

@@ -14,7 +14,7 @@ import java.util.stream.Collectors;
 
 public class GeoJsonParser {
 
-    private enum DataSource {
+    public enum DataSource {
         M3MV2(new M3MComptageParser());
 
         private DataSource(ComptageParser parser) {
@@ -64,7 +64,7 @@ public class GeoJsonParser {
     private static final Logger LOG = LoggerFactory.getLogger(GeoJsonParser.class);
 
 
-    public static void parseAndMerge(Reader csvReader, Reader geojsonReader,
+    public static void parseAndMerge(DataSource dataSource, Reader csvReader, Reader geojsonReader,
                                      Writer geojsonMergedWriter) throws Exception {
 
         Properties idToVoiesProps = new Properties();
@@ -72,7 +72,7 @@ public class GeoJsonParser {
 //            idToVoiesProps.load(new InputStreamReader(fis, StandardCharsets.UTF_8));
 //        }
 
-        ComptageParser comptageParser = DataSource.M3MV2.getParser();
+        ComptageParser comptageParser = dataSource.getParser();
         List<? extends Comptage> comptages = comptageParser.parseComptages(csvReader, idToVoiesProps);
 //        writeComptagesIdAndVoie(comptages, new File(OUTDIR,
 //          String.format("idToVoies-%s.properties", TIMESTAMP)));
