@@ -1,4 +1,4 @@
-package org.traficinfo.m3m.parser;
+package org.traficinfo.parser;
 
 public class GeoJsonUmapOptions {
 

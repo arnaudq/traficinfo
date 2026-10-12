@@ -1,4 +1,7 @@
-package org.traficinfo.m3m.parser;
+package org.traficinfo.parser.m3m;
+
+import org.traficinfo.parser.Comptage;
+import org.traficinfo.parser.ParserBaseTest;
 
 import org.junit.Test;
 

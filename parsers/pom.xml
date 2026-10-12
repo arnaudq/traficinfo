@@ -11,7 +11,7 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>m3mparser</artifactId>
+    <artifactId>parsers</artifactId>
 
     <dependencies>
         <dependency>

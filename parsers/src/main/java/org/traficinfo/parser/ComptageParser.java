@@ -1,4 +1,4 @@
-package org.traficinfo.m3m.parser;
+package org.traficinfo.parser;
 
 import java.io.File;
 import java.io.IOException;

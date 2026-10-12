@@ -1,11 +1,11 @@
-package org.traficinfo.m3m.parser;
+package org.traficinfo.parser;
 
 import org.junit.Test;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 
-class ParserBaseTest {
+public class ParserBaseTest {
 
   protected Reader getReaderFromResource(String filename) throws IOException {
     InputStream inputStream = this.getClass().getResourceAsStream("/" + filename);

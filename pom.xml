@@ -69,7 +69,7 @@
 
     <modules>
 	    <module>m3mdsfunction</module>
-        <module>m3mparser</module>
+        <module>parsers</module>
     </modules>
 
 </project>
