@@ -15,6 +15,11 @@
 
     <dependencies>
         <dependency>
+            <groupId>org.traficinfo</groupId>
+            <artifactId>parsers</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
             <groupId>com.fnproject.fn</groupId>
             <artifactId>api</artifactId>
         </dependency>

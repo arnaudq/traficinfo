@@ -9,9 +9,11 @@ import com.oracle.bmc.objectstorage.ObjectStorage;
 import com.oracle.bmc.objectstorage.ObjectStorageClient;
 import com.oracle.bmc.objectstorage.model.RenameObjectDetails;
 import com.oracle.bmc.objectstorage.requests.HeadObjectRequest;
+import com.oracle.bmc.objectstorage.requests.GetObjectRequest;
 import com.oracle.bmc.objectstorage.requests.PutObjectRequest;
 import com.oracle.bmc.objectstorage.requests.RenameObjectRequest;
 import com.oracle.bmc.objectstorage.responses.HeadObjectResponse;
+import com.oracle.bmc.objectstorage.responses.GetObjectResponse;
 import com.oracle.bmc.objectstorage.responses.PutObjectResponse;
 import com.oracle.bmc.objectstorage.responses.RenameObjectResponse;
 import org.slf4j.Logger;
@@ -22,6 +24,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.zip.GZIPOutputStream;
+import java.util.zip.GZIPInputStream;
 
 /**
  * ObjectStore client.
@@ -68,6 +71,31 @@ public class ObjectStoreClient {
         this.client = client;
         this.namespaceName = namespace;
         this.bucketName = bucketName;
+    }
+
+    /**
+     * Downloads an object, decoding gzip content when present. The caller must close the stream.
+     */
+    public InputStream getResource(String resourceName) throws IOException {
+        GetObjectRequest request = GetObjectRequest.builder()
+                .namespaceName(namespaceName)
+                .bucketName(bucketName)
+                .objectName(resourceName).build();
+        GetObjectResponse response = client.getObject(request);
+        InputStream input = response.getInputStream();
+        if ("gzip".equalsIgnoreCase(response.getContentEncoding())) {
+            try {
+                return new GZIPInputStream(input);
+            } catch (IOException | RuntimeException failure) {
+                try {
+                    input.close();
+                } catch (IOException closeFailure) {
+                    failure.addSuppressed(closeFailure);
+                }
+                throw failure;
+            }
+        }
+        return input;
     }
 
     public void putResource(String resourceName, String contentType, OOSResourceMetadata metadata,

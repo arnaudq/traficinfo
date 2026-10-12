@@ -9,6 +9,20 @@ gzip content decoding (or explicitly decompress the downloaded body).
 Existing objects remain uncompressed until a changed source file is uploaded;
 the source ETag check still skips unchanged files.
 
+## GeoJSON output function
+
+`org.traficinfo.dsfunctions.m3m.GeoJsonOutFunction::handleRequest` reads
+`MMM_MMM_Comptage.csv` and `MMM_MMM_Comptage.json` from Object Storage and
+merges them with `GeoJsonParser.DataSource.M3MV2`. Configure `NAMESPACE`,
+`BUCKETNAME_IN`, and `BUCKETNAME_OUT` to select the namespace and input/output
+buckets. `USE_RESOURCE_PRINCIPAL` defaults to `true`, as in `DataSourceFunction`.
+
+The function supports both plain and gzip-compressed input objects and writes
+`MMM_TraficInfo.geojson` to the output bucket with content type
+`application/geo+json` and `Content-Encoding: gzip`. It returns `OK` on success
+or `KO` when downloading, parsing, or uploading fails. Build both modules from
+the repository root with `mvn -pl dsfunctions -am package`.
+
 ## Archive deployment (code-only function)
 
 From the repository root, run `./deploy-archive.sh`. It builds the Maven
