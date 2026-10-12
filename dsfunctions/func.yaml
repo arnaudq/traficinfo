@@ -1,6 +1,0 @@
-schema_version: 20180708
-name: 3mopendatasource
-version: 0.0.36
-runtime: docker
-cmd: org.traficinfo.dsfunctions.m3m.DataSourceFunction::handleRequest
-memory: 2048
