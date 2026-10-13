@@ -25,20 +25,30 @@ the repository root with `mvn -pl dsfunctions -am package`.
 
 ## Archive deployment (code-only function)
 
-From the repository root, run `./deploy-archive.sh`. It builds the Maven
-`jar-with-dependencies` artifact and uploads it directly to OCI Functions as
-`3MOpenDataSource` in the existing `3MOpenDataProcessor` application. It uses
+From the repository root, run `./deploy-functions.sh`. It builds the Maven
+`jar-with-dependencies` artifact once and uploads it directly to OCI Functions as
+`3MOpenDataSource` and `3MGeoJsonOut` in the existing `3MOpenDataProcessor` application. It uses
 the managed `java21.ol9` runtime, which can run this project's Java 17 bytecode.
-On later runs, the script updates the exact-name archive function.
+On later runs, the script updates each exact-name archive function with its own
+handler (`DataSourceFunction::handleRequest` or `GeoJsonOutFunction::handleRequest`).
 
 The script uses OCI CLI credentials (`OCI_CLI_CONFIG_FILE` and
 `OCI_CLI_PROFILE` if needed). It finds the application using
 `oracle.compartment-id` in the current Fn context configured by `setup.sh`.
 Alternatively, set `OCI_FN_APPLICATION_ID` to the application's OCID or
 `OCI_FN_COMPARTMENT_ID` to its compartment's OCID. On creation, the script
-queries the Object Storage namespace with `oci os ns get` and sets function
-configuration `NAMESPACE` and `BUCKETNAME` (`ds3mbucket`). Subsequent archive
-updates retain the existing function configuration.
+queries the Object Storage namespace with `oci os ns get`. `3MOpenDataSource`
+receives `NAMESPACE` and `BUCKETNAME`; `3MGeoJsonOut` receives `NAMESPACE`,
+`BUCKETNAME_IN`, and `BUCKETNAME_OUT`. The input bucket defaults to `ds3mbucket`
+and can be overridden with environment variable `BUCKETNAME_IN`. The output bucket
+defaults to the existing `traficinfo` bucket in the same compartment and can be
+overridden with `BUCKETNAME_OUT`. Subsequent archive updates retain existing function configuration;
+the bucket variables only apply when creating functions.
+
+To add another function, add a name, handler, and creation-config builder to the
+`functions` registry in the script, then define its config builder. The shared
+deployment flow validates every handler class before uploading and prepares
+all creation configs before modifying any function.
 
 The OCI CLI commands submit asynchronous create or update requests. The script
 captures the `opc-work-request-id` response header, polls that exact work
@@ -49,8 +59,9 @@ For example:
 
 ```sh
 export OCI_CLI_CONFIG_FILE="$HOME/.oci/config.arnaudq"
-./deploy-archive.sh
+./deploy-functions.sh
 fn invoke 3MOpenDataProcessor 3MOpenDataSource
+fn invoke 3MOpenDataProcessor 3MGeoJsonOut
 ```
 
 Direct uploads are limited to 25 MB; the script checks the JAR size before
