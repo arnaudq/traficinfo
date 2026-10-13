@@ -29,6 +29,39 @@ Use `./setup-buckets.sh --dry-run` to preview changes without submitting them.
 Enabling bucket events prepares `ds3mbucket` for an OCI Events rule; this script
 does not create the rule that invokes the GeoJSON function.
 
+## CSV events and GeoJSON generation
+
+After running `./setup-buckets.sh` and deploying the functions with
+`./deploy-functions.sh`, run `./setup-events.sh` to create or update the dedicated
+`3MComptageCsvToGeoJson` Events rule. It invokes `3MGeoJsonOut` in
+`3MOpenDataProcessor` for create and update events on exactly
+`ds3mbucket/MMM_MMM_Comptage.csv`. The condition also matches the selected
+compartment and Object Storage namespace. Archive objects, the companion JSON,
+and the output GeoJSON do not match.
+
+The script requires OCI CLI and `jq` and uses the same credentials, region,
+and `OCI_BUCKET_COMPARTMENT_ID` override as `setup-buckets.sh`. It requires the
+input bucket to exist with object events enabled, and resolves exactly one
+active application and function by their case-sensitive names. Credentials
+must have permission to manage Events rules and configure Functions actions;
+the function needs permission to read its inputs and write its output. See
+[Oracle's Events IAM policies](https://docs.oracle.com/en-us/iaas/Content/Events/Concepts/eventspolicy.htm).
+
+```sh
+./setup-events.sh --dry-run
+./setup-events.sh
+```
+
+Dry runs show the proposed filter and function action without submitting changes.
+Progress messages on stderr identify each discovery, validation, and apply step,
+including the wait for an active rule. Failures report the step that failed.
+Repeated runs skip an already configured rule. Updates reconcile the dedicated
+rule's complete filter and action list, preserving tags, description, and other
+rules. Duplicate rule names and concurrent edits cause an error. The script
+waits for the rule to become active and verifies the filter and enabled function
+action. Setup does not process the CSV already stored; the next matching object
+event triggers processing.
+
 ## Daily function schedule
 
 Run `./attach-daily-schedule.sh` to attach `3MOpenDataSource` in
