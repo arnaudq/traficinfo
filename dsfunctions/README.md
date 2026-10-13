@@ -9,6 +9,11 @@ gzip content decoding (or explicitly decompress the downloaded body).
 Existing objects remain uncompressed until a changed source file is uploaded;
 the source ETag check still skips unchanged files.
 
+The source function checks and publishes `MMM_MMM_Comptage.json` before
+`MMM_MMM_Comptage.csv`, so the companion JSON is ready when a CSV upload
+triggers downstream processing. A JSON download or upload failure stops the
+invocation before the CSV is published and is reported as a function failure.
+
 ## GeoJSON output function
 
 `org.traficinfo.dsfunctions.m3m.GeoJsonOutFunction::handleRequest` reads

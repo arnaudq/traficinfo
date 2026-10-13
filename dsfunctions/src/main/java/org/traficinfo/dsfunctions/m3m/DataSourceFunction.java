@@ -27,6 +27,11 @@ public class DataSourceFunction {
         LOG.info("DataSource3M Function booting");
     }
 
+    DataSourceFunction(HttpClient httpClient, ObjectStoreClient oosClient) {
+        this.httpClient = httpClient;
+        this.oosClient = oosClient;
+    }
+
     @FnConfiguration
     public void config(RuntimeContext ctx) {
         LOG.info("DataSource3M Function configuring using {}", ctx);
@@ -46,15 +51,16 @@ public class DataSourceFunction {
     public String handleRequest(String input) {
 
         try {
-            storeResource(URI.create("https://data.montpellier3m.fr/sites/default/files/ressources/MMM_MMM_Comptage.csv"),
-                    "MMM_MMM_Comptage.csv", "text/csv", "MMM_MMM_Comptage_%s.csv");
+            // Publishing the CSV triggers OCI Events. Prepare its companion first.
             storeResource(URI.create("https://data.montpellier3m.fr/sites/default/files/ressources/MMM_MMM_Comptage.json"),
                     "MMM_MMM_Comptage.json", "application/json", "MMM_MMM_Comptage_%s.json");
+            storeResource(URI.create("https://data.montpellier3m.fr/sites/default/files/ressources/MMM_MMM_Comptage.csv"),
+                    "MMM_MMM_Comptage.csv", "text/csv", "MMM_MMM_Comptage_%s.csv");
 
             return "OK";
         } catch (RuntimeException re) {
             LOG.warn("error while processing: {}", re.getMessage(), re);
-            return "KO";
+            throw re;
         }
     }
 
@@ -87,7 +93,7 @@ public class DataSourceFunction {
                 LOG.info("No change for file = {}", oosName);
             }
         } catch (IOException ioe) {
-            LOG.warn("failed to read {}", oosName, ioe);
+            throw new java.io.UncheckedIOException("Failed to publish " + oosName, ioe);
         }
     }
 }

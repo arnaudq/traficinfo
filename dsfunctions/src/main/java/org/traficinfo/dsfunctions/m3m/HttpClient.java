@@ -49,7 +49,7 @@ public class HttpClient {
         private final LocalDate lastModified;
         private final InputStream inputStream;
 
-        private EntityBody(String etag, Date lastModified, InputStream inputStream) {
+        EntityBody(String etag, Date lastModified, InputStream inputStream) {
             this.etag = etag;
             if (lastModified != null) {
                 this.lastModified = lastModified.toInstant().atZone(ZoneId.of("GMT")).toLocalDate();
