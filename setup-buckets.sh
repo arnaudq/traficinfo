@@ -42,11 +42,11 @@ fi
 # errors must not be interpreted as a missing bucket.
 buckets="$(oci os bucket list --compartment-id "$compartment_id" \
   --namespace-name "$namespace" --all)"
-names=(ds3mbucket traficinfo)
+names=(ds3mbucket traficinfo osminfo)
 states=()
 for name in "${names[@]}"; do
   case "$name" in
-    ds3mbucket|traficinfo) ;;
+    ds3mbucket|traficinfo|osminfo) ;;
     *) printf 'Unsupported bucket name: %s.\n' "$name" >&2; exit 1 ;;
   esac
   count="$(jq -er --arg name "$name" '[.data[] | select(.name == $name)] | length' <<< "$buckets")"
@@ -73,6 +73,7 @@ verify_bucket() {
     .data | ."compartment-id" == $compartment and .name == $name
     and (if $name == "ds3mbucket" then ."object-events-enabled" == true
          elif $name == "traficinfo" then ."public-access-type" == "ObjectReadWithoutList"
+         elif $name == "osminfo" then ."public-access-type" == "NoPublicAccess"
          else false end)
   ' <<< "$state" >/dev/null || {
     printf 'Bucket %s did not reach the requested configuration.\n' "$1" >&2
@@ -80,7 +81,7 @@ verify_bucket() {
   }
 }
 
-for index in 0 1; do
+for index in "${!names[@]}"; do
   name="${names[$index]}"
   state="${states[$index]}"
   options=()
@@ -92,6 +93,10 @@ for index in 0 1; do
     options=(--public-access-type ObjectReadWithoutList)
     desired='public object reads enabled (without listing)'
     satisfied='.data."public-access-type" == "ObjectReadWithoutList"'
+  elif [ "$name" = osminfo ]; then
+    options=(--public-access-type NoPublicAccess)
+    desired='private access enabled'
+    satisfied='.data."public-access-type" == "NoPublicAccess"'
   else
     printf 'Unsupported bucket name: %s.\n' "$name" >&2
     exit 1
