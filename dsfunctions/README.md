@@ -28,6 +28,60 @@ The function supports both plain and gzip-compressed input objects and writes
 or `KO` when downloading, parsing, or uploading fails. Build both modules from
 the repository root with `mvn -pl dsfunctions -am package`.
 
+### OpenStreetMap cache
+
+At the beginning of each invocation, the function loads the OSM way cache from
+bucket `osminfo`, object `MMM_OSMInfo.json`, in `NAMESPACE`. Override these defaults
+with function configuration keys `BUCKETNAME_OSM` and `OSM_CACHE_OBJECT`.
+The bucket must exist and the function must have permission to read and write
+its objects. A missing cache object starts an empty cache; other storage errors
+or invalid JSON return `KO` without overwriting the cache.
+
+`org.traficinfo.dsfunctions.OSMInfoProviderImpl` handles cache loading, refreshing,
+and persistence using `org.traficinfo.dsfunctions.OpenStreetMapClient` for OSM
+requests. The M3M `GeoJsonOutFunction` calls `loadCache()` before parsing and
+`refreshCache(waysToRefresh)` after publishing the GeoJSON. The cache map remains
+private to the implementation. Parsers use the
+`org.traficinfo.parser.OSMInfoProvider` interface, which exposes only
+`OSMWayInfo get(long wayId)`.
+
+The JSON object is keyed by OSM way ID. Each record contains `lastUpdated`, an
+ISO 8601 UTC timestamp of the successful fetch, and `tags`, all tag values
+returned by OSM. For example:
+
+```json
+{
+  "370743659": {
+    "lastUpdated": "2026-10-14T12:00:00Z",
+    "tags": {"maxspeed": "30", "highway": "residential"}
+  }
+}
+```
+
+`GeoJsonParser.parseAndMerge` accepts the provider and a `Set<Long>` of ways to
+refresh. It populates `Comptage.maximumSpeed` from the cached `maxspeed` tag and
+outputs it as the integer GeoJSON property `maximum_speed`. Numeric values
+(including an explicit `km/h` suffix) are used as km/h. Missing, nonnumeric,
+or unsupported values such as `none`, `walk`, and `50 mph` produce `-1`;
+their original tags remain in the cache.
+
+Missing entries and entries older than three calendar months are queued once
+per way. Stale speeds remain available for the current output. After generating
+and uploading the GeoJSON, the function makes at most ten sequential requests
+to `https://api.openstreetmap.org/api/0.6/way/{id}.json`, then uploads the updated
+cache as gzip JSON. Newly fetched tags affect the next invocation. Failed
+requests count toward the limit, leave existing entries unchanged, and do not
+fail the invocation. A cache upload failure returns `KO` even though the
+GeoJSON has already been published. Unprocessed ways are queued again on the
+next run; the cache is written only when at least one fetch succeeds.
+
+Each OSM request has a five-second timeout. Allow sufficient function runtime
+for ten requests plus Object Storage downloads and uploads when configuring
+deployment timeouts.
+
+OSM endpoint and tagging references: [API v0.6](https://wiki.openstreetmap.org/wiki/API_v0.6)
+and [maxspeed](https://wiki.openstreetmap.org/wiki/Key:maxspeed).
+
 ## Archive deployment (code-only function)
 
 From the repository root, run `./deploy-functions.sh`. It builds the Maven
@@ -41,19 +95,24 @@ The script uses OCI CLI credentials (`OCI_CLI_CONFIG_FILE` and
 `OCI_CLI_PROFILE` if needed). It finds the application using
 `oracle.compartment-id` in the current Fn context configured by `setup.sh`.
 Alternatively, set `OCI_FN_APPLICATION_ID` to the application's OCID or
-`OCI_FN_COMPARTMENT_ID` to its compartment's OCID. On creation, the script
+`OCI_FN_COMPARTMENT_ID` to its compartment's OCID. On each deployment, the script
 queries the Object Storage namespace with `oci os ns get`. `3MOpenDataSource`
 receives `NAMESPACE` and `BUCKETNAME`; `3MGeoJsonOut` receives `NAMESPACE`,
-`BUCKETNAME_IN`, and `BUCKETNAME_OUT`. The input bucket defaults to `ds3mbucket`
+`BUCKETNAME_IN`, `BUCKETNAME_OUT`, `BUCKETNAME_OSM`, and `OSM_CACHE_OBJECT`.
+The script requires `jq` to prepare function configuration.
+The input bucket defaults to `ds3mbucket`
 and can be overridden with environment variable `BUCKETNAME_IN`. The output bucket
 defaults to the existing `traficinfo` bucket in the same compartment and can be
-overridden with `BUCKETNAME_OUT`. Subsequent archive updates retain existing function configuration;
-the bucket variables only apply when creating functions.
+overridden with `BUCKETNAME_OUT`. The OSM bucket defaults to `osminfo` and its
+cache object to `MMM_OSMInfo.json`; override these with environment variables
+`BUCKETNAME_OSM` and `OSM_CACHE_OBJECT`. The script sets the full function
+configuration from these defaults and environment overrides on both creation
+and updates.
 
-To add another function, add a name, handler, and creation-config builder to the
+To add another function, add a name, handler, and config builder to the
 `functions` registry in the script, then define its config builder. The shared
 deployment flow validates every handler class before uploading and prepares
-all creation configs before modifying any function.
+all configs before modifying any function.
 
 The OCI CLI commands submit asynchronous create or update requests. The script
 captures the `opc-work-request-id` response header, polls that exact work

@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.time.Year;
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -68,6 +69,13 @@ public class GeoJsonParser {
 
     public static void parseAndMerge(DataSource dataSource, Reader csvReader, Reader geojsonReader,
                                      Writer geojsonMergedWriter) throws Exception {
+        parseAndMerge(dataSource, csvReader, geojsonReader, geojsonMergedWriter,
+                wayId -> null, new LinkedHashSet<>());
+    }
+
+    public static void parseAndMerge(DataSource dataSource, Reader csvReader, Reader geojsonReader,
+                                     Writer geojsonMergedWriter, OSMInfoProvider osmInfoProvider,
+                                     Set<Long> waysToRefresh) throws Exception {
 
         Properties idToVoiesProps = new Properties();
 //        try (FileInputStream fis = new FileInputStream(new File(DATADIR, "idToVoies.properties"))) {
@@ -76,6 +84,7 @@ public class GeoJsonParser {
 
         ComptageParser comptageParser = dataSource.getParser();
         List<? extends Comptage> comptages = comptageParser.parseComptages(csvReader, idToVoiesProps);
+        applyOsmInfo(comptages, osmInfoProvider, waysToRefresh, Instant.now());
 //        writeComptagesIdAndVoie(comptages, new File(OUTDIR,
 //          String.format("idToVoies-%s.properties", TIMESTAMP)));
 
@@ -92,6 +101,21 @@ public class GeoJsonParser {
             types.forEach(type -> typesStr.append(type.name()).append('_'));
             typesStr.deleteCharAt(typesStr.length() -1);
             new ObjectMapper().writeValue(geojsonMergedWriter, outCol);
+        }
+    }
+
+    static void applyOsmInfo(List<? extends Comptage> comptages, OSMInfoProvider osmInfoProvider,
+                             Set<Long> waysToRefresh, Instant now) {
+        for (Comptage comptage : comptages) {
+            Long wayId = comptage.getOsmWayId();
+            if (wayId == null || wayId <= 0) {
+                continue;
+            }
+            OSMWayInfo info = osmInfoProvider.get(wayId);
+            comptage.setMaximumSpeed(info == null ? -1 : info.getMaximumSpeed());
+            if (info == null || info.needsRefresh(now)) {
+                waysToRefresh.add(wayId);
+            }
         }
     }
 
@@ -234,6 +258,7 @@ public class GeoJsonParser {
         feature.setProperty("moyenne_pointe_matin", getValueWithDefault(comptage.getMoyenneHeureDePointeMatin()));
         feature.setProperty("moyenne_pointe_soir", getValueWithDefault(comptage.getMoyenneHeureDePointeSoir()));
         feature.setProperty("vitesse_pratiquee", getValueWithDefault(comptage.getVitessePratiquee()));
+        feature.setProperty("maximum_speed", comptage.getMaximumSpeed());
 
         feature.setProperty("moyenne_annuelle_history", buildHistory(comptages, nbComptageHist));
 

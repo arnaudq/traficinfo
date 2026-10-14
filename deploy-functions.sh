@@ -7,9 +7,11 @@ app_name=3MOpenDataProcessor
 runtime_name=java21.ol9
 input_bucket="${BUCKETNAME_IN:-ds3mbucket}"
 output_bucket="${BUCKETNAME_OUT:-traficinfo}"
+osm_bucket="${BUCKETNAME_OSM:-osminfo}"
+osm_cache_object="${OSM_CACHE_OBJECT:-MMM_OSMInfo.json}"
 jar_file="$root_dir/dsfunctions/target/dsfunctions-1.0-SNAPSHOT-jar-with-dependencies.jar"
 
-# Add functions here as name|handler|creation-config-builder. Deployment mechanics
+# Add functions here as name|handler|config-builder. Deployment mechanics
 # are shared; each builder supplies the configuration needed by its handler.
 functions=(
   '3MOpenDataSource|org.traficinfo.dsfunctions.m3m.DataSourceFunction::handleRequest|data_source_config'
@@ -95,8 +97,11 @@ data_source_config() {
 geojson_out_config() {
   validate_bucket_name "$input_bucket" BUCKETNAME_IN || return 1
   validate_bucket_name "$output_bucket" BUCKETNAME_OUT || return 1
-  printf '{"NAMESPACE":"%s","BUCKETNAME_IN":"%s","BUCKETNAME_OUT":"%s"}' \
-    "$1" "$input_bucket" "$output_bucket"
+  validate_bucket_name "$osm_bucket" BUCKETNAME_OSM || return 1
+  jq -cn --arg namespace "$1" --arg input "$input_bucket" --arg output "$output_bucket" \
+    --arg osm "$osm_bucket" --arg object "$osm_cache_object" \
+    '{NAMESPACE: $namespace, BUCKETNAME_IN: $input, BUCKETNAME_OUT: $output,
+      BUCKETNAME_OSM: $osm, OSM_CACHE_OBJECT: $object}'
 }
 
 create_archive_function() {
@@ -114,15 +119,16 @@ create_archive_function() {
 }
 
 update_archive_function() {
-  local function_id function_name handler
+  local function_id function_name handler config
   function_id="$1"
   function_name="$2"
   handler="$3"
+  config="$4"
   printf 'Updating archive function %s (%s)\n' "$function_name" "$function_id" >&2
   oci fn function update archive-function --function-id "$function_id" \
     --archive-file "$jar_file" --handler "$handler" \
     --runtime-config FUNCTION_UPDATE --functions-runtime-name "$runtime_name" \
-    --memory-in-mbs 2048 --force \
+    --memory-in-mbs 2048 --config "$config" --force \
     --query '"opc-work-request-id"' --raw-output
 }
 
@@ -160,19 +166,14 @@ main() {
   local application_id function_id work_request_id definition function_name handler config_builder namespace config
   local function_ids=() configs=()
   local index=0
+  command -v jq >/dev/null || { printf 'Install jq to prepare function configuration.\n' >&2; return 1; }
   application_id="$(resolve_application_id)"
-  # Prepare all creation configs before making changes, so missing configuration
-  # cannot leave a deployment partially applied. Existing configs are preserved.
+  namespace="$(object_storage_namespace)"
+  # Prepare all configs before making changes, for both creation and updates.
   for definition in "${functions[@]}"; do
     IFS='|' read -r function_name handler config_builder <<< "$definition"
     function_id="$(find_function_id "$application_id" "$function_name")"
-    config=''
-    if [[ "$function_id" != ocid1.fnfunc.* ]]; then
-      if [ -z "${namespace:-}" ]; then
-        namespace="$(object_storage_namespace)"
-      fi
-      config="$("$config_builder" "$namespace")"
-    fi
+    config="$("$config_builder" "$namespace")"
     function_ids+=("$function_id")
     configs+=("$config")
   done
@@ -182,7 +183,7 @@ main() {
     IFS='|' read -r function_name handler config_builder <<< "$definition"
     function_id="${function_ids[$index]}"
     if [[ "$function_id" == ocid1.fnfunc.* ]]; then
-      work_request_id="$(update_archive_function "$function_id" "$function_name" "$handler")"
+      work_request_id="$(update_archive_function "$function_id" "$function_name" "$handler" "${configs[$index]}")"
     else
       work_request_id="$(create_archive_function "$application_id" "$function_name" "$handler" "${configs[$index]}")"
     fi
