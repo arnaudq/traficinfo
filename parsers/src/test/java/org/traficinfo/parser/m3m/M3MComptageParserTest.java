@@ -26,6 +26,7 @@ public class M3MComptageParserTest extends ParserBaseTest {
     }
     assertEquals(1, comptages.size());
     Comptage c = comptages.get(0);
+    assertEquals(Long.valueOf(370743659L), c.getOsmWayId());
     assertEquals(2024, c.getAnnee());
     assertEquals(577, c.getMoyenneJourAnnuelle());
     assertEquals(0, c.getVitessePratiquee());

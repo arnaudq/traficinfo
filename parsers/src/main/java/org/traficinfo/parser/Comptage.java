@@ -1,6 +1,10 @@
 package org.traficinfo.parser;
 
 public interface Comptage {
+  Long getOsmWayId();
+
+  void setOsmWayId(Long osmWayId);
+
   /**
    * Street + City name.
    * @return street name or null if not provided (case for 202207 data set).
