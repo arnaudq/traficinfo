@@ -49,6 +49,10 @@ public interface Comptage {
 
   void setVitessePratiquee(int vitessePratiquee);
 
+  int getMaximumSpeed();
+
+  void setMaximumSpeed(int maximumSpeed);
+
   Type getType();
 
   void setType(Type type);
