@@ -4,9 +4,9 @@ Année: {annee}
 Moyenne jour annuelle: {moyenne_jour_annuelle}
 Moyenne heure de pointe matin: {moyenne_pointe_matin}
 Moyenne heure de pointe soir: {moyenne_pointe_soir}
-Limitation de vitesse: {maximum_speed}km/h
-Vitesse pratiquee (V85): {v85_speed}km/h
-Vitesse moyenne: {mean_speed}km/h
+Limitation de vitesse (km/h): {maximum_speed}
+Vitesse pratiquee V85 (km/h): {v85_speed}
+Vitesse moyenne (km/h): {mean_speed}
 
 Historique des moyennes: {moyenne_annuelle_history}
 
