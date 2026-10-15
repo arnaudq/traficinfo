@@ -257,7 +257,7 @@ public class GeoJsonParser {
         feature.setProperty("moyenne_jour_annuelle", comptage.getMoyenneJourAnnuelle());
         feature.setProperty("moyenne_pointe_matin", getValueWithDefault(comptage.getMoyenneHeureDePointeMatin()));
         feature.setProperty("moyenne_pointe_soir", getValueWithDefault(comptage.getMoyenneHeureDePointeSoir()));
-        feature.setProperty("vitesse_pratiquee", getValueWithDefault(comptage.getVitessePratiquee()));
+        feature.setProperty("v85_speed", getValueWithDefault(comptage.getV85Speed()));
         feature.setProperty("mean_speed", getValueWithDefault(comptage.getMeanSpeed()));
         feature.setProperty("maximum_speed", getValueWithDefault(comptage.getMaximumSpeed()));
 
@@ -295,8 +295,8 @@ public class GeoJsonParser {
             if (current.getAnnee() != top.getAnnee()) {
                 break;
             }
-            if (current.getVitessePratiquee() > top.getVitessePratiquee()) {
-                top.setVitessePratiquee(current.getVitessePratiquee());
+            if (current.getV85Speed() > top.getV85Speed()) {
+                top.setV85Speed(current.getV85Speed());
             }
         }
     }

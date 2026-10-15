@@ -45,9 +45,9 @@ public interface Comptage {
 
   void setMoyenneHeureDePointeSoir(String moyenneHeureDePointeSoir);
 
-  int getVitessePratiquee();
+  int getV85Speed();
 
-  void setVitessePratiquee(int vitessePratiquee);
+  void setV85Speed(int v85Speed);
 
   int getMeanSpeed();
 

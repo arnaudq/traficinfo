@@ -29,7 +29,7 @@ public class M3MComptageParserTest extends ParserBaseTest {
     assertEquals(Long.valueOf(370743659L), c.getOsmWayId());
     assertEquals(2024, c.getAnnee());
     assertEquals(577, c.getMoyenneJourAnnuelle());
-    assertEquals(0, c.getVitessePratiquee());
+    assertEquals(0, c.getV85Speed());
     assertEquals(0, c.getMeanSpeed());
     assertEquals(-1, c.getMaximumSpeed());
     assertEquals("Montpellier", c.getCityName());

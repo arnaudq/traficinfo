@@ -56,6 +56,8 @@ public class GeoJsonOutFunctionTest {
             assertEquals("100457", feature.get("properties").get("code_centrale").asText());
             assertEquals(577, feature.get("properties").get("moyenne_jour_annuelle").asInt());
             assertEquals("28", feature.get("properties").get("mean_speed").asText());
+            assertEquals("30", feature.get("properties").get("v85_speed").asText());
+            assertFalse(feature.get("properties").has("vitesse_pratiquee"));
             assertEquals("Rue de l'École - Montpellier", feature.get("properties").get("description").asText());
             stub.assertStreamsClosed();
         }

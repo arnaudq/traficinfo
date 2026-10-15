@@ -61,7 +61,7 @@ returned by OSM. For example:
 `GeoJsonParser.parseAndMerge` accepts the provider and a `Set<Long>` of ways to
 refresh. It populates `Comptage.maximumSpeed` from the cached `maxspeed` tag and
 outputs it as the GeoJSON property `maximum_speed`, formatted like
-`vitesse_pratiquee`: positive values as text and values ≤ 0 as `"-"`. Numeric values
+`v85_speed`: positive values as text and values ≤ 0 as `"-"`. Numeric values
 (including an explicit `km/h` suffix) are used as km/h. Missing, nonnumeric,
 or unsupported values such as `none`, `walk`, and `50 mph` produce `-1`;
 their original tags remain in the cache.
