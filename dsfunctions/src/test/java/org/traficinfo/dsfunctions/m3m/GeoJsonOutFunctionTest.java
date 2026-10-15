@@ -27,6 +27,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.LinkedHashMap;
+import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
@@ -130,27 +132,31 @@ public class GeoJsonOutFunctionTest {
     }
 
     @Test
-    public void limitsRequestsToTenAndLeavesRemainingWaysForLaterRuns() throws Exception {
+    public void limitsRequestsToOneHundredAndLeavesRemainingWaysForLaterRuns() throws Exception {
         StorageStub stub = new StorageStub(false);
-        stub.csv = csvWithWays(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 1);
+        long[] ids = LongStream.rangeClosed(1, 102).toArray();
+        long[] idsWithDuplicate = Arrays.copyOf(ids, ids.length + 1);
+        idsWithDuplicate[ids.length] = 1;
+        stub.csv = csvWithWays(idsWithDuplicate);
         assertEquals("OK", stub.function().handleRequest(""));
-        assertEquals(10, stub.osmRequests.size());
-        assertEquals(10, new ObjectMapper().readTree(stub.cache).size());
+        assertEquals(100, stub.osmRequests.size());
+        assertEquals(100, new ObjectMapper().readTree(stub.cache).size());
         assertEquals("OK", stub.function().handleRequest(""));
-        assertEquals(Arrays.asList(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L), stub.osmRequests);
+        assertEquals(LongStream.of(ids).boxed()
+                .collect(Collectors.toList()), stub.osmRequests);
     }
 
     @Test
     public void failedRequestsCountTowardLimitAndPreserveOldCache() throws Exception {
         StorageStub stub = new StorageStub(false);
-        stub.csv = csvWithWays(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11);
+        stub.csv = csvWithWays(LongStream.rangeClosed(1, 101).toArray());
         stub.cache = new ObjectMapper().writeValueAsBytes(Map.of(1L,
                 new OSMWayInfo(stub.now.atZone(ZoneOffset.UTC).minusMonths(4).toInstant(),
                         Map.of("maxspeed", "30"))));
         byte[] original = stub.cache.clone();
         stub.failOsm = true;
         assertEquals("OK", stub.function().handleRequest(""));
-        assertEquals(10, stub.osmRequests.size());
+        assertEquals(100, stub.osmRequests.size());
         assertEquals(0, stub.cacheUploads);
         assertArrayEquals(original, stub.cache);
     }

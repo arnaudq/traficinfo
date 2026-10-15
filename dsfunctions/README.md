@@ -68,7 +68,7 @@ their original tags remain in the cache.
 
 Missing entries and entries older than three calendar months are queued once
 per way. Stale speeds remain available for the current output. After generating
-and uploading the GeoJSON, the function makes at most ten sequential requests
+and uploading the GeoJSON, the function makes at most 100 sequential requests
 to `https://api.openstreetmap.org/api/0.6/way/{id}.json`, then uploads the updated
 cache as gzip JSON. Newly fetched tags affect the next invocation. Failed
 requests count toward the limit, leave existing entries unchanged, and do not
@@ -77,7 +77,7 @@ GeoJSON has already been published. Unprocessed ways are queued again on the
 next run; the cache is written only when at least one fetch succeeds.
 
 Each OSM request has a five-second timeout. Allow sufficient function runtime
-for ten requests plus Object Storage downloads and uploads when configuring
+for 100 requests plus Object Storage downloads and uploads when configuring
 deployment timeouts.
 
 OSM endpoint and tagging references: [API v0.6](https://wiki.openstreetmap.org/wiki/API_v0.6)

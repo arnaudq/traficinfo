@@ -21,7 +21,7 @@ import java.util.Set;
 /** Loads and refreshes OSM tags in Object Storage, with a bounded request budget. */
 public class OSMInfoProviderImpl implements OSMInfoProvider {
     private static final Logger LOG = LoggerFactory.getLogger(OSMInfoProviderImpl.class);
-    private static final int MAX_OSM_REQUESTS = 10;
+    private static final int MAX_OSM_REQUESTS = 100;
 
     private final ObjectStoreClient osmCacheClient;
     private final OpenStreetMapClient osmClient;
@@ -66,7 +66,7 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
         return cache.get(wayId);
     }
 
-    /** Refreshes up to ten queued ways and saves successful fetches, preserving failed entries. */
+    /** Refreshes up to 100 queued ways and saves successful fetches, preserving failed entries. */
     public void refreshCache(Set<Long> waysToRefresh)
             throws IOException, InterruptedException {
         LOG.info("OSM cache: {} entries need refresh", waysToRefresh.size());
