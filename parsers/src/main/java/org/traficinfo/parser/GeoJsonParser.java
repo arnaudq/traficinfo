@@ -258,6 +258,7 @@ public class GeoJsonParser {
         feature.setProperty("moyenne_pointe_matin", getValueWithDefault(comptage.getMoyenneHeureDePointeMatin()));
         feature.setProperty("moyenne_pointe_soir", getValueWithDefault(comptage.getMoyenneHeureDePointeSoir()));
         feature.setProperty("vitesse_pratiquee", getValueWithDefault(comptage.getVitessePratiquee()));
+        feature.setProperty("mean_spead", getValueWithDefault(comptage.getMeanSpead()));
         feature.setProperty("maximum_speed", getValueWithDefault(comptage.getMaximumSpeed()));
 
         feature.setProperty("moyenne_annuelle_history", buildHistory(comptages, nbComptageHist));

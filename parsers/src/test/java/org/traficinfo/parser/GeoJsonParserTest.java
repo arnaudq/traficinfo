@@ -54,6 +54,23 @@ public class GeoJsonParserTest extends ParserBaseTest {
     }
 
     @Test
+    public void testMeanSpeadFromCsvToGeoJson() throws Exception {
+        for (String value : Arrays.asList("35", "", "0", "-1")) {
+            String csv = "code_centrale,annee,type_compteur,mja_jo,vtma_tcj,hp_johvs_matin,hp_johvs_soir\n"
+                    + "100457," + Year.now().getValue() + ",compteur feux,500," + value + ",,\n";
+            StringWriter writer = new StringWriter();
+            try (Reader geojsonReader = getReaderFromResource("M3MSample.json")) {
+                GeoJsonParser.parseAndMerge(GeoJsonParser.DataSource.M3MV2,
+                        new StringReader(csv), geojsonReader, writer);
+            }
+            FeatureCollection result = GeoJsonParser.parseGeoJSON(new StringReader(writer.toString()));
+            assertEquals(1, result.getFeatures().size());
+            assertEquals("35".equals(value) ? "35" : "-",
+                    result.getFeatures().get(0).getProperty("mean_spead"));
+        }
+    }
+
+    @Test
     public void testParseAndMerge() throws Exception {
 
         StringWriter writer = new StringWriter();

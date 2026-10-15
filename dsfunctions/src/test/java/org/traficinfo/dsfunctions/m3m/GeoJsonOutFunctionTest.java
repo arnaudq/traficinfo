@@ -34,9 +34,9 @@ import static org.junit.Assert.*;
 
 public class GeoJsonOutFunctionTest {
     private static final String CSV = "code_centrale,name,nom_commune,annee,type_compteur,code_canal,"
-            + "mja_jo,hp_johvs_matin,hp_johvs_soir,v85ma_tcj\n"
+            + "mja_jo,hp_johvs_matin,hp_johvs_soir,v85ma_tcj,vtma_tcj\n"
             + "100457,Rue de l'École,Montpellier," + Year.now().getValue()
-            + ",compteur feux,1,577,72,43,30\n";
+            + ",compteur feux,1,577,72,43,30,28\n";
     private static final String GEOJSON = "{\"type\":\"FeatureCollection\",\"features\":["
             + "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[3.88,43.60]},"
             + "\"properties\":{\"code_centrale\":\"100457\"}}]}";
@@ -55,6 +55,7 @@ public class GeoJsonOutFunctionTest {
             assertEquals(3.88, feature.get("geometry").get("coordinates").get(0).asDouble(), 0.0001);
             assertEquals("100457", feature.get("properties").get("code_centrale").asText());
             assertEquals(577, feature.get("properties").get("moyenne_jour_annuelle").asInt());
+            assertEquals("28", feature.get("properties").get("mean_spead").asText());
             assertEquals("Rue de l'École - Montpellier", feature.get("properties").get("description").asText());
             stub.assertStreamsClosed();
         }
