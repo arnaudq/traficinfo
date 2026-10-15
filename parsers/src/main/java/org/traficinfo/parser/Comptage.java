@@ -49,9 +49,9 @@ public interface Comptage {
 
   void setVitessePratiquee(int vitessePratiquee);
 
-  int getMeanSpead();
+  int getMeanSpeed();
 
-  void setMeanSpead(int meanSpead);
+  void setMeanSpeed(int meanSpeed);
 
   int getMaximumSpeed();
 

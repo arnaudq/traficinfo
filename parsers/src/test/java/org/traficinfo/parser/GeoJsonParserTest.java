@@ -54,7 +54,7 @@ public class GeoJsonParserTest extends ParserBaseTest {
     }
 
     @Test
-    public void testMeanSpeadFromCsvToGeoJson() throws Exception {
+    public void testMeanSpeedFromCsvToGeoJson() throws Exception {
         for (String value : Arrays.asList("35", "", "0", "-1")) {
             String csv = "code_centrale,annee,type_compteur,mja_jo,vtma_tcj,hp_johvs_matin,hp_johvs_soir\n"
                     + "100457," + Year.now().getValue() + ",compteur feux,500," + value + ",,\n";
@@ -66,7 +66,7 @@ public class GeoJsonParserTest extends ParserBaseTest {
             FeatureCollection result = GeoJsonParser.parseGeoJSON(new StringReader(writer.toString()));
             assertEquals(1, result.getFeatures().size());
             assertEquals("35".equals(value) ? "35" : "-",
-                    result.getFeatures().get(0).getProperty("mean_spead"));
+                    result.getFeatures().get(0).getProperty("mean_speed"));
         }
     }
 
