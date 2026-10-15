@@ -94,7 +94,7 @@ public class GeoJsonOutFunctionTest {
         stub.csv = csvWithWays(1, 1);
         assertEquals("OK", stub.function().handleRequest(""));
         assertEquals(Arrays.asList(1L), stub.osmRequests);
-        assertEquals(-1, maximumSpeed(stub.output));
+        assertEquals("-", maximumSpeed(stub.output));
         assertEquals(1, stub.cacheUploads);
         JsonNode cache = new ObjectMapper().readTree(stub.cache);
         assertEquals(stub.now.toString(), cache.get("1").get("lastUpdated").asText());
@@ -103,7 +103,7 @@ public class GeoJsonOutFunctionTest {
         stub.assertStreamsClosed();
 
         assertEquals("OK", stub.function().handleRequest(""));
-        assertEquals(50, maximumSpeed(stub.output));
+        assertEquals("50", maximumSpeed(stub.output));
         assertEquals(1, stub.osmRequests.size());
         assertEquals(1, stub.cacheUploads);
         stub.assertStreamsClosed();
@@ -119,7 +119,7 @@ public class GeoJsonOutFunctionTest {
         cache.put(2L, new OSMWayInfo(stub.now, Map.of("maxspeed", "70")));
         stub.cache = new ObjectMapper().writeValueAsBytes(cache);
         assertEquals("OK", stub.function().handleRequest(""));
-        assertEquals(30, maximumSpeed(stub.output));
+        assertEquals("30", maximumSpeed(stub.output));
         assertEquals(Arrays.asList(1L), stub.osmRequests);
         JsonNode updated = new ObjectMapper().readTree(stub.cache);
         assertEquals("50", updated.get("1").get("tags").get("maxspeed").asText());
@@ -185,9 +185,9 @@ public class GeoJsonOutFunctionTest {
         return csv.toString();
     }
 
-    private static int maximumSpeed(byte[] output) throws IOException {
+    private static String maximumSpeed(byte[] output) throws IOException {
         return new ObjectMapper().readTree(output).get("features").get(0)
-                .get("properties").get("maximum_speed").asInt();
+                .get("properties").get("maximum_speed").asText();
     }
 
     private static class StorageStub {
