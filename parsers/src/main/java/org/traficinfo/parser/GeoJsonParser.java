@@ -188,23 +188,23 @@ public class GeoJsonParser {
 //            }
 //        };
 //        for (Map.Entry<String, List<Comptage>> anId : idToComptagesMap.entrySet()) {
-//            String nomVoie = "";
+//            String streetName = "";
 //            for (Comptage comptage : anId.getValue()) {
-//                if (comptage.getNomVoie() != null) {
-//                    nomVoie = comptage.getNomVoie();
+//                if (comptage.getStreetName() != null) {
+//                    streetName = comptage.getStreetName();
 //                    break;
 //                }
 //            }
-//            if (!nomVoie.isEmpty()) {
+//            if (!streetName.isEmpty()) {
 //                // check that values are consistent for a given id
 //                for (Comptage comptage : anId.getValue()) {
-//                    if (!nomVoie.equals(comptage.getNomVoie())) {
+//                    if (!streetName.equals(comptage.getStreetName())) {
 //                        System.err.printf("Mismatch in nom voie for %s: %s versus %s%n",
-//                          comptage.getCodeCentrale(), nomVoie, comptage.getNomVoie());
+//                          comptage.getCodeCentrale(), streetName, comptage.getStreetName());
 //                    }
 //                }
 //            }
-//            props.setProperty(anId.getKey(), nomVoie);
+//            props.setProperty(anId.getKey(), streetName);
 //        }
 //        props.store(new FileWriter(propertiesFile), null);
 //    }

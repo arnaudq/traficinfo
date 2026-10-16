@@ -60,7 +60,7 @@ public final class M3MComptageParser implements ComptageParser {
   static void setComptageVoieTypeAndDirection(final List<M3MComptage> comptages,
                                               Properties idToVoiesProps) {
     comptages.forEach(mmmComptage -> {
-      String streetName = mmmComptage.getNomVoie();
+      String streetName = mmmComptage.getStreetName();
       String cityName = mmmComptage.getCityName();
       String displayName = null;
       if (streetName != null && !streetName.isEmpty() && cityName != null && !cityName.isEmpty()) {
