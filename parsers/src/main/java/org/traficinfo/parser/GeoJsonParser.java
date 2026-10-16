@@ -255,11 +255,11 @@ public class GeoJsonParser {
 
         feature.setProperty("annee", comptage.getAnnee());
         feature.setProperty("moyenne_jour_annuelle", comptage.getMoyenneJourAnnuelle());
-        feature.setProperty("moyenne_pointe_matin", getValueWithDefault(comptage.getMoyenneHeureDePointeMatin()));
-        feature.setProperty("moyenne_pointe_soir", getValueWithDefault(comptage.getMoyenneHeureDePointeSoir()));
-        feature.setProperty("v85_speed", getValueWithDefault(comptage.getV85Speed()));
-        feature.setProperty("mean_speed", getValueWithDefault(comptage.getMeanSpeed()));
-        feature.setProperty("maximum_speed", getValueWithDefault(comptage.getMaximumSpeed()));
+        setPropertyIfPresent(feature, "moyenne_pointe_matin", comptage.getMoyenneHeureDePointeMatin());
+        setPropertyIfPresent(feature, "moyenne_pointe_soir", comptage.getMoyenneHeureDePointeSoir());
+        setPropertyIfPresent(feature, "v85_speed", comptage.getV85Speed());
+        setPropertyIfPresent(feature, "mean_speed", comptage.getMeanSpeed());
+        setPropertyIfPresent(feature, "maximum_speed", comptage.getMaximumSpeed());
 
         feature.setProperty("moyenne_annuelle_history", buildHistory(comptages, nbComptageHist));
 
@@ -316,11 +316,15 @@ public class GeoJsonParser {
         return builder.toString();
     }
 
-    private static final String getValueWithDefault(final int value) {
-        return value > 0 ? Integer.toString(value) : "-";
+    private static void setPropertyIfPresent(Feature feature, String property, int value) {
+        if (value > 0) {
+            feature.setProperty(property, Integer.toString(value));
+        }
     }
 
-    private static final String getValueWithDefault(final String value) {
-        return value.isEmpty() ? "-" : value;
+    private static void setPropertyIfPresent(Feature feature, String property, String value) {
+        if (value != null && !value.isEmpty()) {
+            feature.setProperty(property, value);
+        }
     }
 }

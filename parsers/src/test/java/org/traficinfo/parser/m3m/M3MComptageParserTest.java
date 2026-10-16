@@ -14,6 +14,23 @@ import static org.junit.Assert.assertEquals;
 public class M3MComptageParserTest extends ParserBaseTest {
 
   @Test
+  public void testEmptyCsvValuesUseBeanDefaults() throws Exception {
+    String csv = "code_centrale,type_compteur,vtma_tcj,v85ma_tcj,hp_johvs_matin,hp_johvs_soir\n"
+        + "100457,compteur feux,,,,\n";
+
+    List<? extends Comptage> comptages = new M3MComptageParser()
+        .parseComptages(new StringReader(csv));
+
+    assertEquals(1, comptages.size());
+    Comptage comptage = comptages.get(0);
+    assertEquals(0, comptage.getMeanSpeed());
+    assertEquals(0, comptage.getV85Speed());
+    assertEquals("", comptage.getMoyenneHeureDePointeMatin());
+    assertEquals("", comptage.getMoyenneHeureDePointeSoir());
+    assertEquals(-1, comptage.getMaximumSpeed());
+  }
+
+  @Test
   public void testParse() throws Exception {
 
     M3MComptageParser parser = new M3MComptageParser();
