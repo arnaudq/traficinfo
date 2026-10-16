@@ -24,7 +24,7 @@ All UI paths start in **Edit mode**:
 | Name field | `L.fields[1]` | `name`: **Short text** (`String`) | **Manage Fields → `name` → Field Type → Short text** |
 | Description field | `L.fields[2]` | `description`: **Text** (`Text`) | **Manage Fields → `description` → Field Type → Text** |
 | Year field | `L.fields[3]` | `annee`: **Short text** (`String`) | **Manage Fields → `annee` → Field Type → Short text** |
-| Annual daily average field | `L.fields[4]` | `moyenne_jour_annuelle`: **Short text** (`String`) | **Manage Fields → `moyenne_jour_annuelle` → Field Type → Short text** |
+| Annual daily average field | `L.fields[4]` | `moyenne_jour_annuelle`: **Number** | **Manage Fields → `moyenne_jour_annuelle` → Field Type → Number** |
 | Morning peak field | `L.fields[5]` | `moyenne_pointe_matin`: **Short text** (`String`) | **Manage Fields → `moyenne_pointe_matin` → Field Type → Short text** |
 | Evening peak field | `L.fields[6]` | `moyenne_pointe_soir`: **Short text** (`String`) | **Manage Fields → `moyenne_pointe_soir` → Field Type → Short text** |
 | Legacy speed field | `L.fields[7]` | `vitesse_pratiquee`: **Short text** (`String`) | **Manage Fields → `vitesse_pratiquee` → Field Type → Short text** |
@@ -35,5 +35,6 @@ All UI paths start in **Edit mode**:
 | Year filter | `L.filters[0]` | Field: `annee`; widget: **Multiple choices** | **Manage filters → Add filter → Filter on: `annee` → Widget: Multiple choices** |
 | V85 filter | `L.filters[1]` | Field: `v85_speed`; widget: **Min/Max**; label: **Vitesse pratiquée (V85)** | **Manage filters → Add filter → Filter on: `v85_speed` → Widget: Min/Max → enter label** |
 | Speed-limit filter | `L.filters[2]` | Field: `maximum_speed`; widget: **Multiple choices**; label: **Limitation de vitesse** | **Manage filters → Add filter → Filter on: `maximum_speed` → Widget: Multiple choices → enter label** |
+| Annual daily average filter | `L.filters[]` (entry with `fieldKey: moyenne_jour_annuelle`) | Field: `moyenne_jour_annuelle`; widget: **Min/Max** | **Manage filters → Add filter → Filter on: `moyenne_jour_annuelle` → Widget: Min/Max** |
 
 Save the map after changing its settings. Field and filter array indices may change; use the field names to identify entries if their order changes.
