@@ -7,26 +7,7 @@ public class GeoJsonUmapOptions {
     Green,
     Red;
   }
-  private boolean showLabel;
-  private boolean labelInteractive;
   private Color color;
-
-  public boolean isShowLabel() {
-    return showLabel;
-  }
-
-  public void setShowLabel(boolean showLabel) {
-    this.showLabel = showLabel;
-  }
-
-
-  public boolean isLabelInteractive() {
-    return labelInteractive;
-  }
-
-  public void setLabelInteractive(boolean labelInteractive) {
-    this.labelInteractive = labelInteractive;
-  }
 
   public Color getColor() {
     return color;
@@ -39,9 +20,7 @@ public class GeoJsonUmapOptions {
   @Override
   public String toString() {
     return "GeoJsonUmapOptions{" +
-      "showLabel=" + showLabel +
-      ", labelInteractive=" + labelInteractive +
-      ", color=" + color +
+      "color=" + color +
       '}';
   }
 }

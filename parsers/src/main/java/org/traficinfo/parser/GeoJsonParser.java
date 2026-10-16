@@ -264,8 +264,6 @@ public class GeoJsonParser {
         feature.setProperty("moyenne_annuelle_history", buildHistory(comptages, nbComptageHist));
 
         GeoJsonUmapOptions umapOptions = new GeoJsonUmapOptions();
-        umapOptions.setShowLabel(true);
-        umapOptions.setLabelInteractive(true);
         if (comptage.getMoyenneJourAnnuelle() <= 1000) {
             umapOptions.setColor(GeoJsonUmapOptions.Color.Green);
         } else if (comptage.getMoyenneJourAnnuelle() <= 5000) {

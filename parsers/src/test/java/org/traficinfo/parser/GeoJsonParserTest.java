@@ -123,5 +123,10 @@ public class GeoJsonParserTest extends ParserBaseTest {
         assertEquals(1, featureList.size());
         Feature feature = featureList.get(0);
         assertEquals("100457", feature.getProperty("code_centrale"));
+        com.fasterxml.jackson.databind.JsonNode options = new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(writer.toString()).get("features").get(0).get("properties").get("_umap_options");
+        assertFalse(options.has("showLabel"));
+        assertFalse(options.has("labelInteractive"));
+        assertEquals("Green", options.get("color").asText());
     }
 }
