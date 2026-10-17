@@ -5,8 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oracle.bmc.model.BmcException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.traficinfo.dsfunctions.m3m.ObjectStoreClient;
-import org.traficinfo.dsfunctions.m3m.OOSResourceMetadata;
+import org.traficinfo.dsfunctions.ObjectStoreClient;
+import org.traficinfo.dsfunctions.OOSResourceMetadata;
 import org.traficinfo.parsers.OSMWayInfo;
 import org.traficinfo.parsers.OSMInfoProvider;
 

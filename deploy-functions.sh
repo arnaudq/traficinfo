@@ -6,6 +6,7 @@ root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 app_name=3MOpenDataProcessor
 runtime_name=java21.ol9
 input_bucket="${BUCKETNAME_IN:-ds3mbucket}"
+dpt34_input_bucket="${BUCKETNAME_DPT34:-dsdpt34}"
 output_bucket="${BUCKETNAME_OUT:-traficinfo}"
 osm_bucket="${BUCKETNAME_OSM:-osminfo}"
 osm_cache_object="${OSM_CACHE_OBJECT:-MMM_OSMInfo.json}"
@@ -15,6 +16,7 @@ jar_file="$root_dir/dsfunctions/target/dsfunctions-1.0-SNAPSHOT-jar-with-depende
 # are shared; each builder supplies the configuration needed by its handler.
 functions=(
   '3MOpenDataSource|org.traficinfo.dsfunctions.m3m.DataSourceFunction::handleRequest|data_source_config'
+  'DPT34OpenDataSource|org.traficinfo.dsfunctions.dpt34.DataSourceFunction::handleRequest|dpt34_data_source_config'
   '3MGeoJsonOut|org.traficinfo.dsfunctions.m3m.GeoJsonOutFunction::handleRequest|geojson_out_config'
 )
 
@@ -92,6 +94,11 @@ validate_bucket_name() {
 data_source_config() {
   validate_bucket_name "$input_bucket" BUCKETNAME_IN || return 1
   printf '{"NAMESPACE":"%s","BUCKETNAME":"%s"}' "$1" "$input_bucket"
+}
+
+dpt34_data_source_config() {
+  validate_bucket_name "$dpt34_input_bucket" BUCKETNAME_DPT34 || return 1
+  printf '{"NAMESPACE":"%s","BUCKETNAME":"%s"}' "$1" "$dpt34_input_bucket"
 }
 
 geojson_out_config() {

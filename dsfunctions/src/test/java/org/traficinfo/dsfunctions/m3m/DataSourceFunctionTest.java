@@ -1,5 +1,9 @@
 package org.traficinfo.dsfunctions.m3m;
 
+import org.traficinfo.dsfunctions.HttpClient;
+import org.traficinfo.dsfunctions.ObjectStoreClient;
+import org.traficinfo.dsfunctions.OOSResourceMetadata;
+
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;

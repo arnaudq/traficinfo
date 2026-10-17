@@ -1,4 +1,4 @@
-package org.traficinfo.dsfunctions.m3m;
+package org.traficinfo.dsfunctions;
 
 import com.oracle.bmc.ConfigFileReader;
 import com.oracle.bmc.auth.BasicAuthenticationDetailsProvider;
@@ -67,7 +67,7 @@ public class ObjectStoreClient {
         this.bucketName = bucketName;
     }
 
-    ObjectStoreClient(ObjectStorage client, String namespace, String bucketName) {
+    public ObjectStoreClient(ObjectStorage client, String namespace, String bucketName) {
         this.client = client;
         this.namespaceName = namespace;
         this.bucketName = bucketName;
@@ -101,7 +101,7 @@ public class ObjectStoreClient {
     public void putResource(String resourceName, String contentType, OOSResourceMetadata metadata,
                               InputStream inputStream) throws IOException {
         // Stage compressed bytes on disk to avoid buffering an entire dataset in memory.
-        Path compressedFile = Files.createTempFile("m3mds-", ".gz");
+        Path compressedFile = Files.createTempFile("traficinfo-", ".gz");
         try {
             try (GZIPOutputStream gzip = new GZIPOutputStream(Files.newOutputStream(compressedFile))) {
                 inputStream.transferTo(gzip);

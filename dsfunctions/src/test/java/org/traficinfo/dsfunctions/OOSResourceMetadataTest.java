@@ -1,4 +1,4 @@
-package org.traficinfo.dsfunctions.m3m;
+package org.traficinfo.dsfunctions;
 
 import org.junit.Test;
 
@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 
 public class OOSResourceMetadataTest {
@@ -40,6 +41,9 @@ public class OOSResourceMetadataTest {
         assertEquals("12", metadata.getMetadata().get(OOSResourceMetadata.OOS_RESOURCE_METADATA_CURRENT_ETAG));
         assertEquals("\"12\"", metadata.getETag());
 
+        metadata.setETag(null);
+        assertNull(metadata.getETag());
+        assertFalse(metadata.getMetadata().containsKey(OOSResourceMetadata.OOS_RESOURCE_METADATA_CURRENT_ETAG));
     }
 
     @Test

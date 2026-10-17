@@ -1,5 +1,8 @@
 package org.traficinfo.dsfunctions.m3m;
 
+import org.traficinfo.dsfunctions.ObjectStoreClient;
+import org.traficinfo.dsfunctions.OOSResourceMetadata;
+
 import com.fnproject.fn.api.FnConfiguration;
 import com.fnproject.fn.api.RuntimeContext;
 import org.slf4j.Logger;

@@ -1,5 +1,7 @@
 package org.traficinfo.dsfunctions.m3m;
 
+import org.traficinfo.dsfunctions.ObjectStoreClient;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oracle.bmc.objectstorage.ObjectStorage;

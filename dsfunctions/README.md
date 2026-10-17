@@ -14,6 +14,45 @@ The source function checks and publishes `MMM_MMM_Comptage.json` before
 triggers downstream processing. A JSON download or upload failure stops the
 invocation before the CSV is published and is reported as a function failure.
 
+## Shared infrastructure
+
+`org.traficinfo.dsfunctions.HttpClient`, `ObjectStoreClient` and
+`OOSResourceMetadata` are shared by the M3M and DPT34 source functions.
+The HTTP client supports optional ETag and Last-Modified headers, sends
+`If-None-Match` only when given an ETag, and returns no body for HTTP 304.
+Responses and body streams are released when the returned `EntityBody` is closed.
+Missing ETags are omitted from object metadata.
+
+## DPT34 data source function
+
+`org.traficinfo.dsfunctions.dpt34.DataSourceFunction::handleRequest` downloads
+the Hérault [CSV export](https://www.herault-data.fr/api/explore/v2.1/catalog/datasets/trafic-de-l-herault-donnees-de-comptage/exports/csv?use_labels=true&delimiter=%3B).
+Configure `NAMESPACE`; `BUCKETNAME` defaults to `dsdpt34`, and
+`USE_RESOURCE_PRINCIPAL` defaults to `true`.
+
+The endpoint supplies no ETag or Last-Modified header. Each invocation downloads
+the full CSV to a temporary file, calculates SHA-256 over its uncompressed
+bytes, and compares it with the current object's `content-sha256` user metadata.
+If identical, it returns `OK` without uploading anything. A change of row order
+or formatting also changes the hash.
+
+On first download or changed content, the function uploads
+`DPT34_Comptage.csv` with content type `text/csv`, gzip encoding,
+`content-sha256` and a `downloaded-at` UTC timestamp in user metadata.
+When replacing an existing CSV, it first copies the previous content and metadata
+to `DPT34_Comptage_<previous-sha256>.csv`. Existing objects without a valid hash
+use a UUID archive suffix instead. Copying preserves the current object until
+the replacement upload succeeds. A failed archive prevents replacement.
+
+Download, storage and empty-response failures fail the invocation. Temporary
+files are deleted on success and failure. No companion GeoJSON file is downloaded:
+the DPT34 parser supplies geometry from the CSV coordinates.
+
+The source bucket's object events cover archive uploads as well as current
+uploads; downstream event rules should match the exact current object name.
+`deploy-functions.sh` registers this handler as `DPT34OpenDataSource`.
+Its bucket defaults to `dsdpt34`; override it with `BUCKETNAME_DPT34`.
+
 ## GeoJSON output function
 
 `org.traficinfo.dsfunctions.m3m.GeoJsonOutFunction::handleRequest` reads
@@ -87,7 +126,7 @@ and [maxspeed](https://wiki.openstreetmap.org/wiki/Key:maxspeed).
 
 From the repository root, run `./deploy-functions.sh`. It builds the Maven
 `jar-with-dependencies` artifact once and uploads it directly to OCI Functions as
-`3MOpenDataSource` and `3MGeoJsonOut` in the existing `3MOpenDataProcessor` application. It uses
+`3MOpenDataSource`, `DPT34OpenDataSource` and `3MGeoJsonOut` in the existing `3MOpenDataProcessor` application. It uses
 the managed `java21.ol9` runtime, which can run this project's Java 17 bytecode.
 On later runs, the script updates each exact-name archive function with its own
 handler (`DataSourceFunction::handleRequest` or `GeoJsonOutFunction::handleRequest`).
@@ -97,7 +136,7 @@ The script uses OCI CLI credentials (`OCI_CLI_CONFIG_FILE` and
 `oracle.compartment-id` in the current Fn context configured by `setup.sh`.
 Alternatively, set `OCI_FN_APPLICATION_ID` to the application's OCID or
 `OCI_FN_COMPARTMENT_ID` to its compartment's OCID. On each deployment, the script
-queries the Object Storage namespace with `oci os ns get`. `3MOpenDataSource`
+queries the Object Storage namespace with `oci os ns get`. `3MOpenDataSource` and `DPT34OpenDataSource`
 receives `NAMESPACE` and `BUCKETNAME`; `3MGeoJsonOut` receives `NAMESPACE`,
 `BUCKETNAME_IN`, `BUCKETNAME_OUT`, `BUCKETNAME_OSM`, and `OSM_CACHE_OBJECT`.
 The script requires `jq` to prepare function configuration.
@@ -128,6 +167,24 @@ export OCI_CLI_CONFIG_FILE="$HOME/.oci/config.arnaudq"
 fn invoke 3MOpenDataProcessor 3MOpenDataSource
 fn invoke 3MOpenDataProcessor 3MGeoJsonOut
 ```
+
+To invoke a deployed function using OCI CLI:
+
+```sh
+./invoke.sh ds 3M
+./invoke.sh geojson 3M
+./invoke.sh ds DPT34
+./invoke.sh geojson DPT34
+```
+
+`invoke.sh` accepts exactly two arguments: `ds|geojson` and `3M|DPT34`.
+It resolves `<source>OpenDataSource` or `<source>GeoJsonOut` in
+`3MOpenDataProcessor`, invokes synchronously with an empty body, and prints the
+function response to standard output. OCI errors propagate as a failing exit code.
+Application lookup uses `OCI_FN_APPLICATION_ID`, `OCI_FN_COMPARTMENT_ID`,
+or the current Fn context, as in the deployment script.
+`DPT34GeoJsonOut` still needs implementation and deployment; invoking a function
+that does not exist reports its name and exits without invoking anything.
 
 Direct uploads are limited to 25 MB; the script checks the JAR size before
 uploading. OCI's exact-name function lookup is case sensitive, so use the

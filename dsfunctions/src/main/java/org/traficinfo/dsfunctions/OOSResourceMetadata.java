@@ -1,4 +1,4 @@
-package org.traficinfo.dsfunctions.m3m;
+package org.traficinfo.dsfunctions;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -44,6 +44,10 @@ public class OOSResourceMetadata {
      * @param rawETag - can be null.
      */
     public void setETag(String rawETag) {
+        if (rawETag == null) {
+            metadata.remove(OOS_RESOURCE_METADATA_CURRENT_ETAG);
+            return;
+        }
         String metadataETag = rawETag;
         if (rawETag != null) {
             Matcher m = ETAG_PATTERN.matcher(rawETag);

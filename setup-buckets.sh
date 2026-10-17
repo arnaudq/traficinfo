@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Create or reconcile the Object Storage buckets used by the 3M functions.
+# Create or reconcile the Object Storage buckets used by the traffic functions.
 set -euo pipefail
 
 dry_run=false
@@ -42,11 +42,11 @@ fi
 # errors must not be interpreted as a missing bucket.
 buckets="$(oci os bucket list --compartment-id "$compartment_id" \
   --namespace-name "$namespace" --all)"
-names=(ds3mbucket traficinfo osminfo)
+names=(ds3mbucket dsdpt34 traficinfo osminfo)
 states=()
 for name in "${names[@]}"; do
   case "$name" in
-    ds3mbucket|traficinfo|osminfo) ;;
+    ds3mbucket|dsdpt34|traficinfo|osminfo) ;;
     *) printf 'Unsupported bucket name: %s.\n' "$name" >&2; exit 1 ;;
   esac
   count="$(jq -er --arg name "$name" '[.data[] | select(.name == $name)] | length' <<< "$buckets")"
@@ -71,7 +71,7 @@ verify_bucket() {
   state="$(oci os bucket get --namespace-name "$namespace" --name "$1")"
   jq -e --arg compartment "$compartment_id" --arg name "$1" '
     .data | ."compartment-id" == $compartment and .name == $name
-    and (if $name == "ds3mbucket" then ."object-events-enabled" == true
+    and (if ($name == "ds3mbucket" or $name == "dsdpt34") then ."object-events-enabled" == true
          elif $name == "traficinfo" then ."public-access-type" == "ObjectReadWithoutList"
          elif $name == "osminfo" then ."public-access-type" == "NoPublicAccess"
          else false end)
@@ -85,7 +85,7 @@ for index in "${!names[@]}"; do
   name="${names[$index]}"
   state="${states[$index]}"
   options=()
-  if [ "$name" = ds3mbucket ]; then
+  if [ "$name" = ds3mbucket ] || [ "$name" = dsdpt34 ]; then
     options=(--object-events-enabled true)
     desired='object events enabled'
     satisfied='.data."object-events-enabled" == true'
