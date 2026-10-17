@@ -57,7 +57,7 @@ named commune.
 | `Commune` | `cityName`. |
 | `route_id` | `routeId`, for example `34D0011`. |
 | `Type de compteur` | `typeCompteur`; observed codes are `Per` (95 counters), `Tou` (147), and `CuP` (3). |
-| `Sens de la route` | `sensRoute`; all records in this snapshot have code 3. The parser interprets 3 as combined directions, setting `bidirectionnelle` and `libelleGroupage = "Sens cumulés"`. |
+| `Sens de la route` | `sensRoute`; all records in this snapshot have code 3. The parser interprets 3 as combined directions, setting `bidirectionnelle`. |
 | `Latitude`, `Longitude` | Nullable decimal coordinates, retained without rounding. |
 | `mja_tv_tcj` | `mjaTvTcj`: annual daily average, all vehicles and all day types. Exposed through `getMoyenneJourAnnuelle()`. |
 

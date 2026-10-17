@@ -48,7 +48,6 @@ public class DPT34ComptageParserTest extends ParserBaseTest {
     for (DPT34Comptage row : rows) {
       assertEquals(Comptage.Type.VEHICULES, row.getType());
       assertTrue(row.isBidirectionnelle());
-      assertEquals("Sens cumulés", row.getLibelleGroupage());
       assertNull(row.getOsmWayId());
       assertNull(row.getMoyenneHeureDePointeMatin());
       assertNull(row.getMoyenneHeureDePointeSoir());
@@ -82,7 +81,6 @@ public class DPT34ComptageParserTest extends ParserBaseTest {
     DPT34Comptage missing = rows.get(0);
     assertEquals("Section - Commune", missing.getDisplayName());
     assertFalse(missing.isBidirectionnelle());
-    assertEquals("Sens 1", missing.getLibelleGroupage());
     assertNull(missing.getLatitude());
     assertNull(missing.getLongitude());
     assertNull(missing.getMjaTvTcj());

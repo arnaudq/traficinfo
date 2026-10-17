@@ -45,8 +45,6 @@ public class DPT34Comptage implements Comptage {
   @CsvBindByName(column = "mja_tv_tcj")
   private Integer mjaTvTcj;
 
-  private String libelleGroupage;
-
   private String moyenneHeureDePointeMatin;
 
   private String moyenneHeureDePointeSoir;
@@ -176,16 +174,6 @@ public class DPT34Comptage implements Comptage {
   }
 
   @Override
-  public String getLibelleGroupage() {
-    return libelleGroupage;
-  }
-
-  @Override
-  public void setLibelleGroupage(String libelleGroupage) {
-    this.libelleGroupage = libelleGroupage;
-  }
-
-  @Override
   public String getMoyenneHeureDePointeMatin() {
     return moyenneHeureDePointeMatin;
   }
@@ -294,7 +282,6 @@ public class DPT34Comptage implements Comptage {
         && Objects.equals(latitude, that.latitude)
         && Objects.equals(longitude, that.longitude)
         && Objects.equals(mjaTvTcj, that.mjaTvTcj)
-        && Objects.equals(libelleGroupage, that.libelleGroupage)
         && Objects.equals(moyenneHeureDePointeMatin, that.moyenneHeureDePointeMatin)
         && Objects.equals(moyenneHeureDePointeSoir, that.moyenneHeureDePointeSoir)
         && v85Speed == that.v85Speed
@@ -307,7 +294,7 @@ public class DPT34Comptage implements Comptage {
 
   @Override
   public int hashCode() {
-    return Objects.hash(osmWayId, siteId, codeCentrale, streetName, altStreetName, cityName, routeId, annee, typeCompteur, sensRoute, latitude, longitude, mjaTvTcj, libelleGroupage, moyenneHeureDePointeMatin, moyenneHeureDePointeSoir, v85Speed, meanSpeed, maximumSpeed, displayName, bidirectionnelle, type);
+    return Objects.hash(osmWayId, siteId, codeCentrale, streetName, altStreetName, cityName, routeId, annee, typeCompteur, sensRoute, latitude, longitude, mjaTvTcj, moyenneHeureDePointeMatin, moyenneHeureDePointeSoir, v85Speed, meanSpeed, maximumSpeed, displayName, bidirectionnelle, type);
   }
 
   @Override

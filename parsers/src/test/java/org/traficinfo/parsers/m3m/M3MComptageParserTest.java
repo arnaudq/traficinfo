@@ -52,7 +52,6 @@ public class M3MComptageParserTest extends ParserBaseTest {
     assertEquals("Montpellier", c.getCityName());
     assertEquals("100457", c.getCodeCentrale());
     assertEquals("Boulevard de Strasbourg - Montpellier", c.getDisplayName());
-    assertEquals("Palavas_Comte Melgueil", c.getLibelleGroupage());
     assertEquals("72 (8h00 - 9h00)", c.getMoyenneHeureDePointeMatin());
     assertEquals("43 (17h00 - 18h00)", c.getMoyenneHeureDePointeSoir());
     assertEquals(Comptage.Type.VEHICULES, c.getType());

@@ -33,9 +33,6 @@ public class M3MComptage implements Comptage {
   @CsvBindByName(column="type_comptage")
   private String typeComptage;
 
-  @CsvBindByName(column="libelle_groupage")
-  private String libelleGroupage;
-
   @CsvBindByName(column="code_canal")
   private String codeCanal;
 
@@ -112,16 +109,6 @@ public class M3MComptage implements Comptage {
 
   public void setCodeCanal(String codeCanal) {
     this.codeCanal = codeCanal;
-  }
-
-  @Override
-  public String getLibelleGroupage() {
-    return libelleGroupage;
-  }
-
-  @Override
-  public void setLibelleGroupage(String libelleGroupage) {
-    this.libelleGroupage = libelleGroupage;
   }
 
   @Override
@@ -245,12 +232,12 @@ public class M3MComptage implements Comptage {
     if (this == o) return true;
     if (o == null || getClass() != o.getClass()) return false;
     M3MComptage that = (M3MComptage) o;
-    return annee == that.annee && moyenneJourAnnuelle == that.moyenneJourAnnuelle && v85Speed == that.v85Speed && meanSpeed == that.meanSpeed && maximumSpeed == that.maximumSpeed && bidirectionnelle == that.bidirectionnelle && Objects.equals(osmWayId, that.osmWayId) && Objects.equals(codeCentrale, that.codeCentrale) && Objects.equals(streetName, that.streetName) && Objects.equals(altStreetName, that.altStreetName) && Objects.equals(cityName, that.cityName) && Objects.equals(typeCompteur, that.typeCompteur) && Objects.equals(typeComptage, that.typeComptage) && Objects.equals(libelleGroupage, that.libelleGroupage) && Objects.equals(codeCanal, that.codeCanal) && Objects.equals(moyenneHeureDePointeMatin, that.moyenneHeureDePointeMatin) && Objects.equals(moyenneHeureDePointeSoir, that.moyenneHeureDePointeSoir) && Objects.equals(displayName, that.displayName) && type == that.type;
+    return annee == that.annee && moyenneJourAnnuelle == that.moyenneJourAnnuelle && v85Speed == that.v85Speed && meanSpeed == that.meanSpeed && maximumSpeed == that.maximumSpeed && bidirectionnelle == that.bidirectionnelle && Objects.equals(osmWayId, that.osmWayId) && Objects.equals(codeCentrale, that.codeCentrale) && Objects.equals(streetName, that.streetName) && Objects.equals(altStreetName, that.altStreetName) && Objects.equals(cityName, that.cityName) && Objects.equals(typeCompteur, that.typeCompteur) && Objects.equals(typeComptage, that.typeComptage) && Objects.equals(codeCanal, that.codeCanal) && Objects.equals(moyenneHeureDePointeMatin, that.moyenneHeureDePointeMatin) && Objects.equals(moyenneHeureDePointeSoir, that.moyenneHeureDePointeSoir) && Objects.equals(displayName, that.displayName) && type == that.type;
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(osmWayId, codeCentrale, streetName, altStreetName, cityName, annee, typeCompteur, typeComptage, libelleGroupage, codeCanal, moyenneJourAnnuelle, moyenneHeureDePointeMatin, moyenneHeureDePointeSoir, v85Speed, meanSpeed, maximumSpeed, displayName, bidirectionnelle, type);
+    return Objects.hash(osmWayId, codeCentrale, streetName, altStreetName, cityName, annee, typeCompteur, typeComptage, codeCanal, moyenneJourAnnuelle, moyenneHeureDePointeMatin, moyenneHeureDePointeSoir, v85Speed, meanSpeed, maximumSpeed, displayName, bidirectionnelle, type);
   }
 
   @Override
@@ -264,7 +251,6 @@ public class M3MComptage implements Comptage {
       ", annee=" + annee +
       ", typeCompteur='" + typeCompteur + '\'' +
       ", typeComptage='" + typeComptage + '\'' +
-      ", libelleGroupage='" + libelleGroupage + '\'' +
       ", codeCanal='" + codeCanal + '\'' +
       ", moyenneJourAnnuelle=" + moyenneJourAnnuelle +
       ", moyenneHeureDePointeMatin='" + moyenneHeureDePointeMatin + '\'' +

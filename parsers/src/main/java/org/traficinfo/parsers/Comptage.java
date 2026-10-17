@@ -25,10 +25,6 @@ public interface Comptage {
 
   void setCodeCentrale(String codeCentrale);
 
-  String getLibelleGroupage();
-
-  void setLibelleGroupage(String libelleGroupage);
-
   int getAnnee();
 
   void setAnnee(int annee);

@@ -61,8 +61,6 @@ public final class DPT34ComptageParser implements ComptageParser {
       comptage.setDisplayName(idToDisplayNames.getProperty(
           comptage.getCodeCentrale(), displayName));
       comptage.setBidirectionnelle(comptage.getSensRoute() == 3);
-      comptage.setLibelleGroupage(comptage.isBidirectionnelle()
-          ? "Sens cumulés" : "Sens " + comptage.getSensRoute());
     }
     LOG.info("Nb comptages: {}", comptages.size());
     return comptages;
