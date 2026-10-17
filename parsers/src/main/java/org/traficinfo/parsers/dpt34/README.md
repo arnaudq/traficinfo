@@ -87,8 +87,12 @@ The shared `Comptage.getGeometry()` getter returns `GeoJsonObject`, allowing
 other parsers to supply lines or polygons. The interface has no geometry setter
 and defaults to null for sources without geometry.
 
-This package parses CSV and exposes point geometry. It does not register a new
-`GeoJsonParser.DataSource` or configure retrieval and publishing functions.
+This package parses CSV and exposes point geometry. Its parser is registered as
+`GeoJsonParser.DataSource.DPT34`. When no GeoJSON features are supplied,
+`GeoJsonParser` builds one feature per counter from the filtered CSV records,
+using the latest available non-null geometry. Counters without geometry are
+skipped. Existing merge logic supplies traffic values, history and styling.
+Retrieval and publishing functions still require integration.
 
 ## Tests
 

@@ -1,5 +1,6 @@
 package org.traficinfo.parsers;
 
+import org.traficinfo.parsers.dpt34.DPT34ComptageParser;
 import org.traficinfo.parsers.m3m.M3MComptageParser;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,7 +19,8 @@ import java.util.stream.Collectors;
 public class GeoJsonParser {
 
     public enum DataSource {
-        M3MV2(new M3MComptageParser());
+        M3MV2(new M3MComptageParser()),
+        DPT34(new DPT34ComptageParser());
 
         private DataSource(ComptageParser parser) {
             this.parser = parser;
@@ -67,13 +69,38 @@ public class GeoJsonParser {
     private static final Logger LOG = LoggerFactory.getLogger(GeoJsonParser.class);
 
 
-    public static void parseAndMerge(DataSource dataSource, Reader csvReader, Reader geojsonReader,
+    public static void parseAndMerge(DataSource dataSource, Reader csvReader,
                                      Writer geojsonMergedWriter) throws Exception {
-        parseAndMerge(dataSource, csvReader, geojsonReader, geojsonMergedWriter,
-                wayId -> null, new LinkedHashSet<>());
+        parseAndMerge(dataSource, csvReader, new FeatureCollection(), geojsonMergedWriter);
+    }
+
+    public static void parseAndMerge(DataSource dataSource, Reader csvReader,
+                                     Writer geojsonMergedWriter, OSMInfoProvider osmInfoProvider,
+                                     Set<Long> waysToRefresh) throws Exception {
+        parseAndMerge(dataSource, csvReader, new FeatureCollection(), geojsonMergedWriter,
+                osmInfoProvider, waysToRefresh);
     }
 
     public static void parseAndMerge(DataSource dataSource, Reader csvReader, Reader geojsonReader,
+                                     Writer geojsonMergedWriter) throws Exception {
+        parseAndMerge(dataSource, csvReader, parseGeoJSON(geojsonReader), geojsonMergedWriter);
+    }
+
+    public static void parseAndMerge(DataSource dataSource, Reader csvReader, Reader geojsonReader,
+                                     Writer geojsonMergedWriter, OSMInfoProvider osmInfoProvider,
+                                     Set<Long> waysToRefresh) throws Exception {
+        parseAndMerge(dataSource, csvReader, parseGeoJSON(geojsonReader), geojsonMergedWriter,
+                osmInfoProvider, waysToRefresh);
+    }
+
+    public static void parseAndMerge(DataSource dataSource, Reader csvReader,
+                                     FeatureCollection geoJsonColl, Writer geojsonMergedWriter)
+            throws Exception {
+        parseAndMerge(dataSource, csvReader, geoJsonColl, geojsonMergedWriter,
+                wayId -> null, new LinkedHashSet<>());
+    }
+
+    public static void parseAndMerge(DataSource dataSource, Reader csvReader, FeatureCollection geoJsonColl,
                                      Writer geojsonMergedWriter, OSMInfoProvider osmInfoProvider,
                                      Set<Long> waysToRefresh) throws Exception {
 
@@ -90,7 +117,6 @@ public class GeoJsonParser {
 
         LOG.info("Nb comptages: {}", comptages.size());
 
-        FeatureCollection geoJsonColl = parseGeoJSON(geojsonReader);
         LOG.info("Nb GeoJson: {}", geoJsonColl.getFeatures().size());
 
         for (EnumSet<Comptage.Type> types : COMPTAGE_TYPES_FILTERS) {
@@ -132,17 +158,31 @@ public class GeoJsonParser {
           .collect(Collectors.groupingBy(Comptage::getCodeCentrale));
         LOG.info("Nb comptages for type {} after filtering: {}", typeFilter, idToComptagesMap.size());
 
-        //geoJsonColl.getFeatures().forEach(f -> System.err.println(f.toString()));
-        // we are reusing the same unfilteredFeature so the cleanUp will also remove properties from previous types
-        Set<String> uniqueIds = new HashSet<>();
-        List<Feature> features = unfilteredFeatures.stream()
-          .filter(feature -> {
-              String codeCentrale = getFeatureCodeCentrale(feature);
-              return uniqueIds.add(codeCentrale) && idToComptagesMap.containsKey(codeCentrale);
-          }
-          )
-          .map(GeoJsonParser::cleanupProperties)
-          .collect(Collectors.toList());
+        List<Feature> features;
+        if (unfilteredFeatures.isEmpty()) {
+            features = new ArrayList<>();
+            idToComptagesMap.keySet().stream().sorted().forEach(codeCentrale ->
+                idToComptagesMap.get(codeCentrale).stream()
+                    .filter(comptage -> comptage.getGeometry() != null)
+                    .max(Comparator.comparingInt(Comptage::getAnnee)
+                            .thenComparingInt(Comptage::getMoyenneJourAnnuelle))
+                    .ifPresent(comptage -> {
+                        Feature feature = new Feature();
+                        feature.setGeometry(comptage.getGeometry());
+                        feature.setProperty("code_centrale", codeCentrale);
+                        features.add(feature);
+                    }));
+        } else {
+            // Reused features are cleaned of properties from previous types.
+            Set<String> uniqueIds = new HashSet<>();
+            features = unfilteredFeatures.stream()
+                .filter(feature -> {
+                    String codeCentrale = getFeatureCodeCentrale(feature);
+                    return uniqueIds.add(codeCentrale) && idToComptagesMap.containsKey(codeCentrale);
+                })
+                .map(GeoJsonParser::cleanupProperties)
+                .collect(Collectors.toList());
+        }
 
         features.forEach(feature -> {
             List<? extends Comptage> lc = idToComptagesMap.get(getFeatureCodeCentrale(feature));
