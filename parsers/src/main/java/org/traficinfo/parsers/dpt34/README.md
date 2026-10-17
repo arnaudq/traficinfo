@@ -58,7 +58,7 @@ named commune.
 | `route_id` | `routeId`, for example `34D0011`. |
 | `Type de compteur` | `typeCompteur`; observed codes are `Per` (95 counters), `Tou` (147), and `CuP` (3). |
 | `Sens de la route` | `sensRoute`; all records in this snapshot have code 3. The parser interprets 3 as combined directions, setting `bidirectionnelle`. |
-| `Latitude`, `Longitude` | Nullable decimal coordinates, retained without rounding. |
+| `Latitude`, `Longitude` | Nullable decimal coordinates, retained without rounding. `getGeometry()` derives a GeoJSON `Point` in longitude, latitude order, or returns null if either value is missing. |
 | `mja_tv_tcj` | `mjaTvTcj`: annual daily average, all vehicles and all day types. Exposed through `getMoyenneJourAnnuelle()`. |
 
 The default display name is `Localisation - Commune`, falling back to
@@ -83,9 +83,12 @@ and the speed limit to -1, following the shared interface's conventions.
 The summer (`mje_*`) and monthly (`mjm_*`) measures are not hourly peaks.
 PR, abscissa, INSEE code and other traffic columns are ignored.
 
-This package implements CSV parsing only. It does not register a new
-`GeoJsonParser.DataSource`, generate GeoJSON points, or configure retrieval
-and publishing functions.
+The shared `Comptage.getGeometry()` getter returns `GeoJsonObject`, allowing
+other parsers to supply lines or polygons. The interface has no geometry setter
+and defaults to null for sources without geometry.
+
+This package parses CSV and exposes point geometry. It does not register a new
+`GeoJsonParser.DataSource` or configure retrieval and publishing functions.
 
 ## Tests
 

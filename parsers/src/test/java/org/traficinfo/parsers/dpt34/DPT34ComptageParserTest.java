@@ -1,6 +1,7 @@
 package org.traficinfo.parsers.dpt34;
 
 import org.junit.Test;
+import org.geojson.Point;
 import org.traficinfo.parsers.Comptage;
 import org.traficinfo.parsers.ParserBaseTest;
 
@@ -41,6 +42,10 @@ public class DPT34ComptageParserTest extends ParserBaseTest {
     assertEquals("OUPIA D52 <> DPT. AUDE D610", first.getAltStreetName());
     assertEquals(Double.valueOf(43.26700822), first.getLatitude());
     assertEquals(Double.valueOf(2.74608187), first.getLongitude());
+    Comptage count = first;
+    Point point = (Point) count.getGeometry();
+    assertEquals(2.74608187, point.getCoordinates().getLongitude(), 0.0);
+    assertEquals(43.26700822, point.getCoordinates().getLatitude(), 0.0);
     assertEquals(Double.valueOf(43.267008), rows.get(1).getLatitude());
     assertEquals("Per", first.getTypeCompteur());
     assertEquals("Tou", rows.get(2).getTypeCompteur());
@@ -83,6 +88,7 @@ public class DPT34ComptageParserTest extends ParserBaseTest {
     assertFalse(missing.isBidirectionnelle());
     assertNull(missing.getLatitude());
     assertNull(missing.getLongitude());
+    assertNull(missing.getGeometry());
     assertNull(missing.getMjaTvTcj());
     DPT34Comptage zero = rows.get(1);
     assertEquals("Other section", zero.getDisplayName());
@@ -106,6 +112,21 @@ public class DPT34ComptageParserTest extends ParserBaseTest {
     } finally {
       Files.deleteIfExists(file.toPath());
     }
+  }
+
+  @Test
+  public void requiresBothCoordinatesForGeometry() {
+    DPT34Comptage comptage = new DPT34Comptage();
+    comptage.setLatitude(43.5);
+    assertNull(comptage.getGeometry());
+    comptage.setLatitude(null);
+    comptage.setLongitude(3.5);
+    assertNull(comptage.getGeometry());
+    comptage.setLatitude(0.0);
+    comptage.setLongitude(0.0);
+    Point point = (Point) comptage.getGeometry();
+    assertEquals(0.0, point.getCoordinates().getLongitude(), 0.0);
+    assertEquals(0.0, point.getCoordinates().getLatitude(), 0.0);
   }
 
   @Test

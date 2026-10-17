@@ -1,6 +1,8 @@
 package org.traficinfo.parsers.dpt34;
 
 import com.opencsv.bean.CsvBindByName;
+import org.geojson.GeoJsonObject;
+import org.geojson.Point;
 import org.traficinfo.parsers.Comptage;
 
 import java.util.Objects;
@@ -163,6 +165,11 @@ public class DPT34Comptage implements Comptage {
 
   public void setLongitude(Double longitude) {
     this.longitude = longitude;
+  }
+
+  @Override
+  public GeoJsonObject getGeometry() {
+    return latitude == null || longitude == null ? null : new Point(longitude, latitude);
   }
 
   public Integer getMjaTvTcj() {

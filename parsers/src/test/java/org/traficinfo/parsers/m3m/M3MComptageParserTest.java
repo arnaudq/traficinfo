@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 public class M3MComptageParserTest extends ParserBaseTest {
 
@@ -43,6 +44,7 @@ public class M3MComptageParserTest extends ParserBaseTest {
     }
     assertEquals(1, comptages.size());
     Comptage c = comptages.get(0);
+    assertNull(c.getGeometry());
     assertEquals(Long.valueOf(370743659L), c.getOsmWayId());
     assertEquals(2024, c.getAnnee());
     assertEquals(577, c.getMoyenneJourAnnuelle());

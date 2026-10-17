@@ -1,6 +1,16 @@
 package org.traficinfo.parsers;
 
+import org.geojson.GeoJsonObject;
+
 public interface Comptage {
+  /**
+   * Geometry supplied by the source, such as a point, line or polygon.
+   * @return geometry, or null when the source does not supply a location.
+   */
+  default GeoJsonObject getGeometry() {
+    return null;
+  }
+
   Long getOsmWayId();
 
   void setOsmWayId(Long osmWayId);
