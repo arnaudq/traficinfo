@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oracle.bmc.objectstorage.ObjectStorage;
 import com.oracle.bmc.model.BmcException;
-import org.traficinfo.parser.OSMWayInfo;
+import org.traficinfo.parsers.OSMWayInfo;
 import org.traficinfo.dsfunctions.OSMInfoProviderImpl;
 import org.traficinfo.dsfunctions.OpenStreetMapClient;
 import com.oracle.bmc.objectstorage.requests.GetObjectRequest;

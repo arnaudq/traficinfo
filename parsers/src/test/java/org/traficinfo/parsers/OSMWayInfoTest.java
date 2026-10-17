@@ -1,7 +1,7 @@
-package org.traficinfo.parser;
+package org.traficinfo.parsers;
 
 import org.junit.Test;
-import org.traficinfo.parser.m3m.M3MComptage;
+import org.traficinfo.parsers.m3m.M3MComptage;
 
 import java.time.Instant;
 import java.util.Arrays;

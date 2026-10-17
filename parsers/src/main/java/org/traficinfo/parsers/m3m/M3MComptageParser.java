@@ -1,7 +1,7 @@
-package org.traficinfo.parser.m3m;
+package org.traficinfo.parsers.m3m;
 
-import org.traficinfo.parser.Comptage;
-import org.traficinfo.parser.ComptageParser;
+import org.traficinfo.parsers.Comptage;
+import org.traficinfo.parsers.ComptageParser;
 
 import com.opencsv.bean.CsvToBeanBuilder;
 import org.slf4j.Logger;

@@ -7,8 +7,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.traficinfo.dsfunctions.m3m.ObjectStoreClient;
 import org.traficinfo.dsfunctions.m3m.OOSResourceMetadata;
-import org.traficinfo.parser.OSMWayInfo;
-import org.traficinfo.parser.OSMInfoProvider;
+import org.traficinfo.parsers.OSMWayInfo;
+import org.traficinfo.parsers.OSMInfoProvider;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

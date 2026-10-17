@@ -6,7 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.traficinfo.dsfunctions.OSMInfoProviderImpl;
 import org.traficinfo.dsfunctions.OpenStreetMapClient;
-import org.traficinfo.parser.GeoJsonParser;
+import org.traficinfo.parsers.GeoJsonParser;
 
 import java.io.InputStream;
 import java.io.InputStreamReader;

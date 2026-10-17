@@ -1,4 +1,4 @@
-package org.traficinfo.parser;
+package org.traficinfo.parsers;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 

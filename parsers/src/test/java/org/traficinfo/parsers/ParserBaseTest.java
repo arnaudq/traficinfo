@@ -1,4 +1,4 @@
-package org.traficinfo.parser;
+package org.traficinfo.parsers;
 
 import org.junit.Test;
 

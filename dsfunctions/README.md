@@ -42,7 +42,7 @@ and persistence using `org.traficinfo.dsfunctions.OpenStreetMapClient` for OSM
 requests. The M3M `GeoJsonOutFunction` calls `loadCache()` before parsing and
 `refreshCache(waysToRefresh)` after publishing the GeoJSON. The cache map remains
 private to the implementation. Parsers use the
-`org.traficinfo.parser.OSMInfoProvider` interface, which exposes only
+`org.traficinfo.parsers.OSMInfoProvider` interface, which exposes only
 `OSMWayInfo get(long wayId)`.
 
 The JSON object is keyed by OSM way ID. Each record contains `lastUpdated`, an

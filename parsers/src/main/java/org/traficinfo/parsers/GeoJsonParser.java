@@ -1,6 +1,6 @@
-package org.traficinfo.parser;
+package org.traficinfo.parsers;
 
-import org.traficinfo.parser.m3m.M3MComptageParser;
+import org.traficinfo.parsers.m3m.M3MComptageParser;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.geojson.Feature;

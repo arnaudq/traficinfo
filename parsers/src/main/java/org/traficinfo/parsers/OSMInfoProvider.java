@@ -1,4 +1,4 @@
-package org.traficinfo.parser;
+package org.traficinfo.parsers;
 
 /** Provides cached OSM way information without exposing cache storage. */
 @FunctionalInterface

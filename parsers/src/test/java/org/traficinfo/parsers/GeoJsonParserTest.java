@@ -1,6 +1,6 @@
-package org.traficinfo.parser;
+package org.traficinfo.parsers;
 
-import org.traficinfo.parser.m3m.M3MComptage;
+import org.traficinfo.parsers.m3m.M3MComptage;
 
 import org.geojson.Feature;
 import org.geojson.FeatureCollection;

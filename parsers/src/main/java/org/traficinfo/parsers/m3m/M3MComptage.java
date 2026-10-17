@@ -1,6 +1,6 @@
-package org.traficinfo.parser.m3m;
+package org.traficinfo.parsers.m3m;
 
-import org.traficinfo.parser.Comptage;
+import org.traficinfo.parsers.Comptage;
 
 import com.opencsv.bean.CsvBindByName;
 
