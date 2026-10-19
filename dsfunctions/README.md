@@ -62,7 +62,28 @@ uploads; downstream event rules should match the exact current object name.
 `deploy-functions.sh` registers this handler as `DPT34OpenDataSource`.
 Its bucket defaults to `dsdpt34`; override it with `BUCKETNAME_DPT34`.
 
-## GeoJSON output function
+## DPT34 GeoJSON output function
+
+`org.traficinfo.dsfunctions.dpt34.GeoJsonOutFunction::handleRequest` reads
+`DPT34_Comptage.csv` from Object Storage and generates geometry directly from
+the CSV coordinates through `GeoJsonParser.DataSource.DPT34`.
+Configure `NAMESPACE`, `BUCKETNAME_IN` (default `dsdpt34`) and
+`BUCKETNAME_OUT` (default `traficinfo`). `USE_RESOURCE_PRINCIPAL` defaults to
+`true`.
+
+The handler accepts plain or gzip CSV and uploads `DPT34_TraficInfo.geojson`
+with content type `application/geo+json` and gzip encoding. It preserves the
+parser's filtering, latest geometry selection, annual history and map styling.
+No companion GeoJSON or OSM cache is needed: the CSV supplies coordinates
+and no OSM way IDs. Temporary output files are removed on success and failure.
+The handler returns `OK` on success and `KO` on download, parsing or upload failure,
+matching the M3M output function.
+
+`deploy-functions.sh` registers it as `DPT34GeoJsonOut` using
+`BUCKETNAME_DPT34` for its input bucket and `BUCKETNAME_OUT` for its output.
+After deployment, invoke it with `./invoke.sh geojson DPT34`.
+
+## M3M GeoJSON output function
 
 `org.traficinfo.dsfunctions.m3m.GeoJsonOutFunction::handleRequest` reads
 `MMM_MMM_Comptage.csv` and `MMM_MMM_Comptage.json` from Object Storage and
@@ -135,7 +156,8 @@ and [maxspeed](https://wiki.openstreetmap.org/wiki/Key:maxspeed).
 
 From the repository root, run `./deploy-functions.sh`. It builds the Maven
 `jar-with-dependencies` artifact once and uploads it directly to OCI Functions as
-`3MOpenDataSource`, `DPT34OpenDataSource` and `3MGeoJsonOut` in the existing `3MOpenDataProcessor` application. It uses
+`3MOpenDataSource`, `DPT34OpenDataSource`, `3MGeoJsonOut` and `DPT34GeoJsonOut`
+in the existing `3MOpenDataProcessor` application. It uses
 the managed `java21.ol9` runtime, which can run this project's Java 17 bytecode.
 On later runs, the script updates each exact-name archive function with its own
 handler (`DataSourceFunction::handleRequest` or `GeoJsonOutFunction::handleRequest`).
@@ -192,8 +214,8 @@ It resolves `<source>OpenDataSource` or `<source>GeoJsonOut` in
 function response to standard output. OCI errors propagate as a failing exit code.
 Application lookup uses `OCI_FN_APPLICATION_ID`, `OCI_FN_COMPARTMENT_ID`,
 or the current Fn context, as in the deployment script.
-`DPT34GeoJsonOut` still needs implementation and deployment; invoking a function
-that does not exist reports its name and exits without invoking anything.
+Invoking a function that has not been deployed reports its name and exits
+without invoking anything.
 
 Direct uploads are limited to 25 MB; the script checks the JAR size before
 uploading. OCI's exact-name function lookup is case sensitive, so use the

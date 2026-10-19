@@ -18,6 +18,7 @@ functions=(
   '3MOpenDataSource|org.traficinfo.dsfunctions.m3m.DataSourceFunction::handleRequest|data_source_config'
   'DPT34OpenDataSource|org.traficinfo.dsfunctions.dpt34.DataSourceFunction::handleRequest|dpt34_data_source_config'
   '3MGeoJsonOut|org.traficinfo.dsfunctions.m3m.GeoJsonOutFunction::handleRequest|geojson_out_config'
+  'DPT34GeoJsonOut|org.traficinfo.dsfunctions.dpt34.GeoJsonOutFunction::handleRequest|dpt34_geojson_out_config'
 )
 
 resolve_application_id() {
@@ -109,6 +110,13 @@ geojson_out_config() {
     --arg osm "$osm_bucket" --arg object "$osm_cache_object" \
     '{NAMESPACE: $namespace, BUCKETNAME_IN: $input, BUCKETNAME_OUT: $output,
       BUCKETNAME_OSM: $osm, OSM_CACHE_OBJECT: $object}'
+}
+
+dpt34_geojson_out_config() {
+  validate_bucket_name "$dpt34_input_bucket" BUCKETNAME_DPT34 || return 1
+  validate_bucket_name "$output_bucket" BUCKETNAME_OUT || return 1
+  jq -cn --arg namespace "$1" --arg input "$dpt34_input_bucket" --arg output "$output_bucket" \
+    '{NAMESPACE: $namespace, BUCKETNAME_IN: $input, BUCKETNAME_OUT: $output}'
 }
 
 create_archive_function() {

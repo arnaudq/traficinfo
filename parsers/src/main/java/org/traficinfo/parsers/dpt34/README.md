@@ -92,7 +92,8 @@ This package parses CSV and exposes point geometry. Its parser is registered as
 `GeoJsonParser` builds one feature per counter from the filtered CSV records,
 using the latest available non-null geometry. Counters without geometry are
 skipped. Existing merge logic supplies traffic values, history and styling.
-Retrieval and publishing functions still require integration.
+The `dsfunctions` module supplies `dpt34.DataSourceFunction` for retrieval and
+`dpt34.GeoJsonOutFunction` for publishing the generated GeoJSON.
 
 ## Tests
 
