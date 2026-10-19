@@ -1,0 +1,4 @@
+﻿geom,id_tmja,annee,numero_route,pr_abs,pr,abs,communes,latitude,longitude,type_comptage,tmja_tous_vehicules,tmja_poids_lourds,pourcentage_tmja_poids_lourds
+POINT (829354.259651497 6354674.28330019),1_0_3_0_2021,2021,D6086,0+2,0,2,Pont-Saint-Esprit,44.2791399386299,4.620821744881,Permanent,5780,619,10.71
+POINT (829354.259651497 6354674.28330019),1_0_3_0_2025,2025,D6086,0+2,0,2,Pont-Saint-Esprit,44.2791399386299,4.620821744881,Permanent,6075,255,4.19
+POINT (787550.344073234 6301095.49434538),36_50_3_0_2021,2021,D6110,4+320,4,320,Villevieille,43.8034468080194,4.087848894895,Tournant,7048,,
