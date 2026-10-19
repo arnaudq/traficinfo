@@ -162,12 +162,12 @@ the managed `java21.ol9` runtime, which can run this project's Java 17 bytecode.
 On later runs, the script updates each exact-name archive function with its own
 handler (`DataSourceFunction::handleRequest` or `GeoJsonOutFunction::handleRequest`).
 
-The script uses OCI CLI credentials (`OCI_CLI_CONFIG_FILE` and
-`OCI_CLI_PROFILE` if needed). It finds the application using
-`oracle.compartment-id` in the current Fn context configured by `setup.sh`.
-Alternatively, set `OCI_FN_APPLICATION_ID` to the application's OCID or
-`OCI_FN_COMPARTMENT_ID` to its compartment's OCID. On each deployment, the script
-queries the Object Storage namespace with `oci os ns get`. `3MOpenDataSource` and `DPT34OpenDataSource`
+First run `source ./setup.sh` to initialize the shared environment. Deployment
+uses the exported OCI credentials, `OCI_COMPARTMENT_ID`,
+`OCI_OBJECT_STORAGE_NAMESPACE`, `OCI_FN_APPLICATION_NAME`, `TRAFICINFO_ROOT`,
+and `TRAFICINFO_DSCONFIG`. Set `OCI_FN_APPLICATION_ID` to bypass application
+lookup. The compartment and storage namespace are resolved during setup rather
+than queried again during each deployment. `3MOpenDataSource` and `DPT34OpenDataSource`
 receives `NAMESPACE` and `BUCKETNAME`; `3MGeoJsonOut` receives `NAMESPACE`,
 `BUCKETNAME_IN`, `BUCKETNAME_OUT`, `BUCKETNAME_OSM`, and `OSM_CACHE_OBJECT`.
 The script requires `jq` to prepare function configuration.
@@ -213,8 +213,8 @@ To invoke a deployed function using OCI CLI:
 It resolves `<source>OpenDataSource` or `<source>GeoJsonOut` in
 `3MOpenDataProcessor`, invokes synchronously with an empty body, and prints the
 function response to standard output. OCI errors propagate as a failing exit code.
-Application lookup uses `OCI_FN_APPLICATION_ID`, `OCI_FN_COMPARTMENT_ID`,
-or the current Fn context, as in the deployment script.
+Run `source ./setup.sh` first. Application lookup uses the exported application
+name and compartment, or `OCI_FN_APPLICATION_ID`, as in the deployment script.
 Invoking a function that has not been deployed reports its name and exits
 without invoking anything.
 

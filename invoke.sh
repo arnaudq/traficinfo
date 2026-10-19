@@ -7,10 +7,9 @@ usage() {
 }
 
 resolve_function_prefix() {
-  local data_source_id="$1" root_dir
-  root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  local data_source_id="$1"
   if ! jq -e --arg id "$data_source_id" '.[$id].id == $id' \
-    "$root_dir/dsconfig.json" >/dev/null; then
+    "${TRAFICINFO_DSCONFIG:?Run source ./setup.sh first}" >/dev/null; then
     printf 'Unknown data source ID in dsconfig.json: %s\n' "$data_source_id" >&2
     return 1
   fi
@@ -34,17 +33,10 @@ case "$type" in
   *) usage; exit 1 ;;
 esac
 
-app_name=3MOpenDataProcessor
+app_name="${OCI_FN_APPLICATION_NAME:?Run source ./setup.sh first}"
 application_id="${OCI_FN_APPLICATION_ID:-}"
 if [ -z "$application_id" ]; then
-  compartment_id="${OCI_FN_COMPARTMENT_ID:-}"
-  if [ -z "$compartment_id" ]; then
-    compartment_id="$(fn inspect context | awk '$1 == "oracle.compartment-id:" {print $2; exit}')"
-  fi
-  if [ -z "$compartment_id" ]; then
-    printf 'Set OCI_FN_APPLICATION_ID or configure oracle.compartment-id in the current Fn context.\n' >&2
-    exit 1
-  fi
+  compartment_id="${OCI_COMPARTMENT_ID:?Run source ./setup.sh first}"
   application_id="$(oci fn application list --compartment-id "$compartment_id" \
     --display-name "$app_name" --all --query 'data[0].id' --raw-output)"
 fi

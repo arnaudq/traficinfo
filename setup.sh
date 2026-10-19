@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
-# Source this file to keep JAVA_HOME and OCI_CLI_CONFIG_FILE in your shell:
+# Source this file to initialize the shared project and OCI environment:
 #   source ./setup.sh
+
+set_project_paths() {
+  local script_file project_root
+  if [ -n "${ZSH_VERSION:-}" ]; then
+    script_file="${(%):-%x}"
+  else
+    script_file="${BASH_SOURCE[0]}"
+  fi
+  project_root="$(cd "$(dirname "$script_file")" && pwd)" || return
+  export TRAFICINFO_ROOT="$project_root"
+  export TRAFICINFO_DSCONFIG="$project_root/dsconfig.json"
+}
 
 set_java_home() {
   local jdk_home
@@ -10,12 +22,12 @@ set_java_home() {
 }
 
 set_oci_config() {
-  if [ ! -f "$HOME/.oci/config.arnaudq" ]; then
-    printf 'OCI config file not found: %s/.oci/config.arnaudq\n' "$HOME" >&2
+  export OCI_CLI_CONFIG_FILE="${OCI_CLI_CONFIG_FILE:-$HOME/.oci/config.arnaudq}"
+  if [ ! -f "$OCI_CLI_CONFIG_FILE" ]; then
+    printf 'OCI config file not found: %s\n' "$OCI_CLI_CONFIG_FILE" >&2
     return 1
   fi
 
-  export OCI_CLI_CONFIG_FILE="$HOME/.oci/config.arnaudq"
   printf 'OCI_CLI_CONFIG_FILE=%s\n' "$OCI_CLI_CONFIG_FILE"
 }
 
@@ -26,50 +38,37 @@ set_fn_oracle_provider() {
   fi
 }
 
-set_fn_compartment_id() {
-  local compartment_count compartment_id
-
-  if ! compartment_count=$(oci iam compartment list \
-    --config-file "$OCI_CLI_CONFIG_FILE" \
-    --compartment-id-in-subtree true \
-    --name TraficInfo \
-    --lifecycle-state ACTIVE \
-    --all \
-    --query 'length(data)' \
-    --raw-output); then
-    printf 'OCI CLI could not count active TraficInfo compartments using %s.\n' "$OCI_CLI_CONFIG_FILE" >&2
-    return 1
+set_oci_environment() {
+  local compartment_id compartments namespace
+  # Accept the older script-specific overrides during setup; scripts consume
+  # only the shared OCI_COMPARTMENT_ID afterward.
+  compartment_id="${OCI_COMPARTMENT_ID:-${OCI_FN_COMPARTMENT_ID:-${OCI_BUCKET_COMPARTMENT_ID:-${OCI_SCHEDULE_COMPARTMENT_ID:-}}}}"
+  if [ -z "$compartment_id" ]; then
+    compartments="$(oci iam compartment list --compartment-id-in-subtree true \
+      --name TraficInfo --lifecycle-state ACTIVE --all)" || return
+    compartment_id="$(jq -er '
+        .data | if length == 1 then .[0].id else
+          error("Expected exactly one active TraficInfo compartment") end' \
+      <<< "$compartments")" || return
   fi
-
-  if [ "$compartment_count" != 1 ]; then
-    printf 'Expected one active TraficInfo compartment, found %s.\n' "$compartment_count" >&2
-    return 1
-  fi
-
-  if ! compartment_id=$(oci iam compartment list \
-    --config-file "$OCI_CLI_CONFIG_FILE" \
-    --compartment-id-in-subtree true \
-    --name TraficInfo \
-    --lifecycle-state ACTIVE \
-    --all \
-    --query 'data[0].id' \
-    --raw-output); then
-    printf 'OCI CLI could not retrieve the TraficInfo compartment OCID.\n' >&2
-    return 1
-  fi
-
   case "$compartment_id" in
     ocid1.compartment.*) ;;
-    *)
-      printf 'OCI CLI returned an invalid TraficInfo compartment OCID.\n' >&2
-      return 1
-      ;;
+    *) printf 'Invalid OCI_COMPARTMENT_ID.\n' >&2; return 1 ;;
   esac
-
-  if ! fn update context oracle.compartment-id "$compartment_id"; then
-    printf 'Could not set oracle.compartment-id in the current Fn context.\n' >&2
+  namespace="$(oci os ns get --query data --raw-output)" || return
+  if [ -z "$namespace" ] || [ "$namespace" = null ]; then
+    printf 'OCI did not return an Object Storage namespace.\n' >&2
     return 1
   fi
+  export OCI_COMPARTMENT_ID="$compartment_id"
+  export OCI_OBJECT_STORAGE_NAMESPACE="$namespace"
+  export OCI_FN_APPLICATION_NAME=3MOpenDataProcessor
+  printf 'OCI_COMPARTMENT_ID=%s\nOCI_OBJECT_STORAGE_NAMESPACE=%s\n' \
+    "$OCI_COMPARTMENT_ID" "$OCI_OBJECT_STORAGE_NAMESPACE"
+}
+
+set_fn_compartment_id() {
+  fn update context oracle.compartment-id "$OCI_COMPARTMENT_ID"
 }
 
 set_fn_api_url() {
@@ -101,8 +100,10 @@ list_fn_apps() {
 }
 
 setup_project_environment() {
+  set_project_paths || return 1
   set_java_home || return 1
   set_oci_config || return 1
+  set_oci_environment || return 1
   set_fn_oracle_provider || return 1
   set_fn_compartment_id || return 1
   set_fn_api_url || return 1

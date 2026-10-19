@@ -13,24 +13,8 @@ if [ "$#" -gt 1 ]; then
   exit 1
 fi
 
-export OCI_CLI_CONFIG_FILE="${OCI_CLI_CONFIG_FILE:-$HOME/.oci/config.arnaudq}"
-
-compartment_id="${OCI_BUCKET_COMPARTMENT_ID:-}"
-if [ -z "$compartment_id" ]; then
-  compartment_id="$(oci iam compartment list --compartment-id-in-subtree true \
-    --name TraficInfo --lifecycle-state ACTIVE --all | jq -er '
-      .data | if length == 1 then .[0].id else
-        error("Expected exactly one active TraficInfo compartment") end')"
-fi
-case "$compartment_id" in
-  ocid1.compartment.*) ;;
-  *) printf 'Invalid OCI_BUCKET_COMPARTMENT_ID.\n' >&2; exit 1 ;;
-esac
-namespace="$(oci os ns get --query data --raw-output)"
-if [ -z "$namespace" ] || [ "$namespace" = null ]; then
-  printf 'OCI did not return an Object Storage namespace.\n' >&2
-  exit 1
-fi
+compartment_id="${OCI_COMPARTMENT_ID:?Run source ./setup.sh first}"
+namespace="${OCI_OBJECT_STORAGE_NAMESPACE:?Run source ./setup.sh first}"
 
 # List successfully before deciding a bucket is absent. Authentication or network
 # errors must not be interpreted as a missing bucket.

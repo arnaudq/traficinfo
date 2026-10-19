@@ -2,9 +2,8 @@
 # Reconcile one CSV -> GeoJSON OCI Events rule per configured data source.
 set -euo pipefail
 
-application_name=3MOpenDataProcessor
-root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-data_source_config_file="$root_dir/dsconfig.json"
+application_name="${OCI_FN_APPLICATION_NAME:?Run source ./setup.sh first}"
+data_source_config_file="${TRAFICINFO_DSCONFIG:?Run source ./setup.sh first}"
 wait_options=(--wait-for-state ACTIVE --wait-for-state FAILED
   --max-wait-seconds 600 --wait-interval-seconds 5)
 
@@ -64,36 +63,9 @@ load_sources() {
   ' "$data_source_config_file"
 }
 
-configure_oci() {
-  export OCI_CLI_CONFIG_FILE="${OCI_CLI_CONFIG_FILE:-$HOME/.oci/config.arnaudq}"
-}
-
 unique_id() {
   jq -er 'if length == 1 then .[0].id else
     error("Expected exactly one match, found \(length)") end'
-}
-
-resolve_compartment_id() {
-  local compartment_id
-  compartment_id="${OCI_BUCKET_COMPARTMENT_ID:-}"
-  if [ -z "$compartment_id" ]; then
-    compartment_id="$(oci iam compartment list --compartment-id-in-subtree true \
-      --name TraficInfo --lifecycle-state ACTIVE --all | jq '.data' | unique_id)"
-  fi
-  case "$compartment_id" in
-    ocid1.compartment.*) printf '%s\n' "$compartment_id" ;;
-    *) printf 'Invalid OCI_BUCKET_COMPARTMENT_ID.\n' >&2; return 1 ;;
-  esac
-}
-
-resolve_namespace() {
-  local namespace
-  namespace="$(oci os ns get --query data --raw-output)"
-  if [ -z "$namespace" ] || [ "$namespace" = null ]; then
-    printf 'OCI did not return an Object Storage namespace.\n' >&2
-    return 1
-  fi
-  printf '%s\n' "$namespace"
 }
 
 validate_bucket() {
@@ -271,15 +243,11 @@ main() {
   step 'Reading data sources and naming overrides from dsconfig.json...'
   sources="$(load_sources)"
   source_count="$(jq 'length' <<< "$sources")"
-  step 'Configuring OCI credentials...'
-  configure_oci
   if [ "$dry_run" = true ]; then
     log 'Dry run: OCI resources will be read; no changes will be submitted.'
   fi
-  step 'Resolving the TraficInfo compartment...'
-  compartment_id="$(resolve_compartment_id)"
-  step 'Resolving the Object Storage namespace...'
-  namespace="$(resolve_namespace)"
+  compartment_id="${OCI_COMPARTMENT_ID:?Run source ./setup.sh first}"
+  namespace="${OCI_OBJECT_STORAGE_NAMESPACE:?Run source ./setup.sh first}"
   step "Resolving application $application_name..."
   application_id="$(resolve_application_id "$compartment_id")"
   for ((index = 0; index < source_count; index++)); do

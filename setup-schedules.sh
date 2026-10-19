@@ -12,11 +12,6 @@ wait_options=(--wait-for-state SUCCEEDED --wait-for-state FAILED --wait-for-stat
 
 log() { printf '[setup-schedules] %s\n' "$*" >&2; }
 
-unique_id() {
-  jq -er 'if length == 1 then .[0].id else
-    error("Expected exactly one match, found \(length)") end'
-}
-
 find_schedule_id() {
   # Match case-insensitively: the existing project schedule is named Daily.
   jq -er --arg name "$1" '
@@ -138,16 +133,7 @@ main() {
   case "${1:-}" in
     '') ;; --dry-run) dry_run=true ;; *) log "Usage: $0 [--dry-run]"; return 1 ;;
   esac
-  export OCI_CLI_CONFIG_FILE="${OCI_CLI_CONFIG_FILE:-$HOME/.oci/config.arnaudq}"
-  compartment_id="${OCI_SCHEDULE_COMPARTMENT_ID:-${OCI_BUCKET_COMPARTMENT_ID:-}}"
-  if [ -z "$compartment_id" ]; then
-    log 'Resolving the TraficInfo compartment...'
-    compartment_id="$(oci iam compartment list --compartment-id-in-subtree true \
-      --name TraficInfo --lifecycle-state ACTIVE --all | jq '.data' | unique_id)"
-  fi
-  case "$compartment_id" in
-    ocid1.compartment.*) ;; *) log 'Invalid compartment OCID.'; return 1 ;;
-  esac
+  compartment_id="${OCI_COMPARTMENT_ID:?Run source ./setup.sh first}"
   log 'Reading existing schedules...'
   schedules="$(list_schedules)"
   # Check all names for ambiguity before submitting any creation.

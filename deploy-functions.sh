@@ -2,8 +2,8 @@
 # Build once and upload Java code-only functions, without Docker or fn deploy.
 set -euo pipefail
 
-root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-app_name=3MOpenDataProcessor
+root_dir="${TRAFICINFO_ROOT:?Run source ./setup.sh first}"
+app_name="${OCI_FN_APPLICATION_NAME:?Run source ./setup.sh first}"
 runtime_name=java21.ol9
 input_bucket="${BUCKETNAME_IN:-ds3mbucket}"
 dpt34_input_bucket="${BUCKETNAME_DPT34:-dsdpt34}"
@@ -11,7 +11,7 @@ output_bucket="${BUCKETNAME_OUT:-traficinfo}"
 osm_bucket="${BUCKETNAME_OSM:-osminfo}"
 osm_cache_object="${OSM_CACHE_OBJECT:-MMM_OSMInfo.json}"
 jar_file="$root_dir/dsfunctions/target/dsfunctions-1.0-SNAPSHOT-jar-with-dependencies.jar"
-data_source_config_file="$root_dir/dsconfig.json"
+data_source_config_file="${TRAFICINFO_DSCONFIG:?Run source ./setup.sh first}"
 
 # Add functions here as name|handler|config-builder|data-source-id. Deployment mechanics
 # are shared; each builder supplies the configuration needed by its handler.
@@ -26,14 +26,7 @@ resolve_application_id() {
   local application_id compartment_id
   application_id="${OCI_FN_APPLICATION_ID:-}"
   if [ -z "$application_id" ]; then
-    compartment_id="${OCI_FN_COMPARTMENT_ID:-}"
-    if [ -z "$compartment_id" ]; then
-      compartment_id="$(fn inspect context | awk '$1 == "oracle.compartment-id:" {print $2; exit}')"
-    fi
-    if [ -z "$compartment_id" ]; then
-      printf 'Set OCI_FN_APPLICATION_ID or configure oracle.compartment-id in the current Fn context.\n' >&2
-      return 1
-    fi
+    compartment_id="${OCI_COMPARTMENT_ID:?Run source ./setup.sh first}"
     application_id="$(oci fn application list --compartment-id "$compartment_id" \
       --display-name "$app_name" --all --query 'data[0].id' --raw-output)"
   fi
@@ -74,16 +67,6 @@ validate_jar() {
     printf 'Direct archive upload is limited to 25 MB; this JAR is %s bytes.\n' "$jar_bytes" >&2
     return 1
   fi
-}
-
-object_storage_namespace() {
-  local namespace
-  namespace="$(oci os ns get --query data --raw-output)"
-  if [[ ! "$namespace" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-    printf 'OCI CLI returned an invalid Object Storage namespace.\n' >&2
-    return 1
-  fi
-  printf '%s' "$namespace"
 }
 
 validate_bucket_name() {
@@ -201,7 +184,7 @@ main() {
     if [ -n "$data_source_id" ]; then schedule_tags "$data_source_id" >/dev/null; fi
   done
   application_id="$(resolve_application_id)"
-  namespace="$(object_storage_namespace)"
+  namespace="${OCI_OBJECT_STORAGE_NAMESPACE:?Run source ./setup.sh first}"
   # Prepare all configs before making changes, for both creation and updates.
   for definition in "${functions[@]}"; do
     IFS='|' read -r function_name handler config_builder data_source_id <<< "$definition"

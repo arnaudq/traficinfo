@@ -8,15 +8,27 @@ Install JDK 25, the Fn Project CLI, OCI CLI, and `jq`, and place your OCI config
 source ./setup.sh
 ```
 
-Source the script so `JAVA_HOME` and `OCI_CLI_CONFIG_FILE` remain set in your current shell. The script assumes the tools are installed, configures the current Fn context for the active `TraficInfo` compartment and its regional Functions API URL, then lists the deployed Fn applications.
+Source this script before running the other shell scripts. It exports `JAVA_HOME`,
+`TRAFICINFO_ROOT`, `TRAFICINFO_DSCONFIG`, `OCI_CLI_CONFIG_FILE`,
+`OCI_COMPARTMENT_ID`, `OCI_OBJECT_STORAGE_NAMESPACE`, and
+`OCI_FN_APPLICATION_NAME`. It resolves the compartment and storage namespace
+once, configures the Fn context, and lists deployed applications. Other scripts
+consume these exported values. Bash and zsh are supported when sourcing setup.
+
+Set `OCI_CLI_CONFIG_FILE` or `OCI_COMPARTMENT_ID` before sourcing setup to
+override the default credentials file or `TraficInfo` compartment. The older
+`OCI_FN_COMPARTMENT_ID`, `OCI_BUCKET_COMPARTMENT_ID`, and
+`OCI_SCHEDULE_COMPARTMENT_ID` overrides are also accepted during setup, in that
+order after `OCI_COMPARTMENT_ID`. Re-source setup after changing OCI credentials
+or the selected compartment. Application lookup stays in the scripts that need
+it, with `OCI_FN_APPLICATION_ID` available as an explicit override in deploy
+and invoke.
 
 ## Object Storage buckets
 
 Run `./setup-buckets.sh` to create or update `ds3mbucket` and `traficinfo` in
-the active `TraficInfo` compartment. Requires OCI CLI and `jq`. It uses
-`OCI_CLI_CONFIG_FILE` (defaulting to `~/.oci/config.arnaudq`) and the configured
-profile and region. Set `OCI_BUCKET_COMPARTMENT_ID` to select a compartment by
-OCID instead of looking up `TraficInfo` by name.
+the compartment selected by `source ./setup.sh`. It uses the exported
+`OCI_COMPARTMENT_ID`, `OCI_OBJECT_STORAGE_NAMESPACE`, and OCI credentials.
 
 `ds3mbucket` has object events enabled and is private on creation. `traficinfo`
 uses `ObjectReadWithoutList`: anyone can download an object using its URL,
@@ -52,9 +64,9 @@ companion JSON, and output GeoJSON do not match. Input buckets must exist with
 object events enabled. Deployment bucket overrides must agree with the input
 bucket configured here.
 
-The script uses OCI CLI and `jq` directly, shell functions, the configured
-profile and region, `OCI_CLI_CONFIG_FILE` (default `~/.oci/config.arnaudq`), and
-`OCI_BUCKET_COMPARTMENT_ID` as an optional compartment override. Credentials
+The script uses OCI CLI and `jq` directly, shell functions, and the environment
+exported by `source ./setup.sh`, including the data source config path,
+application name, compartment, and storage namespace. Credentials
 must allow managing Events rules and configuring Functions actions; functions
 need access to their inputs and outputs. See
 [Oracle's Events IAM policies](https://docs.oracle.com/en-us/iaas/Content/Events/Concepts/eventspolicy.htm).
@@ -106,9 +118,8 @@ Already matching schedules are skipped. Duplicate names (matched
 case-insensitively) cause an error. Updates do not use ETags.
 
 Uses shell functions, OCI CLI, and `jq`, without checking tool availability.
-Uses the configured OCI profile and region, with `OCI_CLI_CONFIG_FILE` defaulting
-to `~/.oci/config.arnaudq`. The compartment defaults to `TraficInfo`; set
-`OCI_SCHEDULE_COMPARTMENT_ID` (or `OCI_BUCKET_COMPARTMENT_ID`) to select it by OCID.
+Uses the OCI credentials and `OCI_COMPARTMENT_ID` exported by
+`source ./setup.sh`.
 
 Dry runs read OCI and show proposed creates and updates without submitting them.
 Normal runs wait for each operation to succeed and verify timing, filters, and
