@@ -20,7 +20,6 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
 import java.util.HexFormat;
 
 /** Downloads the Hérault CSV and publishes it only when its content changes. */
@@ -95,7 +94,7 @@ public class DataSourceFunction {
             }
 
             if (previous != null) {
-                String archiveName = String.format(CSV_OBJECT_ARCHIVE_NAME, archiveDate(previous));
+                String archiveName = String.format(CSV_OBJECT_ARCHIVE_NAME, previous.getLastModified());
                 // Copy rather than rename: a failed archive/upload leaves the current object readable.
                 try (InputStream oldCsv = objectStore.getResource(CSV_OBJECT_NAME)) {
                     objectStore.putResource(archiveName, CONTENT_TYPE, previous, oldCsv);
@@ -114,16 +113,6 @@ public class DataSourceFunction {
         } finally {
             Files.deleteIfExists(csv);
         }
-    }
-
-    private static String archiveDate(OOSResourceMetadata metadata) {
-        if (metadata.getLastModified() != null) {
-            return metadata.getLastModified();
-        }
-        // Older DPT34 objects stored only the download timestamp.
-        String downloadedAt = metadata.getMetadata().get("downloaded-at");
-        Instant date = downloadedAt == null ? Instant.now() : Instant.parse(downloadedAt);
-        return date.atZone(ZoneOffset.UTC).toLocalDate().format(DateTimeFormatter.BASIC_ISO_DATE);
     }
 
     private static MessageDigest sha256() {

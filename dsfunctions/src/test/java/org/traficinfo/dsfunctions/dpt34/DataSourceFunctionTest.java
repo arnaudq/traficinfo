@@ -75,32 +75,6 @@ public class DataSourceFunctionTest {
     }
 
     @Test
-    public void existingObjectWithoutHashIsArchived() {
-        SourceStub stub = new SourceStub();
-        stub.contents.put(OBJECT, new byte[]{1, 2, 3});
-        stub.metadata.put(OBJECT, new OOSResourceMetadata());
-        stub.function().handleRequest("");
-        assertEquals(2, stub.uploads.size());
-        String archive = stub.uploads.get(0);
-        assertEquals(String.format(DataSourceFunction.CSV_OBJECT_ARCHIVE_NAME,
-                LocalDate.now(ZoneOffset.UTC).format(DateTimeFormatter.BASIC_ISO_DATE)), archive);
-        assertArrayEquals(new byte[]{1, 2, 3}, stub.contents.get(archive));
-        assertArrayEquals(CSV, stub.contents.get(OBJECT));
-    }
-
-    @Test
-    public void legacyObjectUsesItsDownloadDateForArchive() {
-        SourceStub stub = initializedStub();
-        OOSResourceMetadata previous = new OOSResourceMetadata();
-        previous.getMetadata().put("downloaded-at", "2026-10-17T23:30:00Z");
-        stub.metadata.put(OBJECT, previous);
-        stub.downloadBytes = new byte[]{4, 5, 6};
-        stub.function().handleRequest("");
-        assertEquals(List.of("DPT34_Comptage_20261017.csv", OBJECT), stub.uploads);
-        assertArrayEquals(CSV, stub.contents.get("DPT34_Comptage_20261017.csv"));
-    }
-
-    @Test
     public void downloadFailureLeavesCurrentObjectUntouched() {
         SourceStub stub = initializedStub();
         stub.failDownload = true;

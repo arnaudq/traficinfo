@@ -42,9 +42,8 @@ On first download or changed content, the function uploads
 date in user metadata.
 When replacing an existing CSV, it first copies the previous content and metadata
 to `DPT34_Comptage_YYYYMMDD.csv`, following the M3M date suffix convention.
-The date comes from the previous object's `last-modified` metadata, falling
-back to its `downloaded-at` UTC date for older objects, or the current UTC date
-if neither is available. Since the source has no Last-Modified header, this
+The date comes from the previous object's `last-modified` metadata.
+Since the source has no Last-Modified header, this
 is a download date, not the publisher's modification date. As with M3M,
 multiple versions dated the same day share an archive name.
 Copying preserves the current object until
