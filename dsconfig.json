@@ -3,6 +3,9 @@
     "id": "MMM",
     "name": "Comptage véhicules particuliers de Montpellier Méditerrannée Métropole",
     "schedule": "Daily",
+    "functionPrefix": "3M",
+    "inputBucket": "ds3mbucket",
+    "csvObject": "MMM_MMM_Comptage.csv",
     "datasetInfoUrl": "https://data.montpellier3m.fr/dataset/comptage-vehicules-particuliers-de-montpellier"
   },
   "DPT34": {

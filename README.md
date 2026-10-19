@@ -31,20 +31,32 @@ does not create the rule that invokes the GeoJSON function.
 
 ## CSV events and GeoJSON generation
 
-After running `./setup-buckets.sh` and deploying the functions with
-`./deploy-functions.sh`, run `./setup-events.sh` to create or update the dedicated
-`3MComptageCsvToGeoJson` Events rule. It invokes `3MGeoJsonOut` in
-`3MOpenDataProcessor` for create and update events on exactly
-`ds3mbucket/MMM_MMM_Comptage.csv`. The condition also matches the selected
-compartment and Object Storage namespace. Archive objects, the companion JSON,
-and the output GeoJSON do not match.
+After running `./setup-buckets.sh` and deploying with `./deploy-functions.sh`,
+run `./setup-events.sh` to create or update one Events rule for every entry in
+`dsconfig.json`, targeting GeoJSON functions in `3MOpenDataProcessor`:
 
-The script requires OCI CLI and `jq` and uses the same credentials, region,
-and `OCI_BUCKET_COMPARTMENT_ID` override as `setup-buckets.sh`. It requires the
-input bucket to exist with object events enabled, and resolves exactly one
-active application and function by their case-sensitive names. Credentials
-must have permission to manage Events rules and configure Functions actions;
-the function needs permission to read its inputs and write its output. See
+| Source ID | Events rule | CSV object | GeoJSON function |
+| --- | --- | --- | --- |
+| MMM | `3MComptageCsvToGeoJson` | `ds3mbucket/MMM_MMM_Comptage.csv` | `3MGeoJsonOut` |
+| DPT34 | `DPT34ComptageCsvToGeoJson` | `dsdpt34/DPT34_Comptage.csv` | `DPT34GeoJsonOut` |
+
+Names default to function `${id}GeoJsonOut`, rule `${id}ComptageCsvToGeoJson`,
+bucket `ds${lowercase(id)}`, and CSV `${id}_Comptage.csv`. Optional per-source
+`functionPrefix`, `inputBucket`, and `csvObject` fields override these defaults.
+MMM supplies all three overrides to retain its existing resource names; DPT34
+uses the defaults. `functionPrefix` affects both the rule and function name.
+
+Each rule matches create and update events for exactly its configured CSV in
+its bucket, compartment, and Object Storage namespace. Archive objects,
+companion JSON, and output GeoJSON do not match. Input buckets must exist with
+object events enabled. Deployment bucket overrides must agree with the input
+bucket configured here.
+
+The script uses OCI CLI and `jq` directly, shell functions, the configured
+profile and region, `OCI_CLI_CONFIG_FILE` (default `~/.oci/config.arnaudq`), and
+`OCI_BUCKET_COMPARTMENT_ID` as an optional compartment override. Credentials
+must allow managing Events rules and configuring Functions actions; functions
+need access to their inputs and outputs. See
 [Oracle's Events IAM policies](https://docs.oracle.com/en-us/iaas/Content/Events/Concepts/eventspolicy.htm).
 
 ```sh
@@ -52,15 +64,13 @@ the function needs permission to read its inputs and write its output. See
 ./setup-events.sh
 ```
 
-Dry runs show the proposed filter and function action without submitting changes.
-Progress messages on stderr identify each discovery, validation, and apply step,
-including the wait for an active rule. Failures report the step that failed.
-Repeated runs skip an already configured rule. Updates reconcile the dedicated
-rule's complete filter and action list, preserving tags, description, and other
-rules. Duplicate rule names and concurrent edits cause an error. The script
-waits for the rule to become active and verifies the filter and enabled function
-action. Setup does not process the CSV already stored; the next matching object
-event triggers processing.
+Dry runs show proposed changes for every source without submitting them.
+Progress messages identify discovery, validation, and apply steps. Repeated
+runs skip matching rules; updates replace each dedicated rule's filter and
+complete action list. Duplicate rule names and ambiguous function names cause
+an error. No ETags or tool-availability checks are used. The script waits for
+active rules and verifies their conditions and enabled function actions.
+Existing CSV objects are not processed until the next matching object event.
 
 ## Daily, weekly and monthly schedules
 

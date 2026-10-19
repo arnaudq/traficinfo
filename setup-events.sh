@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
-# Reconcile the dedicated CSV -> GeoJSON OCI Events rule and Functions action.
+# Reconcile one CSV -> GeoJSON OCI Events rule per configured data source.
 set -euo pipefail
 
-rule_name=3MComptageCsvToGeoJson
 application_name=3MOpenDataProcessor
-function_name=3MGeoJsonOut
-bucket_name=ds3mbucket
-object_name=MMM_MMM_Comptage.csv
+root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+data_source_config_file="$root_dir/dsconfig.json"
 wait_options=(--wait-for-state ACTIVE --wait-for-state FAILED
   --max-wait-seconds 600 --wait-interval-seconds 5)
 
@@ -43,14 +41,27 @@ parse_arguments() {
   fi
 }
 
-check_dependencies() {
-  local tool
-  for tool in oci jq; do
-    command -v "$tool" >/dev/null 2>&1 || {
-      printf '%s is required.\n' "$tool" >&2
-      return 1
-    }
-  done
+load_sources() {
+  jq -ce '
+    def nonempty_string: type == "string" and length > 0;
+    if type != "object" or length == 0 then error("Expected a nonempty data source map") else . end
+    | to_entries | map(
+      .key as $key | .value
+      | if type != "object" then error("Invalid data source \($key)") else . end
+      | if .id != $key or (.id | nonempty_string | not) then
+          error("Data source key must match its id: \($key)") else . end
+      | if all([.functionPrefix, .inputBucket, .csvObject][];
+          . == null or nonempty_string) then . else
+          error("Overrides must be nonempty strings for \($key)") end
+      | (.functionPrefix // .id) as $prefix
+      | {id, functionName: ($prefix + "GeoJsonOut"),
+          ruleName: ($prefix + "ComptageCsvToGeoJson"),
+          inputBucket: (.inputBucket // ("ds" + (.id | ascii_downcase))),
+          csvObject: (.csvObject // (.id + "_Comptage.csv"))}
+    )
+    | if (map(.ruleName) | unique | length) != length then
+        error("Data sources must produce distinct Events rule names") else . end
+  ' "$data_source_config_file"
 }
 
 configure_oci() {
@@ -183,7 +194,6 @@ preview_rule() {
   jq -n --arg id "$1" --argjson condition "$2" --argjson actions "$3" \
     '{operation: (if $id == "" then "create" else "update" end), ruleId: $id,
       isEnabled: true, condition: $condition, actions: $actions}'
-  printf 'Dry run complete; no changes submitted.\n'
 }
 
 create_rule() {
@@ -196,13 +206,9 @@ create_rule() {
 }
 
 update_rule() {
-  local etag
-  etag="$(jq -er '.etag | select(type == "string" and length > 0)' <<< "$2")"
-  # This dedicated rule owns its filter and complete action list. Preserve tags
-  # and description, and refuse to overwrite a concurrent edit.
   log "Updating $rule_name and waiting for ACTIVE (up to 600 seconds)..."
-  oci events rule update --rule-id "$1" --if-match "$etag" \
-    --is-enabled true --condition "$3" --actions "$4" \
+  oci events rule update --rule-id "$1" \
+    --is-enabled true --condition "$2" --actions "$3" \
     --force "${wait_options[@]}" >/dev/null
 }
 
@@ -215,24 +221,10 @@ verify_rule() {
   }
 }
 
-main() {
-  local dry_run compartment_id namespace application_id function_id condition actions rule_id state
-  parse_arguments "$@"
-  step 'Checking dependencies and configuring OCI credentials...'
-  check_dependencies
-  configure_oci
-  if [ "$dry_run" = true ]; then
-    log 'Dry run: OCI resources will be read; no changes will be submitted.'
-  fi
-
-  step 'Resolving the TraficInfo compartment...'
-  compartment_id="$(resolve_compartment_id)"
-  step 'Resolving the Object Storage namespace...'
-  namespace="$(resolve_namespace)"
+reconcile_source() {
+  local function_id condition actions rule_id state
   step "Checking $bucket_name and its object events setting..."
   validate_bucket "$compartment_id" "$namespace"
-  step "Resolving application $application_name..."
-  application_id="$(resolve_application_id "$compartment_id")"
   step "Resolving function $function_name..."
   function_id="$(resolve_function_id "$application_id")"
   step 'Building the CSV event condition and Functions action...'
@@ -264,12 +256,47 @@ main() {
     rule_id="$(create_rule "$compartment_id" "$condition" "$actions")"
   else
     step "Updating rule $rule_name..."
-    update_rule "$rule_id" "$state" "$condition" "$actions"
+    update_rule "$rule_id" "$condition" "$actions"
   fi
   step 'Verifying the active rule, event condition, and function action...'
   verify_rule "$rule_id" "$compartment_id" "$condition" "$function_id"
   printf 'Verified %s (%s): CSV create/update events invoke %s.\n' \
     "$rule_name" "$rule_id" "$function_name"
+}
+
+main() {
+  local dry_run compartment_id namespace application_id sources source_count source index
+  local rule_name function_name bucket_name object_name data_source_id
+  parse_arguments "$@"
+  step 'Reading data sources and naming overrides from dsconfig.json...'
+  sources="$(load_sources)"
+  source_count="$(jq 'length' <<< "$sources")"
+  step 'Configuring OCI credentials...'
+  configure_oci
+  if [ "$dry_run" = true ]; then
+    log 'Dry run: OCI resources will be read; no changes will be submitted.'
+  fi
+  step 'Resolving the TraficInfo compartment...'
+  compartment_id="$(resolve_compartment_id)"
+  step 'Resolving the Object Storage namespace...'
+  namespace="$(resolve_namespace)"
+  step "Resolving application $application_name..."
+  application_id="$(resolve_application_id "$compartment_id")"
+  for ((index = 0; index < source_count; index++)); do
+    source="$(jq -c --argjson index "$index" '.[$index]' <<< "$sources")"
+    data_source_id="$(jq -r '.id' <<< "$source")"
+    rule_name="$(jq -r '.ruleName' <<< "$source")"
+    function_name="$(jq -r '.functionName' <<< "$source")"
+    bucket_name="$(jq -r '.inputBucket' <<< "$source")"
+    object_name="$(jq -r '.csvObject' <<< "$source")"
+    step "Configuring events for $data_source_id..."
+    reconcile_source
+  done
+  if [ "$dry_run" = true ]; then
+    log 'Dry run complete; no changes submitted.'
+  else
+    log 'All configured data source event rules are ready.'
+  fi
 }
 
 main "$@"
