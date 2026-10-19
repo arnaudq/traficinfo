@@ -18,10 +18,16 @@ invocation before the CSV is published and is reported as a function failure.
 
 `org.traficinfo.dsfunctions.HttpClient`, `ObjectStoreClient` and
 `OOSResourceMetadata` are shared by the M3M and DPT34 source functions.
-The HTTP client supports optional ETag and Last-Modified headers, sends
-`If-None-Match` only when given an ETag, and returns no body for HTTP 304.
-Responses and body streams are released when the returned `EntityBody` is closed.
-Missing ETags are omitted from object metadata.
+The HTTP client sends `If-None-Match` for real server ETags and returns no body
+for HTTP 304. When the server supplies no ETag, it stages the complete response
+in a temporary file and exposes `sha256:<hex-digest>` through `getEtag()`.
+It returns no body when this synthetic validator matches the previous value.
+Synthetic validators are never sent in `If-None-Match`; their comparison requires
+a full download on each invocation. A change of row order or formatting changes
+the hash. Both real and synthetic validators use the same `current-etag` object
+metadata. Last-Modified remains optional and is not inferred by the HTTP client.
+Responses, body streams and temporary files are released when `EntityBody` is
+closed. Unchanged downloads and failed downloads also delete temporary files.
 
 ## DPT34 data source function
 
@@ -30,15 +36,13 @@ the Hérault [CSV export](https://www.herault-data.fr/api/explore/v2.1/catalog/d
 Configure `NAMESPACE`; `BUCKETNAME` defaults to `dsdpt34`, and
 `USE_RESOURCE_PRINCIPAL` defaults to `true`.
 
-The endpoint supplies no ETag or Last-Modified header. Each invocation downloads
-the full CSV to a temporary file, calculates SHA-256 over its uncompressed
-bytes, and compares it with the current object's `content-sha256` user metadata.
-If identical, it returns `OK` without uploading anything. A change of row order
-or formatting also changes the hash.
+The endpoint supplies no ETag or Last-Modified header. The function delegates
+change detection to the shared HTTP client using the stored `current-etag`
+validator. If unchanged, it returns `OK` without uploading anything.
 
 On first download or changed content, the function uploads
 `DPT34_Comptage.csv` with content type `text/csv`, gzip encoding,
-`content-sha256`, a `downloaded-at` UTC timestamp and a `last-modified` download
+`current-etag`, a `downloaded-at` UTC timestamp and a `last-modified` download
 date in user metadata.
 When replacing an existing CSV, it first copies the previous content and metadata
 to `DPT34_Comptage_YYYYMMDD.csv`, following the M3M date suffix convention.

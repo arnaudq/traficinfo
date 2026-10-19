@@ -7,7 +7,9 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.LocalDate;
+import java.util.HexFormat;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.*;
@@ -18,23 +20,71 @@ public class HttpClientTest {
     public void downloadsWithoutEtagOrLastModified() throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         byte[] csv = "Commune;Année\nBÉZIERS;2025\n".getBytes(StandardCharsets.UTF_8);
+        AtomicReference<byte[]> content = new AtomicReference<>(csv);
         AtomicReference<String> conditionalHeader = new AtomicReference<>();
         server.createContext("/csv", exchange -> {
             conditionalHeader.set(exchange.getRequestHeaders().getFirst("If-None-Match"));
-            exchange.sendResponseHeaders(200, csv.length);
+            byte[] bytes = content.get();
+            exchange.sendResponseHeaders(200, bytes.length);
             try (var output = exchange.getResponseBody()) {
-                output.write(csv);
+                output.write(bytes);
             }
         });
         server.start();
         try (HttpClient client = new HttpClient()) {
             URI uri = URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/csv");
+            OOSResourceMetadata metadata = new OOSResourceMetadata();
+            String hash = "sha256:" + HexFormat.of().formatHex(
+                    MessageDigest.getInstance("SHA-256").digest(csv));
             try (HttpClient.EntityBody body = client.get(uri, null)) {
-                assertNull(body.getEtag());
+                assertEquals(hash, body.getEtag());
+                metadata.setETag(body.getEtag());
                 assertNull(body.getLastModified());
                 assertArrayEquals(csv, body.getInputStream().readAllBytes());
             }
             assertNull(conditionalHeader.get());
+            try (HttpClient.EntityBody body = client.get(uri, metadata.getETag())) {
+                assertEquals(hash, body.getEtag());
+                assertNull(body.getInputStream());
+            }
+            assertNull(conditionalHeader.get());
+            try (HttpClient.EntityBody body = client.get(uri, hash)) {
+                assertNull(body.getInputStream());
+            }
+            assertNull(conditionalHeader.get());
+            byte[] changed = "new content".getBytes(StandardCharsets.UTF_8);
+            content.set(changed);
+            try (HttpClient.EntityBody body = client.get(uri, metadata.getETag())) {
+                assertNotEquals(hash, body.getEtag());
+                assertTrue(body.getEtag().startsWith("sha256:"));
+                assertArrayEquals(changed, body.getInputStream().readAllBytes());
+            }
+            assertNull(conditionalHeader.get());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    public void hashesEmptyResponseWithoutEtag() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/empty", exchange -> {
+            exchange.sendResponseHeaders(200, -1);
+            exchange.close();
+        });
+        server.start();
+        try (HttpClient client = new HttpClient()) {
+            URI uri = URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/empty");
+            String etag;
+            try (HttpClient.EntityBody body = client.get(uri, null)) {
+                etag = body.getEtag();
+                assertEquals("sha256:" + HexFormat.of().formatHex(
+                        MessageDigest.getInstance("SHA-256").digest(new byte[0])), etag);
+                assertEquals(-1, body.getInputStream().read());
+            }
+            try (HttpClient.EntityBody body = client.get(uri, etag)) {
+                assertNull(body.getInputStream());
+            }
         } finally {
             server.stop(0);
         }
@@ -71,6 +121,11 @@ public class HttpClientTest {
                 assertEquals("\"version-1\"", conditionalHeader.get());
                 assertEquals("\"version-1\"", body.getEtag());
                 assertNull(body.getInputStream());
+            }
+            try (HttpClient.EntityBody body = client.get(uri, "sha256:" + "a".repeat(64))) {
+                assertNull(conditionalHeader.get());
+                assertEquals("version-1", body.getEtag());
+                assertEquals('x', body.getInputStream().read());
             }
         } finally {
             server.stop(0);

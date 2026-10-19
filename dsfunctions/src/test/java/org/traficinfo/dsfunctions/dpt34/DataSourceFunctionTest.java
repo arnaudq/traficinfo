@@ -11,13 +11,11 @@ import java.io.UncheckedIOException;
 import java.net.URI;
 import org.traficinfo.dsfunctions.HttpClient;
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 
@@ -25,22 +23,22 @@ import static org.junit.Assert.*;
 
 public class DataSourceFunctionTest {
 
+    private static final String ETAG = "sha256:" + "a".repeat(64);
     private static final String OBJECT = DataSourceFunction.CSV_OBJECT_NAME;
     private static final byte[] CSV = "Identifiant du compteur;Année\nPer.034.2005.00.3;2025\n"
             .getBytes(StandardCharsets.UTF_8);
 
     @Test
-    public void firstDownloadPublishesCsvAndContentHash() throws Exception {
+    public void firstDownloadPublishesCsvAndValidator() throws Exception {
         SourceStub stub = new SourceStub();
         assertEquals("OK", stub.function().handleRequest(""));
         assertEquals(List.of(OBJECT), stub.uploads);
         assertArrayEquals(CSV, stub.contents.get(OBJECT));
         OOSResourceMetadata metadata = stub.metadata.get(OBJECT);
-        assertEquals(hash(CSV), metadata.getMetadata().get(DataSourceFunction.CONTENT_SHA256));
+        assertEquals("\"" + ETAG + "\"", metadata.getETag());
         assertNotNull(metadata.getMetadata().get("downloaded-at"));
         assertEquals(LocalDate.now(ZoneOffset.UTC).format(DateTimeFormatter.BASIC_ISO_DATE),
                 metadata.getLastModified());
-        assertNull(metadata.getETag());
         assertEquals(1, stub.downloads);
         assertTrue(stub.closed);
     }
@@ -51,6 +49,7 @@ public class DataSourceFunctionTest {
         DataSourceFunction function = stub.function();
         function.handleRequest("");
         stub.uploads.clear();
+        stub.unchanged = true;
         assertEquals("OK", function.handleRequest(""));
         assertEquals(2, stub.downloads);
         assertTrue(stub.uploads.isEmpty());
@@ -70,8 +69,7 @@ public class DataSourceFunctionTest {
         assertEquals(List.of(archive, OBJECT), stub.uploads);
         assertArrayEquals(CSV, stub.contents.get(archive));
         assertArrayEquals(stub.downloadBytes, stub.contents.get(OBJECT));
-        assertEquals(hash(CSV),
-                stub.metadata.get(archive).getMetadata().get(DataSourceFunction.CONTENT_SHA256));
+        assertEquals("\"" + ETAG + "\"", stub.metadata.get(archive).getETag());
     }
 
     @Test
@@ -114,10 +112,6 @@ public class DataSourceFunctionTest {
         assertArrayEquals(CSV, stub.contents.get(OBJECT));
     }
 
-    private static String hash(byte[] bytes) throws Exception {
-        return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
-    }
-
     private static SourceStub initializedStub() {
         SourceStub stub = new SourceStub();
         stub.function().handleRequest("");
@@ -142,6 +136,7 @@ public class DataSourceFunctionTest {
         int downloads;
         int archiveReads;
         boolean closed;
+        boolean unchanged;
         boolean failDownload;
         boolean failArchiveUpload;
         boolean failCurrentUpload;
@@ -176,12 +171,16 @@ public class DataSourceFunctionTest {
                 @Override
                 public EntityBody get(URI uri, String etag) throws IOException {
                     assertEquals(DataSourceFunction.CSV_URI, uri);
-                    assertNull(etag);
+                    OOSResourceMetadata previous = metadata.get(OBJECT);
+                    assertEquals(previous == null ? null : previous.getETag(), etag);
                     downloads++;
                     if (failDownload) {
                         throw new IOException("Download failed");
                     }
-                    return new EntityBody(null, null, new ByteArrayInputStream(downloadBytes) {
+                    if (unchanged) {
+                        return new EntityBody(ETAG, null, null);
+                    }
+                    return new EntityBody(ETAG, null, new ByteArrayInputStream(downloadBytes) {
                         @Override
                         public void close() throws IOException {
                             closed = true;

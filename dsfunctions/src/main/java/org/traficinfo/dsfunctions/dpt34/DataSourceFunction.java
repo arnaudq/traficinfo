@@ -10,17 +10,11 @@ import org.traficinfo.dsfunctions.HttpClient;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.PushbackInputStream;
 import java.io.UncheckedIOException;
 import java.net.URI;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.security.DigestOutputStream;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.util.HexFormat;
 
 /** Downloads the Hérault CSV and publishes it only when its content changes. */
 public class DataSourceFunction {
@@ -31,7 +25,6 @@ public class DataSourceFunction {
     public static final String DEFAULT_BUCKET_NAME = "dsdpt34";
     public static final String CSV_OBJECT_NAME = "DPT34_Comptage.csv";
     public static final String CSV_OBJECT_ARCHIVE_NAME = "DPT34_Comptage_%s.csv";
-    public static final String CONTENT_SHA256 = "content-sha256";
     public static final URI CSV_URI = URI.create(
             "https://www.herault-data.fr/api/explore/v2.1/catalog/datasets/"
                     + "trafic-de-l-herault-donnees-de-comptage/exports/csv?use_labels=true&delimiter=%3B");
@@ -73,25 +66,18 @@ public class DataSourceFunction {
 
     private void storeCsv() throws IOException {
         OOSResourceMetadata previous = objectStore.getResourceMetadata(CSV_OBJECT_NAME);
-        Path csv = Files.createTempFile("dpt34ds-", ".csv");
-        try {
-            MessageDigest digest = sha256();
-            // The endpoint has no ETag: always download, hashing uncompressed bytes.
-            try (HttpClient.EntityBody body = httpClient.get(CSV_URI, null)) {
-                if (body.getInputStream() == null) {
-                    throw new IOException("The DPT34 CSV download has no body");
-                }
-                try (OutputStream output = new DigestOutputStream(Files.newOutputStream(csv), digest)) {
-                    if (body.getInputStream().transferTo(output) == 0) {
-                        throw new IOException("The DPT34 CSV download is empty");
-                    }
-                }
-            }
-            String hash = HexFormat.of().formatHex(digest.digest());
-            if (previous != null && hash.equals(previous.getMetadata().get(CONTENT_SHA256))) {
+        try (HttpClient.EntityBody body = httpClient.get(CSV_URI,
+                previous == null ? null : previous.getETag())) {
+            if (body.getInputStream() == null) {
                 LOG.info("No change for {}", CSV_OBJECT_NAME);
                 return;
             }
+            PushbackInputStream content = new PushbackInputStream(body.getInputStream(), 1);
+            int first = content.read();
+            if (first == -1) {
+                throw new IOException("The DPT34 CSV download is empty");
+            }
+            content.unread(first);
 
             if (previous != null) {
                 String archiveName = String.format(CSV_OBJECT_ARCHIVE_NAME, previous.getLastModified());
@@ -104,23 +90,10 @@ public class DataSourceFunction {
             OOSResourceMetadata metadata = new OOSResourceMetadata();
             Instant downloadedAt = Instant.now();
             metadata.setLastModified(downloadedAt.atZone(ZoneOffset.UTC).toLocalDate());
-            metadata.getMetadata().put(CONTENT_SHA256, hash);
+            metadata.setETag(body.getEtag());
             metadata.getMetadata().put("downloaded-at", downloadedAt.toString());
-            try (InputStream content = Files.newInputStream(csv)) {
-                objectStore.putResource(CSV_OBJECT_NAME, CONTENT_TYPE, metadata, content);
-            }
-            LOG.info("Published {} with SHA-256 {}", CSV_OBJECT_NAME, hash);
-        } finally {
-            Files.deleteIfExists(csv);
+            objectStore.putResource(CSV_OBJECT_NAME, CONTENT_TYPE, metadata, content);
+            LOG.info("Published {}", CSV_OBJECT_NAME);
         }
     }
-
-    private static MessageDigest sha256() {
-        try {
-            return MessageDigest.getInstance("SHA-256");
-        } catch (NoSuchAlgorithmException failure) {
-            throw new IllegalStateException("SHA-256 is unavailable", failure);
-        }
-    }
-
 }

@@ -30,8 +30,8 @@ public class OOSResourceMetadata {
     }
 
     /**
-     * Get etag from metadata, adding back the double quotes.
-     * @return actual HTTP ETag with quotes.
+     * Get the stored validator, adding back double quotes.
+     * @return quoted server ETag or synthetic sha256 validator.
      */
     public String getETag() {
         String metadataETag = metadata.get(OOS_RESOURCE_METADATA_CURRENT_ETAG);

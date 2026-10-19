@@ -10,14 +10,22 @@ import org.slf4j.LoggerFactory;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.DigestOutputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Date;
+import java.util.HexFormat;
 import java.util.concurrent.TimeUnit;
 
 public class HttpClient implements Closeable {
 
+    private static final String HASH_PREFIX = "sha256:";
     private static final Logger LOG = LoggerFactory.getLogger(HttpClient.class);
 
     private final Client client;
@@ -30,7 +38,7 @@ public class HttpClient implements Closeable {
 
     public EntityBody get(URI url, String etag) throws IOException {
         Invocation.Builder builder = client.target(url).request();
-        if (etag != null) {
+        if (etag != null && !unquote(etag).startsWith(HASH_PREFIX)) {
             builder.header("If-None-Match", etag);
         }
         final Response response;
@@ -42,10 +50,12 @@ public class HttpClient implements Closeable {
         try {
             switch (response.getStatus()) {
                 case 200:
-                    return new EntityBody(response.getEntityTag() == null ? null
-                            : response.getEntityTag().getValue(),
+                    if (response.getEntityTag() == null) {
+                        return hashResponse(response, etag);
+                    }
+                    return new EntityBody(response.getEntityTag().getValue(),
                             response.getLastModified(),
-                            response.readEntity(InputStream.class), response);
+                            response.readEntity(InputStream.class), response, null);
                 case 304:
                     LOG.info("entity did not change");
                     response.close();
@@ -63,6 +73,43 @@ public class HttpClient implements Closeable {
         }
     }
 
+    private static EntityBody hashResponse(Response response, String previousEtag) throws IOException {
+        Path file = Files.createTempFile("httpclient-", ".body");
+        boolean retained = false;
+        try {
+            MessageDigest digest;
+            try {
+                digest = MessageDigest.getInstance("SHA-256");
+            } catch (NoSuchAlgorithmException failure) {
+                throw new IllegalStateException("SHA-256 is unavailable", failure);
+            }
+            Date lastModified = response.getLastModified();
+            try (InputStream input = response.hasEntity()
+                    ? response.readEntity(InputStream.class) : InputStream.nullInputStream();
+                 OutputStream output = new DigestOutputStream(Files.newOutputStream(file), digest)) {
+                input.transferTo(output);
+            }
+            response.close();
+            String etag = HASH_PREFIX + HexFormat.of().formatHex(digest.digest());
+            if (etag.equals(unquote(previousEtag))) {
+                LOG.info("entity content did not change");
+                return new EntityBody(etag, lastModified, null);
+            }
+            EntityBody body = new EntityBody(etag, lastModified, Files.newInputStream(file), null, file);
+            retained = true;
+            return body;
+        } finally {
+            if (!retained) {
+                Files.deleteIfExists(file);
+            }
+        }
+    }
+
+    private static String unquote(String etag) {
+        return etag != null && etag.startsWith("\"") && etag.endsWith("\"") && etag.length() >= 2
+                ? etag.substring(1, etag.length() - 1) : etag;
+    }
+
     @Override
     public void close() {
         client.close();
@@ -73,14 +120,17 @@ public class HttpClient implements Closeable {
         private final LocalDate lastModified;
         private final InputStream inputStream;
         private final Response response;
+        private final Path temporaryFile;
 
         public EntityBody(String etag, Date lastModified, InputStream inputStream) {
-            this(etag, lastModified, inputStream, null);
+            this(etag, lastModified, inputStream, null, null);
         }
 
-        private EntityBody(String etag, Date lastModified, InputStream inputStream, Response response) {
+        private EntityBody(String etag, Date lastModified, InputStream inputStream,
+                           Response response, Path temporaryFile) {
             this.etag = etag;
             this.response = response;
+            this.temporaryFile = temporaryFile;
             if (lastModified != null) {
                 this.lastModified = lastModified.toInstant().atZone(ZoneId.of("GMT")).toLocalDate();
             } else {
@@ -108,8 +158,14 @@ public class HttpClient implements Closeable {
                     inputStream.close();
                 }
             } finally {
-                if (response != null) {
-                    response.close();
+                try {
+                    if (response != null) {
+                        response.close();
+                    }
+                } finally {
+                    if (temporaryFile != null) {
+                        Files.deleteIfExists(temporaryFile);
+                    }
                 }
             }
         }
