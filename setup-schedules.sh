@@ -2,6 +2,8 @@
 # Ensure Daily, Weekly and Monthly schedules use defined-tag resource filters.
 set -euo pipefail
 
+source "${TRAFICINFO_ROOT:?Run source ./setup.sh first}/oci-common.sh"
+
 # Recorded from OCI during script preparation; no schedule is a runtime template.
 schedule_clock='BYHOUR=15;BYMINUTE=30;BYSECOND=0'
 schedule_timezone=UTC
@@ -9,8 +11,6 @@ tag_namespace=TraficInfo
 tag_key=DataSourceSchedule
 wait_options=(--wait-for-state SUCCEEDED --wait-for-state FAILED --wait-for-state CANCELED
   --max-wait-seconds 600 --wait-interval-seconds 5)
-
-log() { printf '[setup-schedules] %s\n' "$*" >&2; }
 
 find_schedule_id() {
   # Match case-insensitively: the existing project schedule is named Daily.
@@ -129,10 +129,7 @@ main() {
   local dry_run=false compartment_id schedules
   local name id recurrence payload index state
   local names=(Daily Weekly Monthly) ids=() payloads=() operations=()
-  if [ "$#" -gt 1 ]; then log "Usage: $0 [--dry-run]"; return 1; fi
-  case "${1:-}" in
-    '') ;; --dry-run) dry_run=true ;; *) log "Usage: $0 [--dry-run]"; return 1 ;;
-  esac
+  dry_run="$(parse_dry_run_arguments "$@")"
   compartment_id="${OCI_COMPARTMENT_ID:?Run source ./setup.sh first}"
   log 'Reading existing schedules...'
   schedules="$(list_schedules)"

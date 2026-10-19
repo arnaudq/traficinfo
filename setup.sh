@@ -46,10 +46,7 @@ set_oci_environment() {
   if [ -z "$compartment_id" ]; then
     compartments="$(oci iam compartment list --compartment-id-in-subtree true \
       --name TraficInfo --lifecycle-state ACTIVE --all)" || return
-    compartment_id="$(jq -er '
-        .data | if length == 1 then .[0].id else
-          error("Expected exactly one active TraficInfo compartment") end' \
-      <<< "$compartments")" || return
+    compartment_id="$(jq '.data' <<< "$compartments" | unique_id)" || return
   fi
   case "$compartment_id" in
     ocid1.compartment.*) ;;
@@ -101,6 +98,7 @@ list_fn_apps() {
 
 setup_project_environment() {
   set_project_paths || return 1
+  source "$TRAFICINFO_ROOT/oci-common.sh" || return 1
   set_java_home || return 1
   set_oci_config || return 1
   set_oci_environment || return 1

@@ -2,59 +2,24 @@
 # Invoke a traffic data-source or GeoJSON function.
 set -euo pipefail
 
+source "${TRAFICINFO_ROOT:?Run source ./setup.sh first}/oci-common.sh"
+
 usage() {
-  printf 'Usage: %s <ds|geojson> <MMM|DPT34>\n' "$0" >&2
+  printf 'Usage: %s <ds|geojson> <data-source-id>\n' "$0" >&2
 }
 
-resolve_function_prefix() {
-  local data_source_id="$1"
-  if ! jq -e --arg id "$data_source_id" '.[$id].id == $id' \
-    "${TRAFICINFO_DSCONFIG:?Run source ./setup.sh first}" >/dev/null; then
-    printf 'Unknown data source ID in dsconfig.json: %s\n' "$data_source_id" >&2
-    return 1
-  fi
-  case "$data_source_id" in
-    MMM) printf '3M\n' ;;
-    DPT34) printf 'DPT34\n' ;;
-    *) printf 'No function mapping for data source %s.\n' "$data_source_id" >&2; return 1 ;;
-  esac
+main() {
+  local type source function_name application_id function_id
+  if [ "$#" -ne 2 ]; then usage; return 1; fi
+  type="$1"
+  case "$type" in ds|geojson) ;; *) usage; return 1 ;; esac
+  source="$(get_data_source "$2")"
+  function_name="$(data_source_function_name "$source" "$type")"
+  application_id="$(resolve_application_id)"
+  function_id="$(resolve_function_id "$application_id" "$function_name")"
+  log "Invoking $function_name..."
+  exec oci fn function invoke --function-id "$function_id" \
+    --fn-invoke-type sync --body "" --file "-"
 }
 
-if [ "$#" -ne 2 ]; then
-  usage
-  exit 1
-fi
-
-type="$1"
-source="$(resolve_function_prefix "$2")"
-case "$type" in
-  ds) function_name="${source}OpenDataSource" ;;
-  geojson) function_name="${source}GeoJsonOut" ;;
-  *) usage; exit 1 ;;
-esac
-
-app_name="${OCI_FN_APPLICATION_NAME:?Run source ./setup.sh first}"
-application_id="${OCI_FN_APPLICATION_ID:-}"
-if [ -z "$application_id" ]; then
-  compartment_id="${OCI_COMPARTMENT_ID:?Run source ./setup.sh first}"
-  application_id="$(oci fn application list --compartment-id "$compartment_id" \
-    --display-name "$app_name" --all --query 'data[0].id' --raw-output)"
-fi
-case "$application_id" in
-  ocid1.fnapp.*) ;;
-  *) printf 'Could not find application %s.\n' "$app_name" >&2; exit 1 ;;
-esac
-
-function_id="$(oci fn function list --application-id "$application_id" \
-  --display-name "$function_name" --all --query 'data[0].id' --raw-output)"
-case "$function_id" in
-  ocid1.fnfunc.*) ;;
-  *)
-    printf 'Function %s was not found in %s. Deploy it before invoking.\n' "$function_name" "$app_name" >&2
-    exit 1
-    ;;
-esac
-
-printf 'Invoking %s...\n' "$function_name" >&2
-exec oci fn function invoke --function-id "$function_id" \
-  --fn-invoke-type sync --body "" --file "-"
+main "$@"

@@ -22,23 +22,34 @@ override the default credentials file or `TraficInfo` compartment. The older
 order after `OCI_COMPARTMENT_ID`. Re-source setup after changing OCI credentials
 or the selected compartment. Application lookup stays in the scripts that need
 it, with `OCI_FN_APPLICATION_ID` available as an explicit override in deploy
-and invoke.
+and invoke, as well as event setup.
+
+`oci-common.sh` contains reusable shell functions only. Setup and each executable
+source it explicitly; it performs no OCI calls or environment initialization
+when sourced. It provides data source defaults and naming, application/function
+lookups, unique-match selection, logging, bucket-name validation, and dry-run
+argument parsing. Deployment permits missing functions so it can create them;
+invocation and event setup require existing active functions. Duplicate matches
+and failed lookups are errors.
 
 ## Object Storage buckets
 
-Run `./setup-buckets.sh` to create or update `ds3mbucket` and `traficinfo` in
+Run `./setup-buckets.sh` to create or update the configured input buckets and
+the shared `traficinfo` and `osminfo` buckets in
 the compartment selected by `source ./setup.sh`. It uses the exported
 `OCI_COMPARTMENT_ID`, `OCI_OBJECT_STORAGE_NAMESPACE`, and OCI credentials.
 
-`ds3mbucket` has object events enabled and is private on creation. `traficinfo`
+Input buckets are read from `dsconfig.json`, using the shared naming defaults
+and overrides. Currently these are `ds3mbucket` and `dsdpt34`. Both have object
+events enabled and are private on creation. `osminfo` is private. `traficinfo`
 uses `ObjectReadWithoutList`: anyone can download an object using its URL,
-while listing objects requires authentication. Both buckets use Standard
+while listing objects requires authentication. All buckets use Standard
 storage on creation. Existing objects, metadata, and unrelated bucket settings
 are preserved. Repeated runs skip buckets that already meet these settings;
 updates change only the requested settings and verify the result.
 
 Use `./setup-buckets.sh --dry-run` to preview changes without submitting them.
-Enabling bucket events prepares `ds3mbucket` for an OCI Events rule; this script
+Enabling bucket events prepares each input bucket for an OCI Events rule; this script
 does not create the rule that invokes the GeoJSON function.
 
 ## CSV events and GeoJSON generation
@@ -125,3 +136,10 @@ Dry runs read OCI and show proposed creates and updates without submitting them.
 Normal runs wait for each operation to succeed and verify timing, filters, and
 absence of static targets. OCI permits duplicate names; avoid simultaneous runs,
 as the pre-creation recheck cannot make creation atomic.
+
+## Shell script checks
+
+Run `python3 -m unittest discover -s tests -v` for the shell integration tests.
+They use a local fake OCI CLI to check config mappings, create/update behavior,
+dry runs, repeated runs, lookup failures, and bash/zsh setup. No cloud resources
+are accessed or changed.

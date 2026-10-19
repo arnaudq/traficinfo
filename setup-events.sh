@@ -2,71 +2,15 @@
 # Reconcile one CSV -> GeoJSON OCI Events rule per configured data source.
 set -euo pipefail
 
+source "${TRAFICINFO_ROOT:?Run source ./setup.sh first}/oci-common.sh"
+
 application_name="${OCI_FN_APPLICATION_NAME:?Run source ./setup.sh first}"
-data_source_config_file="${TRAFICINFO_DSCONFIG:?Run source ./setup.sh first}"
 wait_options=(--wait-for-state ACTIVE --wait-for-state FAILED
   --max-wait-seconds 600 --wait-interval-seconds 5)
 
 current_step=initialization
 
-log() {
-  # Keep progress visible when a function's stdout is captured as JSON or an ID.
-  printf '[setup-events] %s\n' "$*" >&2
-}
-
-step() {
-  current_step="$1"
-  log "$current_step"
-}
-
-report_failure() {
-  if [ "$1" -ne 0 ]; then
-    log "Failed during: $current_step (exit status $1)."
-  fi
-}
-
 trap 'report_failure "$?"' EXIT
-
-parse_arguments() {
-  dry_run=false
-  case "${1:-}" in
-    '') ;;
-    --dry-run) dry_run=true ;;
-    *) printf 'Usage: %s [--dry-run]\n' "$0" >&2; return 1 ;;
-  esac
-  if [ "$#" -gt 1 ]; then
-    printf 'Usage: %s [--dry-run]\n' "$0" >&2
-    return 1
-  fi
-}
-
-load_sources() {
-  jq -ce '
-    def nonempty_string: type == "string" and length > 0;
-    if type != "object" or length == 0 then error("Expected a nonempty data source map") else . end
-    | to_entries | map(
-      .key as $key | .value
-      | if type != "object" then error("Invalid data source \($key)") else . end
-      | if .id != $key or (.id | nonempty_string | not) then
-          error("Data source key must match its id: \($key)") else . end
-      | if all([.functionPrefix, .inputBucket, .csvObject][];
-          . == null or nonempty_string) then . else
-          error("Overrides must be nonempty strings for \($key)") end
-      | (.functionPrefix // .id) as $prefix
-      | {id, functionName: ($prefix + "GeoJsonOut"),
-          ruleName: ($prefix + "ComptageCsvToGeoJson"),
-          inputBucket: (.inputBucket // ("ds" + (.id | ascii_downcase))),
-          csvObject: (.csvObject // (.id + "_Comptage.csv"))}
-    )
-    | if (map(.ruleName) | unique | length) != length then
-        error("Data sources must produce distinct Events rule names") else . end
-  ' "$data_source_config_file"
-}
-
-unique_id() {
-  jq -er 'if length == 1 then .[0].id else
-    error("Expected exactly one match, found \(length)") end'
-}
 
 validate_bucket() {
   local bucket
@@ -78,25 +22,6 @@ validate_bucket() {
     printf '%s must be in the selected compartment with events enabled. Run ./setup-buckets.sh first.\n' "$bucket_name" >&2
     return 1
   }
-}
-
-resolve_application_id() {
-  oci fn application list --compartment-id "$1" \
-    --display-name "$application_name" --all | jq --arg name "$application_name" '
-      [.data[] | select(."display-name" == $name and ."lifecycle-state" == "ACTIVE")]
-    ' | unique_id
-}
-
-resolve_function_id() {
-  local function_id
-  function_id="$(oci fn function list --application-id "$1" \
-    --display-name "$function_name" --all | jq --arg name "$function_name" '
-      [.data[] | select(."display-name" == $name and ."lifecycle-state" == "ACTIVE")]
-    ' | unique_id)"
-  case "$function_id" in
-    ocid1.fnfunc.*) printf '%s\n' "$function_id" ;;
-    *) printf 'OCI did not return a function OCID for %s.\n' "$function_name" >&2; return 1 ;;
-  esac
 }
 
 build_condition() {
@@ -198,7 +123,7 @@ reconcile_source() {
   step "Checking $bucket_name and its object events setting..."
   validate_bucket "$compartment_id" "$namespace"
   step "Resolving function $function_name..."
-  function_id="$(resolve_function_id "$application_id")"
+  function_id="$(resolve_function_id "$application_id" "$function_name")"
   step 'Building the CSV event condition and Functions action...'
   condition="$(build_condition "$compartment_id" "$namespace")"
   actions="$(build_actions "$function_id")"
@@ -239,9 +164,9 @@ reconcile_source() {
 main() {
   local dry_run compartment_id namespace application_id sources source_count source index
   local rule_name function_name bucket_name object_name data_source_id
-  parse_arguments "$@"
+  dry_run="$(parse_dry_run_arguments "$@")"
   step 'Reading data sources and naming overrides from dsconfig.json...'
-  sources="$(load_sources)"
+  sources="$(load_data_sources)"
   source_count="$(jq 'length' <<< "$sources")"
   if [ "$dry_run" = true ]; then
     log 'Dry run: OCI resources will be read; no changes will be submitted.'
@@ -249,12 +174,12 @@ main() {
   compartment_id="${OCI_COMPARTMENT_ID:?Run source ./setup.sh first}"
   namespace="${OCI_OBJECT_STORAGE_NAMESPACE:?Run source ./setup.sh first}"
   step "Resolving application $application_name..."
-  application_id="$(resolve_application_id "$compartment_id")"
+  application_id="$(resolve_application_id)"
   for ((index = 0; index < source_count; index++)); do
     source="$(jq -c --argjson index "$index" '.[$index]' <<< "$sources")"
     data_source_id="$(jq -r '.id' <<< "$source")"
-    rule_name="$(jq -r '.ruleName' <<< "$source")"
-    function_name="$(jq -r '.functionName' <<< "$source")"
+    rule_name="$(jq -r '.eventRule' <<< "$source")"
+    function_name="$(jq -r '.geoJsonFunction' <<< "$source")"
     bucket_name="$(jq -r '.inputBucket' <<< "$source")"
     object_name="$(jq -r '.csvObject' <<< "$source")"
     step "Configuring events for $data_source_id..."

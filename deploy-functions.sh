@@ -2,45 +2,23 @@
 # Build once and upload Java code-only functions, without Docker or fn deploy.
 set -euo pipefail
 
+source "${TRAFICINFO_ROOT:?Run source ./setup.sh first}/oci-common.sh"
+
 root_dir="${TRAFICINFO_ROOT:?Run source ./setup.sh first}"
 app_name="${OCI_FN_APPLICATION_NAME:?Run source ./setup.sh first}"
 runtime_name=java21.ol9
-input_bucket="${BUCKETNAME_IN:-ds3mbucket}"
-dpt34_input_bucket="${BUCKETNAME_DPT34:-dsdpt34}"
 output_bucket="${BUCKETNAME_OUT:-traficinfo}"
 osm_bucket="${BUCKETNAME_OSM:-osminfo}"
 osm_cache_object="${OSM_CACHE_OBJECT:-MMM_OSMInfo.json}"
 jar_file="$root_dir/dsfunctions/target/dsfunctions-1.0-SNAPSHOT-jar-with-dependencies.jar"
-data_source_config_file="${TRAFICINFO_DSCONFIG:?Run source ./setup.sh first}"
 
-# Add functions here as name|handler|config-builder|data-source-id. Deployment mechanics
-# are shared; each builder supplies the configuration needed by its handler.
+# Deployment-specific Java handlers. Resource names and buckets come from dsconfig.json.
 functions=(
-  '3MOpenDataSource|org.traficinfo.dsfunctions.m3m.DataSourceFunction::handleRequest|data_source_config|MMM'
-  'DPT34OpenDataSource|org.traficinfo.dsfunctions.dpt34.DataSourceFunction::handleRequest|dpt34_data_source_config|DPT34'
-  '3MGeoJsonOut|org.traficinfo.dsfunctions.m3m.GeoJsonOutFunction::handleRequest|geojson_out_config'
-  'DPT34GeoJsonOut|org.traficinfo.dsfunctions.dpt34.GeoJsonOutFunction::handleRequest|dpt34_geojson_out_config'
+  'MMM|ds|org.traficinfo.dsfunctions.m3m.DataSourceFunction::handleRequest'
+  'DPT34|ds|org.traficinfo.dsfunctions.dpt34.DataSourceFunction::handleRequest'
+  'MMM|geojson|org.traficinfo.dsfunctions.m3m.GeoJsonOutFunction::handleRequest'
+  'DPT34|geojson|org.traficinfo.dsfunctions.dpt34.GeoJsonOutFunction::handleRequest'
 )
-
-resolve_application_id() {
-  local application_id compartment_id
-  application_id="${OCI_FN_APPLICATION_ID:-}"
-  if [ -z "$application_id" ]; then
-    compartment_id="${OCI_COMPARTMENT_ID:?Run source ./setup.sh first}"
-    application_id="$(oci fn application list --compartment-id "$compartment_id" \
-      --display-name "$app_name" --all --query 'data[0].id' --raw-output)"
-  fi
-  case "$application_id" in
-    ocid1.fnapp.*) printf '%s\n' "$application_id" ;;
-    *) printf 'Could not find application %s.\n' "$app_name" >&2; return 1 ;;
-  esac
-}
-
-# Function names are case sensitive.
-find_function_id() {
-  oci fn function list --application-id "$1" --display-name "$2" \
-    --all --query 'data[0].id' --raw-output
-}
 
 build_jar() {
   printf 'Building %s\n' "$jar_file"
@@ -48,17 +26,17 @@ build_jar() {
 }
 
 validate_jar() {
-  local jar_bytes definition function_name handler config_builder data_source_id handler_class
+  local jar_bytes definition data_source_id type handler handler_class
   if [ ! -s "$jar_file" ]; then
     printf 'The fat JAR was not produced: %s\n' "$jar_file" >&2
     return 1
   fi
   for definition in "${functions[@]}"; do
-    IFS='|' read -r function_name handler config_builder data_source_id <<< "$definition"
+    IFS='|' read -r data_source_id type handler <<< "$definition"
     handler_class="${handler%%::*}"
     handler_class="${handler_class//.//}.class"
     if ! jar tf "$jar_file" | grep -Fx "$handler_class" >/dev/null; then
-      printf 'The fat JAR does not contain handler %s for %s.\n' "$handler" "$function_name" >&2
+      printf 'The fat JAR does not contain handler %s for %s.\n' "$handler" "$data_source_id/$type" >&2
       return 1
     fi
   done
@@ -69,47 +47,45 @@ validate_jar() {
   fi
 }
 
-validate_bucket_name() {
-  if [[ ! "$1" =~ ^[a-zA-Z0-9_.-]+$ ]]; then
-    printf 'Set %s to a valid Object Storage bucket name.\n' "$2" >&2
-    return 1
+input_bucket_for_source() {
+  local source="$1" id bucket
+  id="$(jq -r '.id' <<< "$source")"
+  bucket="$(jq -r '.inputBucket' <<< "$source")"
+  # Retain the existing deployment-specific environment overrides.
+  case "$id" in
+    MMM) bucket="${BUCKETNAME_IN:-$bucket}" ;;
+    DPT34) bucket="${BUCKETNAME_DPT34:-$bucket}" ;;
+  esac
+  validate_bucket_name "$bucket" "$id" || return
+  printf '%s\n' "$bucket"
+}
+
+build_function_config() {
+  local type="$1" namespace="$2" source="$3" input config
+  input="$(input_bucket_for_source "$source")" || return
+  if [ "$type" = ds ]; then
+    jq -cn --arg namespace "$namespace" --arg bucket "$input" \
+      '{NAMESPACE: $namespace, BUCKETNAME: $bucket}'
+    return
   fi
-}
-
-data_source_config() {
-  validate_bucket_name "$input_bucket" BUCKETNAME_IN || return 1
-  printf '{"NAMESPACE":"%s","BUCKETNAME":"%s"}' "$1" "$input_bucket"
-}
-
-dpt34_data_source_config() {
-  validate_bucket_name "$dpt34_input_bucket" BUCKETNAME_DPT34 || return 1
-  printf '{"NAMESPACE":"%s","BUCKETNAME":"%s"}' "$1" "$dpt34_input_bucket"
-}
-
-geojson_out_config() {
-  validate_bucket_name "$input_bucket" BUCKETNAME_IN || return 1
-  validate_bucket_name "$output_bucket" BUCKETNAME_OUT || return 1
-  validate_bucket_name "$osm_bucket" BUCKETNAME_OSM || return 1
-  jq -cn --arg namespace "$1" --arg input "$input_bucket" --arg output "$output_bucket" \
-    --arg osm "$osm_bucket" --arg object "$osm_cache_object" \
-    '{NAMESPACE: $namespace, BUCKETNAME_IN: $input, BUCKETNAME_OUT: $output,
-      BUCKETNAME_OSM: $osm, OSM_CACHE_OBJECT: $object}'
-}
-
-dpt34_geojson_out_config() {
-  validate_bucket_name "$dpt34_input_bucket" BUCKETNAME_DPT34 || return 1
-  validate_bucket_name "$output_bucket" BUCKETNAME_OUT || return 1
-  jq -cn --arg namespace "$1" --arg input "$dpt34_input_bucket" --arg output "$output_bucket" \
-    '{NAMESPACE: $namespace, BUCKETNAME_IN: $input, BUCKETNAME_OUT: $output}'
+  validate_bucket_name "$output_bucket" BUCKETNAME_OUT || return
+  config="$(jq -cn --arg namespace "$namespace" --arg input "$input" --arg output "$output_bucket" \
+    '{NAMESPACE: $namespace, BUCKETNAME_IN: $input, BUCKETNAME_OUT: $output}')" || return
+  if [ "$(jq -r '.id' <<< "$source")" = MMM ]; then
+    validate_bucket_name "$osm_bucket" BUCKETNAME_OSM || return
+    config="$(jq -c --arg bucket "$osm_bucket" --arg object "$osm_cache_object" \
+      '. + {BUCKETNAME_OSM: $bucket, OSM_CACHE_OBJECT: $object}' <<< "$config")" || return
+  fi
+  printf '%s\n' "$config"
 }
 
 schedule_tags() {
-  jq -ce --arg id "$1" '
-    .[$id] as $source
-    | if $source.id != $id or (["Daily", "Weekly", "Monthly"] | index($source.schedule)) == null then
-        error("Invalid or missing schedule for data source \($id)")
-      else {TraficInfo: {DataSourceSchedule: $source.schedule}} end
-  ' "$data_source_config_file"
+  jq -ce '
+    .schedule as $schedule
+    | if (["Daily", "Weekly", "Monthly"] | index($schedule)) == null then
+        error("Invalid or missing schedule for data source \(.id)")
+      else {TraficInfo: {DataSourceSchedule: $schedule}} end
+  ' <<< "$1"
 }
 
 create_archive_function() {
@@ -174,36 +150,35 @@ wait_for_work_request() {
 }
 
 main() {
-  local application_id function_id work_request_id definition function_name handler config_builder namespace config
-  local data_source_id tags
-  local function_ids=() configs=() defined_tags=()
-  local index=0
-  # Validate every configured cadence before building or making OCI changes.
+  local application_id function_id work_request_id definition function_name handler namespace config
+  local data_source_id type tags sources source index=0
+  local function_ids=() function_names=() configs=() defined_tags=()
+  sources="$(load_data_sources)"
+  # Prepare all configs and tags before any build or OCI mutation.
   for definition in "${functions[@]}"; do
-    IFS='|' read -r function_name handler config_builder data_source_id <<< "$definition"
-    if [ -n "$data_source_id" ]; then schedule_tags "$data_source_id" >/dev/null; fi
-  done
-  application_id="$(resolve_application_id)"
-  namespace="${OCI_OBJECT_STORAGE_NAMESPACE:?Run source ./setup.sh first}"
-  # Prepare all configs before making changes, for both creation and updates.
-  for definition in "${functions[@]}"; do
-    IFS='|' read -r function_name handler config_builder data_source_id <<< "$definition"
-    function_id="$(find_function_id "$application_id" "$function_name")"
-    config="$("$config_builder" "$namespace")"
+    IFS='|' read -r data_source_id type handler <<< "$definition"
+    source="$(get_data_source "$data_source_id" "$sources")"
+    function_name="$(data_source_function_name "$source" "$type")"
+    namespace="${OCI_OBJECT_STORAGE_NAMESPACE:?Run source ./setup.sh first}"
+    config="$(build_function_config "$type" "$namespace" "$source")"
     tags=''
-    if [ -n "$data_source_id" ]; then
-      tags="$(schedule_tags "$data_source_id")"
-    fi
-    function_ids+=("$function_id")
+    if [ "$type" = ds ]; then tags="$(schedule_tags "$source")"; fi
+    function_names+=("$function_name")
     configs+=("$config")
     defined_tags+=("$tags")
+  done
+  application_id="$(resolve_application_id)"
+  for function_name in "${function_names[@]}"; do
+    function_id="$(find_function_id "$application_id" "$function_name")"
+    function_ids+=("$function_id")
   done
   build_jar
   validate_jar
   for definition in "${functions[@]}"; do
-    IFS='|' read -r function_name handler config_builder data_source_id <<< "$definition"
+    IFS='|' read -r data_source_id type handler <<< "$definition"
+    function_name="${function_names[$index]}"
     function_id="${function_ids[$index]}"
-    if [[ "$function_id" == ocid1.fnfunc.* ]]; then
+    if [ -n "$function_id" ]; then
       work_request_id="$(update_archive_function "$function_id" "$function_name" "$handler" "${configs[$index]}" "${defined_tags[$index]}")"
     else
       work_request_id="$(create_archive_function "$application_id" "$function_name" "$handler" "${configs[$index]}" "${defined_tags[$index]}")"

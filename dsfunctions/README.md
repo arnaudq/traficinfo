@@ -171,8 +171,10 @@ than queried again during each deployment. `3MOpenDataSource` and `DPT34OpenData
 receives `NAMESPACE` and `BUCKETNAME`; `3MGeoJsonOut` receives `NAMESPACE`,
 `BUCKETNAME_IN`, `BUCKETNAME_OUT`, `BUCKETNAME_OSM`, and `OSM_CACHE_OBJECT`.
 The script requires `jq` to prepare function configuration.
-The input bucket defaults to `ds3mbucket`
-and can be overridden with environment variable `BUCKETNAME_IN`. The output bucket
+Function names and input buckets are derived by `oci-common.sh` from each
+data source's `id`, `functionPrefix`, and `inputBucket` in `dsconfig.json`.
+MMM currently uses `ds3mbucket`, overridable with `BUCKETNAME_IN`; DPT34 uses
+`dsdpt34`, overridable with `BUCKETNAME_DPT34`. The output bucket
 defaults to the existing `traficinfo` bucket in the same compartment and can be
 overridden with `BUCKETNAME_OUT`. The OSM bucket defaults to `osminfo` and its
 cache object to `MMM_OSMInfo.json`; override these with environment variables
@@ -180,8 +182,9 @@ cache object to `MMM_OSMInfo.json`; override these with environment variables
 configuration from these defaults and environment overrides on both creation
 and updates.
 
-To add another function, add a name, handler, and config builder to the
-`functions` registry in the script, then define its config builder. The shared
+To add another function, add its data source ID, kind (`ds` or `geojson`), and
+Java handler to the `functions` registry in the script. Extend the local config
+builder if it needs additional environment variables. The shared
 deployment flow validates every handler class before uploading and prepares
 all configs before modifying any function.
 
