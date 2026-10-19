@@ -3,74 +3,10 @@
 #   source ./setup.sh
 
 set_java_home() {
-  local jdk_home javac_version
-
-  if ! jdk_home=$(/usr/libexec/java_home -v 25 2>/dev/null); then
-    printf 'JDK 25 is required but is not installed.\n' >&2
-    return 1
-  fi
-
-  if [ ! -x "$jdk_home/bin/javac" ]; then
-    printf 'JDK 25 is required, but %s has no javac executable.\n' "$jdk_home" >&2
-    return 1
-  fi
-
-  if ! javac_version=$("$jdk_home/bin/javac" -version 2>&1); then
-    printf 'Could not check the JDK version at %s: %s\n' "$jdk_home" "$javac_version" >&2
-    return 1
-  fi
-  case "$javac_version" in
-    'javac 25'|'javac 25.'*) ;;
-    *)
-      printf 'Expected JDK 25, but found %s.\n' "$javac_version" >&2
-      return 1
-      ;;
-  esac
-
+  local jdk_home
+  jdk_home="$(/usr/libexec/java_home -v 25)" || return
   export JAVA_HOME="$jdk_home"
   printf 'JAVA_HOME=%s\n' "$JAVA_HOME"
-}
-
-install_fn_cli_if_missing() {
-  if command -v fn >/dev/null 2>&1; then
-    return 0
-  fi
-
-  if ! command -v brew >/dev/null 2>&1; then
-    printf 'Homebrew is required to install the Fn Project CLI.\n' >&2
-    return 1
-  fi
-
-  if ! brew install fn; then
-    printf 'Homebrew failed to install the Fn Project CLI.\n' >&2
-    return 1
-  fi
-
-  if ! command -v fn >/dev/null 2>&1; then
-    printf 'Fn Project CLI was installed, but fn is not available in PATH.\n' >&2
-    return 1
-  fi
-}
-
-install_oci_cli_if_missing() {
-  if command -v oci >/dev/null 2>&1; then
-    return 0
-  fi
-
-  if ! command -v brew >/dev/null 2>&1; then
-    printf 'Homebrew is required to install the OCI CLI.\n' >&2
-    return 1
-  fi
-
-  if ! brew install oci-cli; then
-    printf 'Homebrew failed to install the OCI CLI.\n' >&2
-    return 1
-  fi
-
-  if ! command -v oci >/dev/null 2>&1; then
-    printf 'OCI CLI was installed, but oci is not available in PATH.\n' >&2
-    return 1
-  fi
 }
 
 set_oci_config() {
@@ -166,8 +102,6 @@ list_fn_apps() {
 
 setup_project_environment() {
   set_java_home || return 1
-  install_fn_cli_if_missing || return 1
-  install_oci_cli_if_missing || return 1
   set_oci_config || return 1
   set_fn_oracle_provider || return 1
   set_fn_compartment_id || return 1

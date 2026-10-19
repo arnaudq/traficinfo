@@ -2,13 +2,13 @@
 
 ## Setup
 
-Install JDK 25 and Homebrew, and place your OCI configuration at `~/.oci/config.arnaudq`. Then, from the project root, run:
+Install JDK 25, the Fn Project CLI, OCI CLI, and `jq`, and place your OCI configuration at `~/.oci/config.arnaudq`. Then, from the project root, run:
 
 ```sh
 source ./setup.sh
 ```
 
-Source the script so `JAVA_HOME` and `OCI_CLI_CONFIG_FILE` remain set in your current shell. The script installs the Fn Project CLI and OCI CLI through Homebrew if needed, configures the current Fn context for the active `TraficInfo` compartment and its regional Functions API URL, then lists the deployed Fn applications.
+Source the script so `JAVA_HOME` and `OCI_CLI_CONFIG_FILE` remain set in your current shell. The script assumes the tools are installed, configures the current Fn context for the active `TraficInfo` compartment and its regional Functions API URL, then lists the deployed Fn applications.
 
 ## Object Storage buckets
 
@@ -23,7 +23,7 @@ uses `ObjectReadWithoutList`: anyone can download an object using its URL,
 while listing objects requires authentication. Both buckets use Standard
 storage on creation. Existing objects, metadata, and unrelated bucket settings
 are preserved. Repeated runs skip buckets that already meet these settings;
-updates use ETags to reject concurrent edits and verify the resulting settings.
+updates change only the requested settings and verify the result.
 
 Use `./setup-buckets.sh --dry-run` to preview changes without submitting them.
 Enabling bucket events prepares `ds3mbucket` for an OCI Events rule; this script
@@ -102,8 +102,8 @@ Timing is defined directly in the script, using settings recorded previously
 from Daily. No schedule serves as a template, and Daily may be missing.
 Existing schedules are reconciled to the configured timing and filters, clearing
 any explicit resource list. Tags, descriptions, and start/end dates are preserved.
-Already matching schedules are skipped. Updates use ETags to reject concurrent
-edits; duplicate names (matched case-insensitively) cause an error.
+Already matching schedules are skipped. Duplicate names (matched
+case-insensitively) cause an error. Updates do not use ETags.
 
 Uses shell functions, OCI CLI, and `jq`, without checking tool availability.
 Uses the configured OCI profile and region, with `OCI_CLI_CONFIG_FILE` defaulting

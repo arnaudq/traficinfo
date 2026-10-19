@@ -105,16 +105,16 @@ create_schedule() {
 }
 
 update_schedule() {
-  local id="$1" payload="$2" etag="$3" result filters
+  local id="$1" payload="$2" result filters
   filters="$(jq -c '.resourceFilters' <<< "$payload")"
   log "Updating $id to use tag filters and waiting for completion..."
   # Empty the previous static target list when switching to dynamic selection.
-  # Preserve tags, description and start/end dates. ETags reject concurrent edits.
+  # Preserve tags, description and start/end dates.
   result="$(oci resource-scheduler schedule update --schedule-id "$id" \
     --resource-filters "$filters" --resources '[]' \
     --action START_RESOURCE --recurrence-type ICAL \
     --recurrence-details "$(jq -r '.recurrenceDetails' <<< "$payload")" \
-    --local-time-zone "$schedule_timezone" --if-match "$etag" --force "${wait_options[@]}")"
+    --local-time-zone "$schedule_timezone" --force "${wait_options[@]}")"
   check_work_request "$result"
   verify_schedule "$id" "$payload"
 }
@@ -132,8 +132,8 @@ list_schedules() {
 
 main() {
   local dry_run=false compartment_id schedules
-  local name id recurrence payload index state etag
-  local names=(Daily Weekly Monthly) ids=() payloads=() operations=() etags=()
+  local name id recurrence payload index state
+  local names=(Daily Weekly Monthly) ids=() payloads=() operations=()
   if [ "$#" -gt 1 ]; then log "Usage: $0 [--dry-run]"; return 1; fi
   case "${1:-}" in
     '') ;; --dry-run) dry_run=true ;; *) log "Usage: $0 [--dry-run]"; return 1 ;;
@@ -162,7 +162,6 @@ main() {
     esac
     payload="$(build_configuration "$name" "$recurrence")"
     payloads+=("$payload")
-    etag=''
     if [ -n "${ids[$index]}" ]; then
       state="$(oci resource-scheduler schedule get --schedule-id "${ids[$index]}")"
       validate_existing_schedule "$state"
@@ -170,7 +169,6 @@ main() {
         operations+=(skip)
         log "$name already uses the requested timing and tag filters."
       else
-        etag="$(jq -er '.etag | select(type == "string" and length > 0)' <<< "$state")"
         operations+=(update)
         log "$name will be updated to use $tag_namespace.$tag_key=$name at 15:30 UTC."
       fi
@@ -178,7 +176,6 @@ main() {
       operations+=(create)
       log "Missing $name: $recurrence; $tag_namespace.$tag_key=$name"
     fi
-    etags+=("$etag")
     if [ "$dry_run" = true ] && [ "${operations[$index]}" != skip ]; then
       jq --arg operation "${operations[$index]}" --arg id "${ids[$index]}" \
         '. + {operation: $operation, scheduleId: $id, resources: []}' <<< "$payload"
@@ -188,7 +185,7 @@ main() {
   for index in 0 1 2; do
     case "${operations[$index]}" in
       create) create_schedule "${names[$index]}" "${payloads[$index]}" ;;
-      update) update_schedule "${ids[$index]}" "${payloads[$index]}" "${etags[$index]}" ;;
+      update) update_schedule "${ids[$index]}" "${payloads[$index]}" ;;
       skip) ;;
     esac
   done

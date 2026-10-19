@@ -13,12 +13,6 @@ if [ "$#" -gt 1 ]; then
   exit 1
 fi
 
-for tool in oci jq; do
-  command -v "$tool" >/dev/null 2>&1 || {
-    printf '%s is required.\n' "$tool" >&2
-    exit 1
-  }
-done
 export OCI_CLI_CONFIG_FILE="${OCI_CLI_CONFIG_FILE:-$HOME/.oci/config.arnaudq}"
 
 compartment_id="${OCI_BUCKET_COMPARTMENT_ID:-}"
@@ -114,12 +108,11 @@ for index in "${!names[@]}"; do
         "${options[@]}" >/dev/null
     fi
   else
-    etag="$(jq -er '.etag | select(type == "string" and length > 0)' <<< "$state")"
     printf 'Update %s: %s.\n' "$name" "$desired"
     if [ "$dry_run" = false ]; then
-      # Update only the requested property; reject concurrent bucket edits.
+      # Update only the requested property.
       oci os bucket update --namespace-name "$namespace" --name "$name" \
-        --if-match "$etag" "${options[@]}" --force >/dev/null
+        "${options[@]}" --force >/dev/null
     fi
   fi
   if [ "$dry_run" = false ]; then
