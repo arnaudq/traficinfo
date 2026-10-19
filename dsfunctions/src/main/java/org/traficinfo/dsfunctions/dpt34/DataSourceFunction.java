@@ -19,8 +19,9 @@ import java.security.DigestOutputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.HexFormat;
-import java.util.UUID;
 
 /** Downloads the Hérault CSV and publishes it only when its content changes. */
 public class DataSourceFunction {
@@ -30,6 +31,7 @@ public class DataSourceFunction {
     public static final String CONFIG_KEY_USE_RESOURCE_PRINCIPAL = "USE_RESOURCE_PRINCIPAL";
     public static final String DEFAULT_BUCKET_NAME = "dsdpt34";
     public static final String CSV_OBJECT_NAME = "DPT34_Comptage.csv";
+    public static final String CSV_OBJECT_ARCHIVE_NAME = "DPT34_Comptage_%s.csv";
     public static final String CONTENT_SHA256 = "content-sha256";
     public static final URI CSV_URI = URI.create(
             "https://www.herault-data.fr/api/explore/v2.1/catalog/datasets/"
@@ -93,10 +95,7 @@ public class DataSourceFunction {
             }
 
             if (previous != null) {
-                String previousHash = previous.getMetadata().get(CONTENT_SHA256);
-                String version = previousHash != null && previousHash.matches("[0-9a-f]{64}")
-                        ? previousHash : UUID.randomUUID().toString();
-                String archiveName = "DPT34_Comptage_" + version + ".csv";
+                String archiveName = String.format(CSV_OBJECT_ARCHIVE_NAME, archiveDate(previous));
                 // Copy rather than rename: a failed archive/upload leaves the current object readable.
                 try (InputStream oldCsv = objectStore.getResource(CSV_OBJECT_NAME)) {
                     objectStore.putResource(archiveName, CONTENT_TYPE, previous, oldCsv);
@@ -104,8 +103,10 @@ public class DataSourceFunction {
             }
 
             OOSResourceMetadata metadata = new OOSResourceMetadata();
+            Instant downloadedAt = Instant.now();
+            metadata.setLastModified(downloadedAt.atZone(ZoneOffset.UTC).toLocalDate());
             metadata.getMetadata().put(CONTENT_SHA256, hash);
-            metadata.getMetadata().put("downloaded-at", Instant.now().toString());
+            metadata.getMetadata().put("downloaded-at", downloadedAt.toString());
             try (InputStream content = Files.newInputStream(csv)) {
                 objectStore.putResource(CSV_OBJECT_NAME, CONTENT_TYPE, metadata, content);
             }
@@ -113,6 +114,16 @@ public class DataSourceFunction {
         } finally {
             Files.deleteIfExists(csv);
         }
+    }
+
+    private static String archiveDate(OOSResourceMetadata metadata) {
+        if (metadata.getLastModified() != null) {
+            return metadata.getLastModified();
+        }
+        // Older DPT34 objects stored only the download timestamp.
+        String downloadedAt = metadata.getMetadata().get("downloaded-at");
+        Instant date = downloadedAt == null ? Instant.now() : Instant.parse(downloadedAt);
+        return date.atZone(ZoneOffset.UTC).toLocalDate().format(DateTimeFormatter.BASIC_ISO_DATE);
     }
 
     private static MessageDigest sha256() {

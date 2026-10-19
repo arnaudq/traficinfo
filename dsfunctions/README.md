@@ -38,10 +38,16 @@ or formatting also changes the hash.
 
 On first download or changed content, the function uploads
 `DPT34_Comptage.csv` with content type `text/csv`, gzip encoding,
-`content-sha256` and a `downloaded-at` UTC timestamp in user metadata.
+`content-sha256`, a `downloaded-at` UTC timestamp and a `last-modified` download
+date in user metadata.
 When replacing an existing CSV, it first copies the previous content and metadata
-to `DPT34_Comptage_<previous-sha256>.csv`. Existing objects without a valid hash
-use a UUID archive suffix instead. Copying preserves the current object until
+to `DPT34_Comptage_YYYYMMDD.csv`, following the M3M date suffix convention.
+The date comes from the previous object's `last-modified` metadata, falling
+back to its `downloaded-at` UTC date for older objects, or the current UTC date
+if neither is available. Since the source has no Last-Modified header, this
+is a download date, not the publisher's modification date. As with M3M,
+multiple versions dated the same day share an archive name.
+Copying preserves the current object until
 the replacement upload succeeds. A failed archive prevents replacement.
 
 Download, storage and empty-response failures fail the invocation. Temporary

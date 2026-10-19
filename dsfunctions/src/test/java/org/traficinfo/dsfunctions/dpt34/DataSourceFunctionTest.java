@@ -12,6 +12,9 @@ import java.net.URI;
 import org.traficinfo.dsfunctions.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HexFormat;
@@ -35,6 +38,8 @@ public class DataSourceFunctionTest {
         OOSResourceMetadata metadata = stub.metadata.get(OBJECT);
         assertEquals(hash(CSV), metadata.getMetadata().get(DataSourceFunction.CONTENT_SHA256));
         assertNotNull(metadata.getMetadata().get("downloaded-at"));
+        assertEquals(LocalDate.now(ZoneOffset.UTC).format(DateTimeFormatter.BASIC_ISO_DATE),
+                metadata.getLastModified());
         assertNull(metadata.getETag());
         assertEquals(1, stub.downloads);
         assertTrue(stub.closed);
@@ -57,10 +62,11 @@ public class DataSourceFunctionTest {
         SourceStub stub = new SourceStub();
         DataSourceFunction function = stub.function();
         function.handleRequest("");
+        stub.metadata.get(OBJECT).setLastModified(LocalDate.of(2026, 10, 17));
         stub.uploads.clear();
         stub.downloadBytes = "new CSV content".getBytes(StandardCharsets.UTF_8);
         assertEquals("OK", function.handleRequest(""));
-        String archive = "DPT34_Comptage_" + hash(CSV) + ".csv";
+        String archive = "DPT34_Comptage_20261017.csv";
         assertEquals(List.of(archive, OBJECT), stub.uploads);
         assertArrayEquals(CSV, stub.contents.get(archive));
         assertArrayEquals(stub.downloadBytes, stub.contents.get(OBJECT));
@@ -76,9 +82,22 @@ public class DataSourceFunctionTest {
         stub.function().handleRequest("");
         assertEquals(2, stub.uploads.size());
         String archive = stub.uploads.get(0);
-        assertTrue(archive.startsWith("DPT34_Comptage_"));
+        assertEquals(String.format(DataSourceFunction.CSV_OBJECT_ARCHIVE_NAME,
+                LocalDate.now(ZoneOffset.UTC).format(DateTimeFormatter.BASIC_ISO_DATE)), archive);
         assertArrayEquals(new byte[]{1, 2, 3}, stub.contents.get(archive));
         assertArrayEquals(CSV, stub.contents.get(OBJECT));
+    }
+
+    @Test
+    public void legacyObjectUsesItsDownloadDateForArchive() {
+        SourceStub stub = initializedStub();
+        OOSResourceMetadata previous = new OOSResourceMetadata();
+        previous.getMetadata().put("downloaded-at", "2026-10-17T23:30:00Z");
+        stub.metadata.put(OBJECT, previous);
+        stub.downloadBytes = new byte[]{4, 5, 6};
+        stub.function().handleRequest("");
+        assertEquals(List.of("DPT34_Comptage_20261017.csv", OBJECT), stub.uploads);
+        assertArrayEquals(CSV, stub.contents.get("DPT34_Comptage_20261017.csv"));
     }
 
     @Test
@@ -116,7 +135,8 @@ public class DataSourceFunctionTest {
         stub.downloadBytes = new byte[]{4, 5, 6};
         stub.failCurrentUpload = true;
         assertFailure(stub);
-        assertEquals(List.of("DPT34_Comptage_" + hash(CSV) + ".csv"), stub.uploads);
+        assertEquals(List.of(String.format(DataSourceFunction.CSV_OBJECT_ARCHIVE_NAME,
+                stub.metadata.get(OBJECT).getLastModified())), stub.uploads);
         assertArrayEquals(CSV, stub.contents.get(OBJECT));
     }
 
