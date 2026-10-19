@@ -75,3 +75,40 @@ and leaves the schedule's daily 15:30 UTC timing unchanged. Repeated runs skip
 the update when the function is already attached. Missing or ambiguous names,
 inactive schedules, and concurrent changes cause an error. The script waits for
 the update to succeed and verifies the attachment before reporting success.
+
+## Daily, weekly and monthly schedules
+
+Run `./setup-schedules.sh` to create or reconcile `Daily`, `Weekly` (Wednesdays),
+and `Monthly` (the 5th of each month), all at **15:30 UTC**. Each uses dynamic
+resource filters selecting only `FunctionsFunction` resources in `TraficInfo`
+(excluding child compartments) with defined tag `TraficInfo.DataSourceSchedule`
+equal to its name: `Daily`, `Weekly`, or `Monthly`.
+
+Create the `TraficInfo` tag namespace and `DataSourceSchedule` key definition
+first, with allowed values `Daily`, `Weekly`, and `Monthly`. Apply the appropriate
+value directly to each data source function. The script does not tag functions
+or attach function OCIDs; OCI selects matching functions dynamically at run time.
+Untagged functions do not match. Tag the intended functions before converting
+an existing schedule from static targets to filters.
+
+```sh
+./setup-schedules.sh --dry-run
+./setup-schedules.sh
+```
+
+Timing is defined directly in the script, using settings recorded previously
+from Daily. No schedule serves as a template, and Daily may be missing.
+Existing schedules are reconciled to the configured timing and filters, clearing
+any explicit resource list. Tags, descriptions, and start/end dates are preserved.
+Already matching schedules are skipped. Updates use ETags to reject concurrent
+edits; duplicate names (matched case-insensitively) cause an error.
+
+Uses shell functions, OCI CLI, and `jq`, without checking tool availability.
+Uses the configured OCI profile and region, with `OCI_CLI_CONFIG_FILE` defaulting
+to `~/.oci/config.arnaudq`. The compartment defaults to `TraficInfo`; set
+`OCI_SCHEDULE_COMPARTMENT_ID` (or `OCI_BUCKET_COMPARTMENT_ID`) to select it by OCID.
+
+Dry runs read OCI and show proposed creates and updates without submitting them.
+Normal runs wait for each operation to succeed and verify timing, filters, and
+absence of static targets. OCI permits duplicate names; avoid simultaneous runs,
+as the pre-creation recheck cannot make creation atomic.
