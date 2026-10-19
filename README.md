@@ -62,20 +62,6 @@ waits for the rule to become active and verifies the filter and enabled function
 action. Setup does not process the CSV already stored; the next matching object
 event triggers processing.
 
-## Daily function schedule
-
-Run `./attach-daily-schedule.sh` to attach `3MOpenDataSource` in
-`3MOpenDataProcessor` to the existing `Daily` schedule in `TraficInfo`.
-Requires OCI CLI and `jq`. It uses `OCI_CLI_CONFIG_FILE` (defaulting to
-`~/.oci/config.arnaudq`) and the configured profile and region.
-
-Use `./attach-daily-schedule.sh --dry-run` to preview the resource list without
-changing OCI. The script preserves existing resources and invocation parameters,
-and leaves the schedule's daily 15:30 UTC timing unchanged. Repeated runs skip
-the update when the function is already attached. Missing or ambiguous names,
-inactive schedules, and concurrent changes cause an error. The script waits for
-the update to succeed and verifies the attachment before reporting success.
-
 ## Daily, weekly and monthly schedules
 
 Run `./setup-schedules.sh` to create or reconcile `Daily`, `Weekly` (Wednesdays),
@@ -88,8 +74,14 @@ Create the `TraficInfo` tag namespace and `DataSourceSchedule` key definition
 first, with allowed values `Daily`, `Weekly`, and `Monthly`. Apply the appropriate
 value directly to each data source function. The script does not tag functions
 or attach function OCIDs; OCI selects matching functions dynamically at run time.
-Untagged functions do not match. Tag the intended functions before converting
-an existing schedule from static targets to filters.
+Untagged functions do not match. Deployment with `./deploy-functions.sh` reads
+`dsconfig.json` and sets `TraficInfo.DataSourceSchedule` on the data source
+functions: `MMM` maps to `3MOpenDataSource`, and `DPT34` maps to
+`DPT34OpenDataSource`. Current schedules are Daily and Monthly respectively.
+Both creation and updates set the data source function's complete defined-tag
+map to the configured scheduling tag. GeoJSON functions receive no scheduling tag from
+deployment. Deploy the intended functions before converting an existing
+schedule from static targets to filters.
 
 ```sh
 ./setup-schedules.sh --dry-run

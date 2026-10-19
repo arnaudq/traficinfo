@@ -202,13 +202,14 @@ fn invoke 3MOpenDataProcessor 3MGeoJsonOut
 To invoke a deployed function using OCI CLI:
 
 ```sh
-./invoke.sh ds 3M
-./invoke.sh geojson 3M
+./invoke.sh ds MMM
+./invoke.sh geojson MMM
 ./invoke.sh ds DPT34
 ./invoke.sh geojson DPT34
 ```
 
-`invoke.sh` accepts exactly two arguments: `ds|geojson` and `3M|DPT34`.
+`invoke.sh` accepts exactly two arguments: `ds|geojson` and the data source ID
+`MMM|DPT34` from `dsconfig.json`. `MMM` maps to the existing `3M` function names.
 It resolves `<source>OpenDataSource` or `<source>GeoJsonOut` in
 `3MOpenDataProcessor`, invokes synchronously with an empty body, and prints the
 function response to standard output. OCI errors propagate as a failing exit code.

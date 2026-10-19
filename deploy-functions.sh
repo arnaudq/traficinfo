@@ -11,12 +11,13 @@ output_bucket="${BUCKETNAME_OUT:-traficinfo}"
 osm_bucket="${BUCKETNAME_OSM:-osminfo}"
 osm_cache_object="${OSM_CACHE_OBJECT:-MMM_OSMInfo.json}"
 jar_file="$root_dir/dsfunctions/target/dsfunctions-1.0-SNAPSHOT-jar-with-dependencies.jar"
+data_source_config_file="$root_dir/dsconfig.json"
 
-# Add functions here as name|handler|config-builder. Deployment mechanics
+# Add functions here as name|handler|config-builder|data-source-id. Deployment mechanics
 # are shared; each builder supplies the configuration needed by its handler.
 functions=(
-  '3MOpenDataSource|org.traficinfo.dsfunctions.m3m.DataSourceFunction::handleRequest|data_source_config'
-  'DPT34OpenDataSource|org.traficinfo.dsfunctions.dpt34.DataSourceFunction::handleRequest|dpt34_data_source_config'
+  '3MOpenDataSource|org.traficinfo.dsfunctions.m3m.DataSourceFunction::handleRequest|data_source_config|MMM'
+  'DPT34OpenDataSource|org.traficinfo.dsfunctions.dpt34.DataSourceFunction::handleRequest|dpt34_data_source_config|DPT34'
   '3MGeoJsonOut|org.traficinfo.dsfunctions.m3m.GeoJsonOutFunction::handleRequest|geojson_out_config'
   'DPT34GeoJsonOut|org.traficinfo.dsfunctions.dpt34.GeoJsonOutFunction::handleRequest|dpt34_geojson_out_config'
 )
@@ -54,13 +55,13 @@ build_jar() {
 }
 
 validate_jar() {
-  local jar_bytes definition function_name handler config_builder handler_class
+  local jar_bytes definition function_name handler config_builder data_source_id handler_class
   if [ ! -s "$jar_file" ]; then
     printf 'The fat JAR was not produced: %s\n' "$jar_file" >&2
     return 1
   fi
   for definition in "${functions[@]}"; do
-    IFS='|' read -r function_name handler config_builder <<< "$definition"
+    IFS='|' read -r function_name handler config_builder data_source_id <<< "$definition"
     handler_class="${handler%%::*}"
     handler_class="${handler_class//.//}.class"
     if ! jar tf "$jar_file" | grep -Fx "$handler_class" >/dev/null; then
@@ -119,18 +120,29 @@ dpt34_geojson_out_config() {
     '{NAMESPACE: $namespace, BUCKETNAME_IN: $input, BUCKETNAME_OUT: $output}'
 }
 
+schedule_tags() {
+  jq -ce --arg id "$1" '
+    .[$id] as $source
+    | if $source.id != $id or (["Daily", "Weekly", "Monthly"] | index($source.schedule)) == null then
+        error("Invalid or missing schedule for data source \($id)")
+      else {TraficInfo: {DataSourceSchedule: $source.schedule}} end
+  ' "$data_source_config_file"
+}
+
 create_archive_function() {
   local application_id function_name handler config
   application_id="$1"
   function_name="$2"
   handler="$3"
   config="$4"
+  local options=(--query '"opc-work-request-id"' --raw-output)
+  if [ -n "$5" ]; then options+=(--defined-tags "$5"); fi
   printf 'Creating archive function %s in %s\n' "$function_name" "$app_name" >&2
   oci fn function create archive-function direct-archive fn-update-runtime-config \
     --application-id "$application_id" --display-name "$function_name" \
     --archive-file "$jar_file" --functions-runtime-name "$runtime_name" \
     --handler "$handler" --memory-in-mbs 2048 --timeout-in-seconds 30 \
-    --config "$config" --query '"opc-work-request-id"' --raw-output
+    --config "$config" "${options[@]}"
 }
 
 update_archive_function() {
@@ -139,12 +151,13 @@ update_archive_function() {
   function_name="$2"
   handler="$3"
   config="$4"
+  local options=(--force --query '"opc-work-request-id"' --raw-output)
+  if [ -n "$5" ]; then options+=(--defined-tags "$5"); fi
   printf 'Updating archive function %s (%s)\n' "$function_name" "$function_id" >&2
   oci fn function update archive-function --function-id "$function_id" \
     --archive-file "$jar_file" --handler "$handler" \
     --runtime-config FUNCTION_UPDATE --functions-runtime-name "$runtime_name" \
-    --memory-in-mbs 2048 --config "$config" --force \
-    --query '"opc-work-request-id"' --raw-output
+    --memory-in-mbs 2048 --config "$config" "${options[@]}"
 }
 
 wait_for_work_request() {
@@ -179,28 +192,38 @@ wait_for_work_request() {
 
 main() {
   local application_id function_id work_request_id definition function_name handler config_builder namespace config
-  local function_ids=() configs=()
+  local data_source_id tags
+  local function_ids=() configs=() defined_tags=()
   local index=0
-  command -v jq >/dev/null || { printf 'Install jq to prepare function configuration.\n' >&2; return 1; }
+  # Validate every configured cadence before building or making OCI changes.
+  for definition in "${functions[@]}"; do
+    IFS='|' read -r function_name handler config_builder data_source_id <<< "$definition"
+    if [ -n "$data_source_id" ]; then schedule_tags "$data_source_id" >/dev/null; fi
+  done
   application_id="$(resolve_application_id)"
   namespace="$(object_storage_namespace)"
   # Prepare all configs before making changes, for both creation and updates.
   for definition in "${functions[@]}"; do
-    IFS='|' read -r function_name handler config_builder <<< "$definition"
+    IFS='|' read -r function_name handler config_builder data_source_id <<< "$definition"
     function_id="$(find_function_id "$application_id" "$function_name")"
     config="$("$config_builder" "$namespace")"
+    tags=''
+    if [ -n "$data_source_id" ]; then
+      tags="$(schedule_tags "$data_source_id")"
+    fi
     function_ids+=("$function_id")
     configs+=("$config")
+    defined_tags+=("$tags")
   done
   build_jar
   validate_jar
   for definition in "${functions[@]}"; do
-    IFS='|' read -r function_name handler config_builder <<< "$definition"
+    IFS='|' read -r function_name handler config_builder data_source_id <<< "$definition"
     function_id="${function_ids[$index]}"
     if [[ "$function_id" == ocid1.fnfunc.* ]]; then
-      work_request_id="$(update_archive_function "$function_id" "$function_name" "$handler" "${configs[$index]}")"
+      work_request_id="$(update_archive_function "$function_id" "$function_name" "$handler" "${configs[$index]}" "${defined_tags[$index]}")"
     else
-      work_request_id="$(create_archive_function "$application_id" "$function_name" "$handler" "${configs[$index]}")"
+      work_request_id="$(create_archive_function "$application_id" "$function_name" "$handler" "${configs[$index]}" "${defined_tags[$index]}")"
     fi
     wait_for_work_request "$work_request_id"
     index=$((index + 1))

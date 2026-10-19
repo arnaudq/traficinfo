@@ -1,0 +1,14 @@
+{
+  "MMM": {
+    "id": "MMM",
+    "name": "Comptage véhicules particuliers de Montpellier Méditerrannée Métropole",
+    "schedule": "Daily",
+    "datasetInfoUrl": "https://data.montpellier3m.fr/dataset/comptage-vehicules-particuliers-de-montpellier"
+  },
+  "DPT34": {
+    "id": "DPT34",
+    "name": "Comptage véhicules Département de l'Hérault",
+    "schedule": "Monthly",
+    "datasetInfoUrl": "https://www.herault-data.fr/explore/dataset/trafic-de-l-herault-donnees-de-comptage/#"
+  }
+}

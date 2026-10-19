@@ -3,7 +3,22 @@
 set -euo pipefail
 
 usage() {
-  printf 'Usage: %s <ds|geojson> <3M|DPT34>\n' "$0" >&2
+  printf 'Usage: %s <ds|geojson> <MMM|DPT34>\n' "$0" >&2
+}
+
+resolve_function_prefix() {
+  local data_source_id="$1" root_dir
+  root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  if ! jq -e --arg id "$data_source_id" '.[$id].id == $id' \
+    "$root_dir/dsconfig.json" >/dev/null; then
+    printf 'Unknown data source ID in dsconfig.json: %s\n' "$data_source_id" >&2
+    return 1
+  fi
+  case "$data_source_id" in
+    MMM) printf '3M\n' ;;
+    DPT34) printf 'DPT34\n' ;;
+    *) printf 'No function mapping for data source %s.\n' "$data_source_id" >&2; return 1 ;;
+  esac
 }
 
 if [ "$#" -ne 2 ]; then
@@ -12,31 +27,18 @@ if [ "$#" -ne 2 ]; then
 fi
 
 type="$1"
-source="$2"
-case "$source" in
-  3M|DPT34) ;;
-  *) usage; exit 1 ;;
-esac
+source="$(resolve_function_prefix "$2")"
 case "$type" in
   ds) function_name="${source}OpenDataSource" ;;
   geojson) function_name="${source}GeoJsonOut" ;;
   *) usage; exit 1 ;;
 esac
 
-command -v oci >/dev/null 2>&1 || {
-  printf 'OCI CLI is required.\n' >&2
-  exit 1
-}
-
 app_name=3MOpenDataProcessor
 application_id="${OCI_FN_APPLICATION_ID:-}"
 if [ -z "$application_id" ]; then
   compartment_id="${OCI_FN_COMPARTMENT_ID:-}"
   if [ -z "$compartment_id" ]; then
-    command -v fn >/dev/null 2>&1 || {
-      printf 'Set OCI_FN_APPLICATION_ID or OCI_FN_COMPARTMENT_ID, or install and configure the Fn CLI.\n' >&2
-      exit 1
-    }
     compartment_id="$(fn inspect context | awk '$1 == "oracle.compartment-id:" {print $2; exit}')"
   fi
   if [ -z "$compartment_id" ]; then
