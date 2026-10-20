@@ -228,16 +228,42 @@ Populate `osmWayId` manually in Object Storage and it is used on the next run;
 positive IDs are used regardless of any older descriptive `status` field.
 Unresolved entries do not consume the existing 100-request way-tag budget.
 
+## Daily OSM mapping report
+
+`org.traficinfo.dsfunctions.OSMInfoFunction::handleRequest` lists the objects in
+`osminfo` and reads every object whose name ends with `_OSMWayMapping.json`.
+For each cache it logs at INFO level the number of unknown entries and the total
+entry count. An entry is unknown when `osmWayId` is absent, null, or not a positive
+integer fitting in a Java `long`. A `candidateOsmWayId` does not resolve an entry.
+An empty cache logs zero unknown entries. Tag caches and metadata files are skipped.
+The report performs no OSM requests and does not modify the cache objects.
+
+Configure `NAMESPACE`, optionally `BUCKETNAME_OSM` (default `osminfo`), and
+`USE_RESOURCE_PRINCIPAL` (default `true`). The function requires permission to
+list objects in the bucket and read mapping objects, including gzip-encoded
+objects. It follows all object-listing pages. An invalid or unreadable mapping
+is logged as a warning; reporting continues for the remaining caches and returns
+`KO`. Listing errors also return `KO`; an empty bucket returns `OK`.
+
+`deploy-functions.sh` registers `OSMInfoFunction` and applies
+`TraficInfo.DataSourceSchedule=Daily` on creation and updates. The existing
+`Daily` Resource Scheduler schedule invokes it at **15:30 UTC**. After
+`source ./setup.sh`, run `./deploy-functions.sh` and `./setup-schedules.sh` to
+deploy the function and create or reconcile that schedule. The scheduling tag
+namespace/key and scheduler invoke permissions must already be configured as
+described in the root README.
+
 ## Archive deployment (code-only function)
 
 From the repository root, run `./deploy-functions.sh`. It builds the Maven
 `jar-with-dependencies` artifact once and uploads it directly to OCI Functions as
 `3MOpenDataSource`, `DPT30OpenDataSource`, `DPT34OpenDataSource`,
-`3MGeoJsonOut`, `DPT30GeoJsonOut` and `DPT34GeoJsonOut`
+`3MGeoJsonOut`, `DPT30GeoJsonOut`, `DPT34GeoJsonOut` and `OSMInfoFunction`
 in the existing `3MOpenDataProcessor` application. It uses
 the managed `java21.ol9` runtime, which can run this project's Java 17 bytecode.
 On later runs, the script updates each exact-name archive function with its own
-handler (`DataSourceFunction::handleRequest` or `GeoJsonOutFunction::handleRequest`).
+handler (`DataSourceFunction::handleRequest`, `GeoJsonOutFunction::handleRequest`,
+or `OSMInfoFunction::handleRequest`).
 
 First run `source ./setup.sh` to initialize the shared environment. Deployment
 uses the exported OCI credentials, `OCI_COMPARTMENT_ID`,
@@ -248,6 +274,7 @@ than queried again during each deployment. `3MOpenDataSource` and `DPT34OpenData
 receive `NAMESPACE` and `BUCKETNAME`; both GeoJSON functions receive `NAMESPACE`,
 `BUCKETNAME_IN`, `BUCKETNAME_OUT`, `BUCKETNAME_OSM`, `OSM_CACHE_OBJECT`, and
 `OSM_WAY_MAPPING_OBJECT`.
+`OSMInfoFunction` receives `NAMESPACE` and `BUCKETNAME_OSM`.
 The script requires `jq` to prepare function configuration.
 Function names and input buckets are derived by `oci-common.sh` from each
 data source's `id`, `functionPrefix`, and `inputBucket` in `dsconfig.json`.
@@ -263,7 +290,8 @@ and updates.
 
 To add another function, add its data source ID, kind (`ds` or `geojson`), and
 Java handler to the `functions` registry in the script. Extend the local config
-builder if it needs additional environment variables. The shared
+builder if it needs additional environment variables. The standalone
+`osm` registry entry deploys `OSMInfoFunction` independently of `dsconfig.json`. The shared
 deployment flow validates every handler class before uploading and prepares
 all configs before modifying any function.
 
@@ -288,12 +316,15 @@ To invoke a deployed function using OCI CLI:
 ./invoke.sh geojson MMM
 ./invoke.sh ds DPT34
 ./invoke.sh geojson DPT34
+./invoke.sh osm
 ```
 
-`invoke.sh` accepts exactly two arguments: `ds|geojson` and the data source ID
-`MMM|DPT30|DPT34` from `dsconfig.json`. `MMM` maps to the existing `3M` function names.
-It resolves `<source>OpenDataSource` or `<source>GeoJsonOut` in
-`3MOpenDataProcessor`, invokes synchronously with an empty body, and prints the
+For data source functions, `invoke.sh` accepts two arguments: `ds|geojson` and
+the data source ID `MMM|DPT30|DPT34` from `dsconfig.json`. `MMM` maps to the
+existing `3M` function names. Use `./invoke.sh osm` with no data source argument
+to invoke `OSMInfoFunction`, independently of `dsconfig.json`.
+The script resolves the selected function in `3MOpenDataProcessor`, invokes
+synchronously with an empty body, and prints the
 function response to standard output. OCI errors propagate as a failing exit code.
 Run `source ./setup.sh` first. Application lookup uses the exported application
 name and compartment, or `OCI_FN_APPLICATION_ID`, as in the deployment script.

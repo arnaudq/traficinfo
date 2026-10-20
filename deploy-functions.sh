@@ -11,8 +11,9 @@ output_bucket="${BUCKETNAME_OUT:-traficinfo}"
 osm_bucket="${BUCKETNAME_OSM:-osminfo}"
 jar_file="$root_dir/dsfunctions/target/dsfunctions-1.0-SNAPSHOT-jar-with-dependencies.jar"
 
-# Deployment-specific Java handlers. Resource names and buckets come from dsconfig.json.
+# Java handlers. Data source resource names and buckets come from dsconfig.json.
 functions=(
+  'OSMInfoFunction|osm|org.traficinfo.dsfunctions.OSMInfoFunction::handleRequest'
   'MMM|ds|org.traficinfo.dsfunctions.m3m.DataSourceFunction::handleRequest'
   'DPT34|ds|org.traficinfo.dsfunctions.dpt34.DataSourceFunction::handleRequest'
   'DPT30|ds|org.traficinfo.dsfunctions.dpt30.DataSourceFunction::handleRequest'
@@ -64,6 +65,12 @@ input_bucket_for_source() {
 
 build_function_config() {
   local type="$1" namespace="$2" source="$3" input config
+  if [ "$type" = osm ]; then
+    validate_bucket_name "$osm_bucket" BUCKETNAME_OSM || return
+    jq -cn --arg namespace "$namespace" --arg bucket "$osm_bucket" \
+      '{NAMESPACE: $namespace, BUCKETNAME_OSM: $bucket}'
+    return
+  fi
   input="$(input_bucket_for_source "$source")" || return
   if [ "$type" = ds ]; then
     jq -cn --arg namespace "$namespace" --arg bucket "$input" \
@@ -162,12 +169,17 @@ main() {
   # Prepare all configs and tags before any build or OCI mutation.
   for definition in "${functions[@]}"; do
     IFS='|' read -r data_source_id type handler <<< "$definition"
-    source="$(get_data_source "$data_source_id" "$sources")"
-    function_name="$(data_source_function_name "$source" "$type")"
+    if [ "$type" = osm ]; then
+      function_name="$data_source_id"
+      source='{"id":"OSMInfoFunction","schedule":"Daily"}'
+    else
+      source="$(get_data_source "$data_source_id" "$sources")"
+      function_name="$(data_source_function_name "$source" "$type")"
+    fi
     namespace="${OCI_OBJECT_STORAGE_NAMESPACE:?Run source ./setup.sh first}"
     config="$(build_function_config "$type" "$namespace" "$source")"
     tags=''
-    if [ "$type" = ds ]; then tags="$(schedule_tags "$source")"; fi
+    if [ "$type" = ds ] || [ "$type" = osm ]; then tags="$(schedule_tags "$source")"; fi
     function_names+=("$function_name")
     configs+=("$config")
     defined_tags+=("$tags")

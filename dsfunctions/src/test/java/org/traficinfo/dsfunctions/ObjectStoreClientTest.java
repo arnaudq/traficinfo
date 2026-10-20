@@ -2,6 +2,10 @@ package org.traficinfo.dsfunctions;
 
 import com.oracle.bmc.objectstorage.ObjectStorage;
 import com.oracle.bmc.objectstorage.requests.PutObjectRequest;
+import com.oracle.bmc.objectstorage.requests.ListObjectsRequest;
+import com.oracle.bmc.objectstorage.model.ListObjects;
+import com.oracle.bmc.objectstorage.model.ObjectSummary;
+import com.oracle.bmc.objectstorage.responses.ListObjectsResponse;
 import com.oracle.bmc.objectstorage.responses.PutObjectResponse;
 import org.junit.Test;
 
@@ -11,11 +15,40 @@ import java.io.InputStream;
 import java.lang.reflect.Proxy;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.List;
 import java.util.zip.GZIPInputStream;
 
 import static org.junit.Assert.*;
 
 public class ObjectStoreClientTest {
+    @Test
+    public void listsNamesAcrossAllPagesIncludingAnEmptyBucket() {
+        AtomicInteger calls = new AtomicInteger();
+        ObjectStorage storage = (ObjectStorage) Proxy.newProxyInstance(
+                ObjectStorage.class.getClassLoader(), new Class<?>[]{ObjectStorage.class},
+                (proxy, method, args) -> {
+                    assertEquals("listObjects", method.getName());
+                    ListObjectsRequest request = (ListObjectsRequest) args[0];
+                    assertEquals("namespace", request.getNamespaceName());
+                    assertEquals("osminfo", request.getBucketName());
+                    int call = calls.getAndIncrement();
+                    if (call == 1) {
+                        assertEquals("second", request.getStart());
+                    } else {
+                        assertNull(request.getStart());
+                    }
+                    return ListObjectsResponse.builder().listObjects(ListObjects.builder()
+                            .objects(call == 2 ? List.of() : List.of(ObjectSummary.builder()
+                                    .name(call == 0 ? "first" : "second").build()))
+                            .nextStartWith(call == 0 ? "second" : null).build()).build();
+                });
+        ObjectStoreClient store = new ObjectStoreClient(storage, "namespace", "osminfo");
+        assertEquals(List.of("first", "second"), store.listResources());
+        assertTrue(store.listResources().isEmpty());
+        assertEquals(3, calls.get());
+    }
+
     @Test
     public void uploadsGzipWithOriginalNamesTypesAndMetadata() throws IOException {
         assertCompressedUpload("data.csv", "text/csv", "name,value\nMontpellier,42\n".repeat(100));

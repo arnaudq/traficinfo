@@ -112,8 +112,9 @@ Untagged functions do not match. Deployment with `./deploy-functions.sh` reads
 functions: `MMM` maps to `3MOpenDataSource`, and `DPT34` maps to
 `DPT34OpenDataSource`. Current schedules are Daily and Monthly respectively.
 Both creation and updates set the data source function's complete defined-tag
-map to the configured scheduling tag. GeoJSON functions receive no scheduling tag from
-deployment. Deploy the intended functions before converting an existing
+map to the configured scheduling tag. Deployment also tags `OSMInfoFunction` as
+`Daily` so it reports unknown entries in each OSM way-mapping cache at 15:30 UTC. GeoJSON functions receive no scheduling
+tag from deployment. Deploy the intended functions before converting an existing
 schedule from static targets to filters.
 
 ```sh

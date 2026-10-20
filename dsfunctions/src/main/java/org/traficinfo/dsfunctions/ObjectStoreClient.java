@@ -8,6 +8,8 @@ import com.oracle.bmc.model.BmcException;
 import com.oracle.bmc.objectstorage.ObjectStorage;
 import com.oracle.bmc.objectstorage.ObjectStorageClient;
 import com.oracle.bmc.objectstorage.model.RenameObjectDetails;
+import com.oracle.bmc.objectstorage.model.ListObjects;
+import com.oracle.bmc.objectstorage.requests.ListObjectsRequest;
 import com.oracle.bmc.objectstorage.requests.HeadObjectRequest;
 import com.oracle.bmc.objectstorage.requests.GetObjectRequest;
 import com.oracle.bmc.objectstorage.requests.PutObjectRequest;
@@ -23,6 +25,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.zip.GZIPOutputStream;
 import java.util.zip.GZIPInputStream;
 
@@ -71,6 +75,20 @@ public class ObjectStoreClient {
         this.client = client;
         this.namespaceName = namespace;
         this.bucketName = bucketName;
+    }
+
+    /** Lists every object name in the bucket, following all listing pages. */
+    public List<String> listResources() {
+        List<String> names = new ArrayList<>();
+        String start = null;
+        do {
+            ListObjects page = client.listObjects(ListObjectsRequest.builder()
+                    .namespaceName(namespaceName).bucketName(bucketName).start(start).build())
+                    .getListObjects();
+            page.getObjects().forEach(object -> names.add(object.getName()));
+            start = page.getNextStartWith();
+        } while (start != null && !start.isEmpty());
+        return names;
     }
 
     /**

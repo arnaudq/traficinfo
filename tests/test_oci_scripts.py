@@ -134,12 +134,13 @@ class OciScriptsTest(unittest.TestCase):
                               'lifecycle-state': 'ACTIVE'}],
             'functions': [{'id': 'ocid1.fnfunc.' + name, 'display-name': name,
                            'lifecycle-state': 'ACTIVE', 'defined-tags': {'Old': {'Tag': 'value'}}}
-                          for name in ['3MOpenDataSource', 'DPT34OpenDataSource',
-                                       '3MGeoJsonOut', 'DPT34GeoJsonOut']],
+                          for name in ['3MOpenDataSource', 'DPT34OpenDataSource', 'DPT30OpenDataSource',
+                                       '3MGeoJsonOut', 'DPT34GeoJsonOut', 'DPT30GeoJsonOut',
+                                       'OSMInfoFunction']],
             'buckets': [{'name': name, 'compartment-id': 'ocid1.compartment.test',
                          'storage-tier': 'Standard', 'object-events-enabled': True,
                          'public-access-type': 'NoPublicAccess'}
-                        for name in ['ds3mbucket', 'dsdpt34', 'traficinfo', 'osminfo']],
+                        for name in ['ds3mbucket', 'dsdpt34', 'dsdpt30', 'traficinfo', 'osminfo']],
             'rules': [], 'schedules': []}
         self.save()
 
@@ -180,9 +181,10 @@ class OciScriptsTest(unittest.TestCase):
         sources = json.loads(self.common('load_data_sources').stdout)
         self.assertEqual(sources[0]['dataSourceFunction'], '3MOpenDataSource')
         self.assertEqual(sources[0]['inputBucket'], 'ds3mbucket')
-        self.assertEqual(sources[1]['geoJsonFunction'], 'DPT34GeoJsonOut')
-        self.assertEqual(sources[1]['csvObject'], 'DPT34_Comptage.csv')
-        self.assertEqual(sources[1]['inputBucket'], 'dsdpt34')
+        dpt34 = next(s for s in sources if s['id'] == 'DPT34')
+        self.assertEqual(dpt34['geoJsonFunction'], 'DPT34GeoJsonOut')
+        self.assertEqual(dpt34['csvObject'], 'DPT34_Comptage.csv')
+        self.assertEqual(dpt34['inputBucket'], 'dsdpt34')
         self.common('get_data_source UNKNOWN', success=False)
 
     def test_invalid_source_config(self):
@@ -246,6 +248,29 @@ class OciScriptsTest(unittest.TestCase):
         self.assertIn('ocid1.fnfunc.custom', self.script('invoke.sh', 'geojson', 'MMM').stdout)
         self.script('invoke.sh', 'ds', 'UNKNOWN', success=False)
 
+    def test_invoke_osm_without_data_source_config(self):
+        self.config_file.unlink()
+        result = self.script('invoke.sh', 'osm')
+        self.assertIn('ocid1.fnfunc.OSMInfoFunction', result.stdout)
+        call = self.state['calls'][-1]
+        self.assertEqual(call[:3], ['fn', 'function', 'invoke'])
+        self.assertEqual(call[call.index('--fn-invoke-type') + 1], 'sync')
+        self.assertEqual(call[call.index('--body') + 1], '')
+        self.assertEqual(call[call.index('--file') + 1], '-')
+        self.state['functions'] = [f for f in self.state['functions']
+                                   if f['display-name'] != 'OSMInfoFunction']
+        self.state['calls'] = []
+        self.save()
+        self.script('invoke.sh', 'osm', success=False)
+        self.assertFalse(any(c[:3] == ['fn', 'function', 'invoke'] for c in self.state['calls']))
+
+    def test_invoke_rejects_invalid_arguments_before_oci_calls(self):
+        for args in [(), ('osm', 'DPT34'), ('osm', 'extra', 'extra'),
+                     ('ds',), ('geojson',), ('ds', 'MMM', 'extra'), ('unknown',)]:
+            with self.subTest(args=args):
+                self.assertIn('Usage:', self.script('invoke.sh', *args, success=False).stderr)
+        self.assertNotIn('calls', self.state)
+
     def test_deploy_creates_and_updates_correct_configs(self):
         for existing in [True, False]:
             with self.subTest(existing=existing):
@@ -254,8 +279,12 @@ class OciScriptsTest(unittest.TestCase):
                     self.state['writes'] = []
                     self.save()
                 self.deploy()
-                self.assertEqual(len(self.state['writes']), 4)
+                self.assertEqual(len(self.state['writes']), 7)
                 functions = {f['display-name']: f for f in self.state['functions']}
+                self.assertEqual(functions['OSMInfoFunction']['config'],
+                                 {'NAMESPACE': 'testnamespace', 'BUCKETNAME_OSM': 'osminfo'})
+                self.assertEqual(functions['OSMInfoFunction']['defined-tags'],
+                                 {'TraficInfo': {'DataSourceSchedule': 'Daily'}})
                 self.assertEqual(functions['3MOpenDataSource']['config'],
                                  {'NAMESPACE': 'testnamespace', 'BUCKETNAME': 'ds3mbucket'})
                 self.assertEqual(functions['DPT34OpenDataSource']['config']['BUCKETNAME'], 'dsdpt34')
@@ -268,6 +297,17 @@ class OciScriptsTest(unittest.TestCase):
                                      {'TraficInfo': {'DataSourceSchedule': cadence}})
                 for name in ['3MGeoJsonOut', 'DPT34GeoJsonOut']:
                     self.assertNotIn('TraficInfo', functions[name].get('defined-tags', {}))
+
+    def test_osm_report_uses_bucket_override_and_handler(self):
+        self.env['BUCKETNAME_OSM'] = 'custom-osminfo'
+        self.deploy()
+        function = next(f for f in self.state['functions'] if f['display-name'] == 'OSMInfoFunction')
+        self.assertEqual(function['config'],
+                         {'NAMESPACE': 'testnamespace', 'BUCKETNAME_OSM': 'custom-osminfo'})
+        calls = [c for c in self.state['calls'] if '--handler' in c
+                 and c[c.index('--handler') + 1] == 'org.traficinfo.dsfunctions.OSMInfoFunction::handleRequest']
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][calls[0].index('--function-id') + 1], function['id'])
 
     def test_bucket_configuration_follows_source_config(self):
         config = json.loads(self.config_file.read_text())
