@@ -8,6 +8,12 @@
     "csvObject": "MMM_MMM_Comptage.csv",
     "datasetInfoUrl": "https://data.montpellier3m.fr/dataset/comptage-vehicules-particuliers-de-montpellier"
   },
+  "DPT30": {
+    "id": "DPT30",
+    "name": "Comptages véhicules - Département du Gard",
+    "schedule": "Monthly",
+    "datasetInfoUrl": "https://www.data.gouv.fr/datasets/les-trafics-moyens-journaliers-annuels-mesures-sur-le-reseau-routier-departemental-du-gard"
+  },
   "DPT34": {
     "id": "DPT34",
     "name": "Comptages véhicules - Département de l'Hérault",

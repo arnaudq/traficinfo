@@ -15,8 +15,10 @@ jar_file="$root_dir/dsfunctions/target/dsfunctions-1.0-SNAPSHOT-jar-with-depende
 functions=(
   'MMM|ds|org.traficinfo.dsfunctions.m3m.DataSourceFunction::handleRequest'
   'DPT34|ds|org.traficinfo.dsfunctions.dpt34.DataSourceFunction::handleRequest'
+  'DPT30|ds|org.traficinfo.dsfunctions.dpt30.DataSourceFunction::handleRequest'
   'MMM|geojson|org.traficinfo.dsfunctions.m3m.GeoJsonOutFunction::handleRequest'
   'DPT34|geojson|org.traficinfo.dsfunctions.dpt34.GeoJsonOutFunction::handleRequest'
+  'DPT30|geojson|org.traficinfo.dsfunctions.dpt30.GeoJsonOutFunction::handleRequest'
 )
 
 build_jar() {
@@ -54,6 +56,7 @@ input_bucket_for_source() {
   case "$id" in
     MMM) bucket="${BUCKETNAME_IN:-$bucket}" ;;
     DPT34) bucket="${BUCKETNAME_DPT34:-$bucket}" ;;
+    DPT30) bucket="${BUCKETNAME_DPT30:-$bucket}" ;;
   esac
   validate_bucket_name "$bucket" "$id" || return
   printf '%s\n' "$bucket"

@@ -1,0 +1,195 @@
+package org.traficinfo.dsfunctions.dpt30;
+
+import org.junit.Test;
+import org.traficinfo.dsfunctions.OOSResourceMetadata;
+import org.traficinfo.dsfunctions.ObjectStoreClient;
+
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.net.URI;
+import org.traficinfo.dsfunctions.HttpClient;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import static org.junit.Assert.*;
+
+public class DataSourceFunctionTest {
+
+    private static final String ETAG = "6e9bba51e2a5c0dd8d103b97d5d0a336";
+    private static final String OBJECT = DataSourceFunction.CSV_OBJECT_NAME;
+    private static final byte[] CSV = "id_tmja,annee,tmja_tous_vehicules\n1_0_3_0_2025,2025,6075\n"
+            .getBytes(StandardCharsets.UTF_8);
+
+    @Test
+    public void firstDownloadPublishesCsvAndValidator() throws Exception {
+        SourceStub stub = new SourceStub();
+        assertEquals("OK", stub.function().handleRequest(""));
+        assertEquals(List.of(OBJECT), stub.uploads);
+        assertArrayEquals(CSV, stub.contents.get(OBJECT));
+        OOSResourceMetadata metadata = stub.metadata.get(OBJECT);
+        assertEquals("\"" + ETAG + "\"", metadata.getETag());
+        assertNotNull(metadata.getMetadata().get("downloaded-at"));
+        assertEquals(LocalDate.now(ZoneOffset.UTC).format(DateTimeFormatter.BASIC_ISO_DATE),
+                metadata.getLastModified());
+        assertEquals(1, stub.downloads);
+        assertTrue(stub.closed);
+    }
+
+    @Test
+    public void identicalDownloadDoesNotUploadOrArchive() {
+        SourceStub stub = new SourceStub();
+        DataSourceFunction function = stub.function();
+        function.handleRequest("");
+        stub.uploads.clear();
+        stub.unchanged = true;
+        assertEquals("OK", function.handleRequest(""));
+        assertEquals(2, stub.downloads);
+        assertTrue(stub.uploads.isEmpty());
+        assertEquals(0, stub.archiveReads);
+    }
+
+    @Test
+    public void changedDownloadArchivesBeforeReplacingCurrentObject() throws Exception {
+        SourceStub stub = new SourceStub();
+        DataSourceFunction function = stub.function();
+        function.handleRequest("");
+        stub.metadata.get(OBJECT).setLastModified(LocalDate.of(2026, 10, 17));
+        stub.uploads.clear();
+        stub.downloadBytes = "new CSV content".getBytes(StandardCharsets.UTF_8);
+        assertEquals("OK", function.handleRequest(""));
+        String archive = "DPT30_Comptage_20261017.csv";
+        assertEquals(List.of(archive, OBJECT), stub.uploads);
+        assertArrayEquals(CSV, stub.contents.get(archive));
+        assertArrayEquals(stub.downloadBytes, stub.contents.get(OBJECT));
+        assertEquals("\"" + ETAG + "\"", stub.metadata.get(archive).getETag());
+    }
+
+    @Test
+    public void downloadFailureLeavesCurrentObjectUntouched() {
+        SourceStub stub = initializedStub();
+        stub.failDownload = true;
+        assertFailure(stub);
+        assertTrue(stub.uploads.isEmpty());
+        assertArrayEquals(CSV, stub.contents.get(OBJECT));
+    }
+
+    @Test
+    public void emptyDownloadIsNotPublished() {
+        SourceStub stub = initializedStub();
+        stub.downloadBytes = new byte[0];
+        assertFailure(stub);
+        assertTrue(stub.uploads.isEmpty());
+        assertArrayEquals(CSV, stub.contents.get(OBJECT));
+        assertTrue(stub.closed);
+    }
+
+    @Test
+    public void archiveFailurePreventsReplacementOfCurrentObject() {
+        SourceStub stub = initializedStub();
+        stub.downloadBytes = new byte[]{4, 5, 6};
+        stub.failArchiveUpload = true;
+        assertFailure(stub);
+        assertTrue(stub.uploads.isEmpty());
+        assertArrayEquals(CSV, stub.contents.get(OBJECT));
+    }
+
+    @Test
+    public void currentUploadFailurePreservesCurrentAndArchivedContent() throws Exception {
+        SourceStub stub = initializedStub();
+        stub.downloadBytes = new byte[]{4, 5, 6};
+        stub.failCurrentUpload = true;
+        assertFailure(stub);
+        assertEquals(List.of(String.format(DataSourceFunction.CSV_OBJECT_ARCHIVE_NAME,
+                stub.metadata.get(OBJECT).getLastModified())), stub.uploads);
+        assertArrayEquals(CSV, stub.contents.get(OBJECT));
+    }
+
+    private static SourceStub initializedStub() {
+        SourceStub stub = new SourceStub();
+        stub.function().handleRequest("");
+        stub.uploads.clear();
+        return stub;
+    }
+
+    private static void assertFailure(SourceStub stub) {
+        try {
+            stub.function().handleRequest("");
+            fail("Expected publication failure");
+        } catch (UncheckedIOException expected) {
+            assertTrue(expected.getMessage().contains(OBJECT));
+        }
+    }
+
+    private static class SourceStub {
+        final Map<String, byte[]> contents = new HashMap<>();
+        final Map<String, OOSResourceMetadata> metadata = new HashMap<>();
+        final List<String> uploads = new ArrayList<>();
+        byte[] downloadBytes = CSV;
+        int downloads;
+        int archiveReads;
+        boolean closed;
+        boolean unchanged;
+        boolean failDownload;
+        boolean failArchiveUpload;
+        boolean failCurrentUpload;
+
+        DataSourceFunction function() {
+            ObjectStoreClient storage = new ObjectStoreClient(null, "namespace", "dsdpt30") {
+                @Override
+                public OOSResourceMetadata getResourceMetadata(String name) {
+                    return metadata.get(name);
+                }
+
+                @Override
+                public InputStream getResource(String name) {
+                    archiveReads++;
+                    return new ByteArrayInputStream(contents.get(name));
+                }
+
+                @Override
+                public void putResource(String name, String type, OOSResourceMetadata meta,
+                                        InputStream input) throws IOException {
+                    assertEquals("text/csv", type);
+                    if ((name.equals(OBJECT) && failCurrentUpload)
+                            || (!name.equals(OBJECT) && failArchiveUpload)) {
+                        throw new IOException("Upload failed");
+                    }
+                    contents.put(name, input.readAllBytes());
+                    metadata.put(name, meta);
+                    uploads.add(name);
+                }
+            };
+            HttpClient http = new HttpClient() {
+                @Override
+                public EntityBody get(URI uri, String etag) throws IOException {
+                    assertEquals(DataSourceFunction.CSV_URI, uri);
+                    OOSResourceMetadata previous = metadata.get(OBJECT);
+                    assertEquals(previous == null ? null : previous.getETag(), etag);
+                    downloads++;
+                    if (failDownload) {
+                        throw new IOException("Download failed");
+                    }
+                    if (unchanged) {
+                        return new EntityBody(ETAG, null, null);
+                    }
+                    return new EntityBody(ETAG, null, new ByteArrayInputStream(downloadBytes) {
+                        @Override
+                        public void close() throws IOException {
+                            closed = true;
+                            super.close();
+                        }
+                    });
+                }
+            };
+            return new DataSourceFunction(http, storage);
+        }
+    }
+}

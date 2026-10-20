@@ -17,7 +17,7 @@ invocation before the CSV is published and is reported as a function failure.
 ## Shared infrastructure
 
 `org.traficinfo.dsfunctions.HttpClient`, `ObjectStoreClient` and
-`OOSResourceMetadata` are shared by the M3M and DPT34 source functions.
+`OOSResourceMetadata` are shared by the M3M, DPT30 and DPT34 source functions.
 The HTTP client sends `If-None-Match` for real server ETags and returns no body
 for HTTP 304. When the server supplies no ETag, it stages the complete response
 in a temporary file and exposes `sha256:<hex-digest>` through `getEtag()`.
@@ -28,6 +28,47 @@ the hash. Both real and synthetic validators use the same `current-etag` object
 metadata. Last-Modified remains optional and is not inferred by the HTTP client.
 Responses, body streams and temporary files are released when `EntityBody` is
 closed. Unchanged downloads and failed downloads also delete temporary files.
+
+## DPT30 functions
+
+`org.traficinfo.dsfunctions.dpt30.DataSourceFunction::handleRequest` downloads
+Gard's [CSV resource](https://www.data.gouv.fr/api/1/datasets/r/69584212-8ff0-40d3-b82d-2d5d2890bff7).
+The HTTP client follows the stable URL's redirect to the dated file and uses
+its ETag for conditional downloads. HTTP 304 returns `OK` without uploads or
+archives. Configure `NAMESPACE`; `BUCKETNAME` defaults to `dsdpt30`, and
+`USE_RESOURCE_PRINCIPAL` defaults to `true`.
+
+The function uploads `DPT30_Comptage.csv` as gzip `text/csv`, recording the
+source validator in `current-etag`, a UTC `downloaded-at` timestamp and a
+`last-modified` download date. Before replacing existing content, it copies the
+previous CSV and metadata to `DPT30_Comptage_YYYYMMDD.csv`, using the previous
+download date. Multiple versions downloaded on one day share an archive name.
+An empty download, download error or archive failure prevents replacement and
+fails the invocation. As with DPT34, downstream event rules must match the
+current CSV name exactly so archives do not trigger processing.
+
+`org.traficinfo.dsfunctions.dpt30.GeoJsonOutFunction::handleRequest` reads the
+CSV and generates points and annual history with `GeoJsonParser.DataSource.DPT30`.
+It accepts plain or gzip input and uploads gzip `DPT30_TraficInfo.geojson`
+with content type `application/geo+json`. Configure `NAMESPACE`,
+`BUCKETNAME_IN` (default `dsdpt30`) and `BUCKETNAME_OUT` (default `traficinfo`).
+`USE_RESOURCE_PRINCIPAL` defaults to `true`. OSM enrichment uses
+`DPT30_OSMInfo.json` and `DPT30_OSMWayMapping.json` in bucket `osminfo`, with
+configuration overrides `OSM_CACHE_OBJECT`, `OSM_WAY_MAPPING_OBJECT` and
+`BUCKETNAME_OSM`. The output handler returns `OK` on success and `KO` on errors,
+including cache failures. Temporary output files are deleted on success and
+failure. CSV coordinates supply geometry; no companion GeoJSON is downloaded.
+
+`deploy-functions.sh` registers `DPT30OpenDataSource` and `DPT30GeoJsonOut`.
+Names, the `Monthly` schedule tag and default bucket `dsdpt30` come from the
+DPT30 entry in `dsconfig.json`; `BUCKETNAME_DPT30` overrides the deployment input
+bucket. After deployment, invoke with `./invoke.sh ds DPT30` or
+`./invoke.sh geojson DPT30`. Run `source ./setup.sh` before these scripts.
+
+Tests cover first/unchanged/changed downloads, archive and upload failures,
+empty downloads, plain/gzip CSV-to-GeoJSON output, annual history, OSM cache
+integration and cleanup. A shared HTTP client test verifies ETag forwarding
+through a redirect to another host name. Run `mvn -o -pl dsfunctions -am test`.
 
 ## DPT34 data source function
 
@@ -110,7 +151,7 @@ or invalid JSON return `KO` without overwriting the cache.
 
 `org.traficinfo.dsfunctions.OSMInfoProviderImpl` handles cache loading, refreshing,
 and persistence using `org.traficinfo.dsfunctions.OpenStreetMapClient` for OSM
-requests. Both GeoJSON functions call `loadCache()` before parsing and
+requests. All GeoJSON functions call `loadCache()` before parsing and
 `refreshCache()` after publishing the GeoJSON. The cache map remains
 private to the implementation. Calls to `get(wayId)` queue missing or stale ways
 internally for the deferred refresh. Parsers use the
@@ -191,7 +232,8 @@ Unresolved entries do not consume the existing 100-request way-tag budget.
 
 From the repository root, run `./deploy-functions.sh`. It builds the Maven
 `jar-with-dependencies` artifact once and uploads it directly to OCI Functions as
-`3MOpenDataSource`, `DPT34OpenDataSource`, `3MGeoJsonOut` and `DPT34GeoJsonOut`
+`3MOpenDataSource`, `DPT30OpenDataSource`, `DPT34OpenDataSource`,
+`3MGeoJsonOut`, `DPT30GeoJsonOut` and `DPT34GeoJsonOut`
 in the existing `3MOpenDataProcessor` application. It uses
 the managed `java21.ol9` runtime, which can run this project's Java 17 bytecode.
 On later runs, the script updates each exact-name archive function with its own
@@ -249,7 +291,7 @@ To invoke a deployed function using OCI CLI:
 ```
 
 `invoke.sh` accepts exactly two arguments: `ds|geojson` and the data source ID
-`MMM|DPT34` from `dsconfig.json`. `MMM` maps to the existing `3M` function names.
+`MMM|DPT30|DPT34` from `dsconfig.json`. `MMM` maps to the existing `3M` function names.
 It resolves `<source>OpenDataSource` or `<source>GeoJsonOut` in
 `3MOpenDataProcessor`, invokes synchronously with an empty body, and prints the
 function response to standard output. OCI errors propagate as a failing exit code.

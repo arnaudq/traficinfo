@@ -17,6 +17,52 @@ import static org.junit.Assert.*;
 public class HttpClientTest {
 
     @Test
+    public void followsResourceRedirectAndForwardsConditionalEtag() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        String etag = "\"gard-csv-version\"";
+        byte[] csv = "id_tmja,annee\n1_0_3_0_2025,2025\n".getBytes(StandardCharsets.UTF_8);
+        AtomicReference<String> conditionalHeader = new AtomicReference<>();
+        server.createContext("/resource", exchange -> {
+            // Use a different host name to model data.gouv.fr -> static.data.gouv.fr.
+            exchange.getResponseHeaders().set("Location",
+                    "http://localhost:" + server.getAddress().getPort() + "/dated.csv");
+            exchange.sendResponseHeaders(302, -1);
+            exchange.close();
+        });
+        server.createContext("/dated.csv", exchange -> {
+            String received = exchange.getRequestHeaders().getFirst("If-None-Match");
+            conditionalHeader.set(received);
+            exchange.getResponseHeaders().set("ETag", etag);
+            if (etag.equals(received)) {
+                exchange.sendResponseHeaders(304, -1);
+                exchange.close();
+            } else {
+                exchange.sendResponseHeaders(200, csv.length);
+                try (var output = exchange.getResponseBody()) {
+                    output.write(csv);
+                }
+            }
+        });
+        server.start();
+        try (HttpClient client = new HttpClient()) {
+            URI uri = URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/resource");
+            OOSResourceMetadata metadata = new OOSResourceMetadata();
+            try (HttpClient.EntityBody body = client.get(uri, null)) {
+                assertArrayEquals(csv, body.getInputStream().readAllBytes());
+                metadata.setETag(body.getEtag());
+                assertEquals(etag, metadata.getETag());
+            }
+            assertNull(conditionalHeader.get());
+            try (HttpClient.EntityBody body = client.get(uri, metadata.getETag())) {
+                assertNull(body.getInputStream());
+            }
+            assertEquals(etag, conditionalHeader.get());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     public void downloadsWithoutEtagOrLastModified() throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         byte[] csv = "Commune;Année\nBÉZIERS;2025\n".getBytes(StandardCharsets.UTF_8);
