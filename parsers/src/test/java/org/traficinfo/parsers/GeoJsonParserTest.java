@@ -116,14 +116,14 @@ public class GeoJsonParserTest extends ParserBaseTest {
     @Test
     public void testFeatureCollectionOverloadPreservesOsmEnrichment() throws Exception {
         StringWriter writer = new StringWriter();
-        Set<Long> waysToRefresh = new LinkedHashSet<>();
+        Set<Long> requestedWays = new LinkedHashSet<>();
         try (Reader csv = getReaderFromResource("M3MSample.csv");
              Reader geojson = getReaderFromResource("M3MSample.json")) {
             GeoJsonParser.parseAndMerge(GeoJsonParser.DataSource.M3MV2, csv,
                     GeoJsonParser.parseGeoJSON(geojson), writer,
-                    wayId -> null, waysToRefresh);
+                    wayId -> { requestedWays.add(wayId); return null; });
         }
-        assertEquals(Set.of(370743659L), waysToRefresh);
+        assertEquals(Set.of(370743659L), requestedWays);
         assertEquals(1, GeoJsonParser.parseGeoJSON(
                 new StringReader(writer.toString())).getFeatures().size());
     }

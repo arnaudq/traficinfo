@@ -14,7 +14,6 @@ import org.slf4j.LoggerFactory;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.time.Year;
-import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -78,10 +77,9 @@ public class GeoJsonParser {
     }
 
     public static void parseAndMerge(DataSource dataSource, Reader csvReader,
-                                     Writer geojsonMergedWriter, OSMInfoProvider osmInfoProvider,
-                                     Set<Long> waysToRefresh) throws Exception {
+                                     Writer geojsonMergedWriter, OSMInfoProvider osmInfoProvider) throws Exception {
         parseAndMerge(dataSource, csvReader, new FeatureCollection(), geojsonMergedWriter,
-                osmInfoProvider, waysToRefresh);
+                osmInfoProvider);
     }
 
     public static void parseAndMerge(DataSource dataSource, Reader csvReader, Reader geojsonReader,
@@ -90,22 +88,20 @@ public class GeoJsonParser {
     }
 
     public static void parseAndMerge(DataSource dataSource, Reader csvReader, Reader geojsonReader,
-                                     Writer geojsonMergedWriter, OSMInfoProvider osmInfoProvider,
-                                     Set<Long> waysToRefresh) throws Exception {
+                                     Writer geojsonMergedWriter, OSMInfoProvider osmInfoProvider) throws Exception {
         parseAndMerge(dataSource, csvReader, parseGeoJSON(geojsonReader), geojsonMergedWriter,
-                osmInfoProvider, waysToRefresh);
+                osmInfoProvider);
     }
 
     public static void parseAndMerge(DataSource dataSource, Reader csvReader,
                                      FeatureCollection geoJsonColl, Writer geojsonMergedWriter)
             throws Exception {
         parseAndMerge(dataSource, csvReader, geoJsonColl, geojsonMergedWriter,
-                wayId -> null, new LinkedHashSet<>());
+                wayId -> null);
     }
 
     public static void parseAndMerge(DataSource dataSource, Reader csvReader, FeatureCollection geoJsonColl,
-                                     Writer geojsonMergedWriter, OSMInfoProvider osmInfoProvider,
-                                     Set<Long> waysToRefresh) throws Exception {
+                                     Writer geojsonMergedWriter, OSMInfoProvider osmInfoProvider) throws Exception {
 
         Properties idToVoiesProps = new Properties();
 //        try (FileInputStream fis = new FileInputStream(new File(DATADIR, "idToVoies.properties"))) {
@@ -114,7 +110,7 @@ public class GeoJsonParser {
 
         ComptageParser comptageParser = dataSource.getParser();
         List<? extends Comptage> comptages = comptageParser.parseComptages(csvReader, idToVoiesProps);
-        applyOsmInfo(comptages, osmInfoProvider, waysToRefresh, Instant.now());
+        applyOsmInfo(comptages, osmInfoProvider);
 //        writeComptagesIdAndVoie(comptages, new File(OUTDIR,
 //          String.format("idToVoies-%s.properties", TIMESTAMP)));
 
@@ -133,8 +129,7 @@ public class GeoJsonParser {
         }
     }
 
-    static void applyOsmInfo(List<? extends Comptage> comptages, OSMInfoProvider osmInfoProvider,
-                             Set<Long> waysToRefresh, Instant now) {
+    static void applyOsmInfo(List<? extends Comptage> comptages, OSMInfoProvider osmInfoProvider) {
         List<Comptage> chronological = new ArrayList<>(comptages);
         chronological.sort(Comparator.comparingInt(Comptage::getAnnee));
         for (Comptage comptage : chronological) {
@@ -149,9 +144,6 @@ public class GeoJsonParser {
             }
             OSMWayInfo info = osmInfoProvider.get(wayId);
             comptage.setMaximumSpeed(info == null ? -1 : info.getMaximumSpeed());
-            if (info == null || info.needsRefresh(now)) {
-                waysToRefresh.add(wayId);
-            }
         }
     }
 

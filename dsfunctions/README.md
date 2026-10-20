@@ -111,8 +111,9 @@ or invalid JSON return `KO` without overwriting the cache.
 `org.traficinfo.dsfunctions.OSMInfoProviderImpl` handles cache loading, refreshing,
 and persistence using `org.traficinfo.dsfunctions.OpenStreetMapClient` for OSM
 requests. Both GeoJSON functions call `loadCache()` before parsing and
-`refreshCache(waysToRefresh)` after publishing the GeoJSON. The cache map remains
-private to the implementation. Parsers use the
+`refreshCache()` after publishing the GeoJSON. The cache map remains
+private to the implementation. Calls to `get(wayId)` queue missing or stale ways
+internally for the deferred refresh. Parsers use the
 `org.traficinfo.parsers.OSMInfoProvider` interface, which exposes `OSMWayInfo get(long wayId)` and the cache-only
 `getWayId(centraleId, point, roadReference)` lookup.
 

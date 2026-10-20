@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oracle.bmc.model.BmcException;
 import org.junit.Test;
 import org.geojson.Point;
+import org.traficinfo.parsers.OSMWayInfo;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -15,7 +16,8 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.Assert.*;
 
@@ -32,7 +34,7 @@ public class OSMMappingCacheTest {
         assertNull(provider.getWayId("DPT34_A", new Point(3.001, 43.001), "M11"));
         assertNull(provider.getWayId("DPT34_B", null, null));
         assertEquals(0, store.writes);
-        provider.refreshCache(Set.of());
+        provider.refreshCache();
         JsonNode cache = JSON.readTree(store.objects.get("mappings.json"));
         assertEquals(2, cache.size());
         assertTrue(cache.get("DPT34_A").get("osmWayId").isNull());
@@ -66,7 +68,7 @@ public class OSMMappingCacheTest {
                     new Point(mapping.get("longitude").asDouble(), mapping.get("latitude").asDouble()),
                     mapping.path("sourceRoadReference").asText(null)));
         });
-        provider.refreshCache(Set.of());
+        provider.refreshCache();
         JsonNode after = JSON.readTree(store.objects.get("mappings.json"));
         assertEquals(before.size(), after.size());
         before.fields().forEachRemaining(entry -> entry.getValue().fields().forEachRemaining(field -> {
@@ -85,11 +87,11 @@ public class OSMMappingCacheTest {
         OSMInfoProviderImpl first = provider(store, NOW);
         first.loadCache();
         first.getWayId("A", new Point(3.0, 43.0), "D11");
-        first.refreshCache(Set.of());
+        first.refreshCache();
         OSMInfoProviderImpl second = provider(store, NOW.plusSeconds(86400));
         second.loadCache();
         second.getWayId("A", new Point(3.0, 43.0), null);
-        second.refreshCache(Set.of());
+        second.refreshCache();
         JsonNode saved = JSON.readTree(store.objects.get("mappings.json"));
         assertEquals("D11", saved.get("A").get("sourceRoadReference").asText());
         assertEquals(NOW.toString(), saved.get("A").get("firstSeen").asText());
@@ -108,7 +110,7 @@ public class OSMMappingCacheTest {
         OSMInfoProviderImpl provider = provider(store, NOW);
         provider.loadCache();
         assertEquals(Long.valueOf(123), provider.getWayId("A", null, null));
-        provider.refreshCache(Set.of());
+        provider.refreshCache();
         assertEquals("manual", JSON.readTree(store.objects.get("mappings.json")).get("A").get("note").asText());
         assertEquals(1, store.writes);
     }
@@ -135,6 +137,40 @@ public class OSMMappingCacheTest {
         }
     }
 
+    @Test
+    public void queuesMissingAndStaleWaysInternallyAndResetsOnLoad() throws Exception {
+        Store store = new Store();
+        store.objects.put("tags.json", JSON.writeValueAsBytes(Map.of(
+                1L, new OSMWayInfo(NOW, Map.of("maxspeed", "50")),
+                2L, new OSMWayInfo(NOW.minusSeconds(365 * 86400L), Map.of("maxspeed", "30")))));
+        List<Long> requests = new ArrayList<>();
+        OSMInfoProviderImpl provider = new OSMInfoProviderImpl(store, new OpenStreetMapClient() {
+            @Override public Map<String, String> getWayTags(long id) {
+                requests.add(id);
+                return Map.of("maxspeed", "80");
+            }
+        }, "tags.json", Clock.fixed(NOW, ZoneOffset.UTC));
+        provider.loadCache();
+        assertEquals(50, provider.get(1).getMaximumSpeed());
+        assertEquals(30, provider.get(2).getMaximumSpeed());
+        assertNull(provider.get(3));
+        assertNull(provider.get(3));
+        assertNull(provider.get(0));
+        assertNull(provider.get(-1));
+        assertTrue("Reads must defer HTTP requests", requests.isEmpty());
+        provider.refreshCache();
+        assertEquals(List.of(2L, 3L), requests);
+        JsonNode saved = JSON.readTree(store.objects.get("tags.json"));
+        assertEquals(3, saved.size());
+        assertEquals("80", saved.get("3").get("tags").get("maxspeed").asText());
+
+        assertNull(provider.get(4));
+        provider.loadCache();
+        provider.get(1);
+        provider.refreshCache();
+        assertEquals("Loading must clear the previous invocation's queue", List.of(2L, 3L), requests);
+    }
+
     private static OSMInfoProviderImpl provider(Store store, Instant now) {
         return new OSMInfoProviderImpl(store, new OpenStreetMapClient() {
             @Override public Map<String, String> getWayTags(long id) {
@@ -155,7 +191,7 @@ public class OSMMappingCacheTest {
         }
         @Override public void putResource(String name, String type, OOSResourceMetadata metadata, InputStream body)
                 throws IOException {
-            assertEquals("mappings.json", name);
+            assertTrue("mappings.json".equals(name) || "tags.json".equals(name));
             assertEquals("application/json", type);
             objects.put(name, body.readAllBytes());
             writes++;

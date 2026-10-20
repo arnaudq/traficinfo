@@ -32,6 +32,7 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
     private final String osmCacheObject;
     private final Clock clock;
     private Map<Long, OSMWayInfo> cache = new LinkedHashMap<>();
+    private final Set<Long> waysToRefresh = new LinkedHashSet<>();
     private final String mappingObject;
     private final ObjectMapper mapper = new ObjectMapper();
     private Map<String, ObjectNode> mappings = new LinkedHashMap<>();
@@ -67,6 +68,7 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
     /** A missing cache object starts empty; other read errors propagate. */
     public void loadCache() throws IOException {
         missingMappings.clear();
+        waysToRefresh.clear();
         cache = readCache(osmCacheObject, new TypeReference<LinkedHashMap<Long, OSMWayInfo>>() { });
         LOG.info("Loaded {} OSM entries from cache {}", cache.size(), osmCacheObject);
         if (mappingObject != null) {
@@ -143,11 +145,15 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
 
     @Override
     public OSMWayInfo get(long wayId) {
-        return cache.get(wayId);
+        OSMWayInfo info = cache.get(wayId);
+        if (wayId > 0 && (info == null || info.needsRefresh(clock.instant()))) {
+            waysToRefresh.add(wayId);
+        }
+        return info;
     }
 
     /** Refreshes up to 100 queued ways and saves successful fetches, preserving failed entries. */
-    public void refreshCache(Set<Long> waysToRefresh)
+    public void refreshCache()
             throws IOException, InterruptedException {
         saveMappings();
         LOG.info("OSM cache: {} entries need refresh", waysToRefresh.size());

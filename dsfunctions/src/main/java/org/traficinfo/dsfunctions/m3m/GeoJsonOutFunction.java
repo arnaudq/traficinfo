@@ -18,8 +18,6 @@ import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.LinkedHashSet;
-import java.util.Set;
 
 public class GeoJsonOutFunction {
 
@@ -73,7 +71,6 @@ public class GeoJsonOutFunction {
     public String handleRequest(String input) {
         try {
             osmInfoProvider.loadCache();
-            Set<Long> waysToRefresh = new LinkedHashSet<>();
             Path mergedFile = Files.createTempFile("m3m-geojson-", ".geojson");
             try {
                 try (Reader csvReader = new InputStreamReader(
@@ -82,7 +79,7 @@ public class GeoJsonOutFunction {
                         inputClient.getResource("MMM_MMM_Comptage.json"), StandardCharsets.UTF_8);
                      Writer writer = Files.newBufferedWriter(mergedFile, StandardCharsets.UTF_8)) {
                     GeoJsonParser.parseAndMerge(GeoJsonParser.DataSource.M3MV2,
-                            csvReader, geojsonReader, writer, osmInfoProvider, waysToRefresh);
+                            csvReader, geojsonReader, writer, osmInfoProvider);
                 }
                 try (InputStream mergedInput = Files.newInputStream(mergedFile)) {
                     outputClient.putResource("MMM_TraficInfo.geojson", "application/geo+json",
@@ -91,7 +88,7 @@ public class GeoJsonOutFunction {
             } finally {
                 Files.deleteIfExists(mergedFile);
             }
-            osmInfoProvider.refreshCache(waysToRefresh);
+            osmInfoProvider.refreshCache();
             return "OK";
         } catch (Exception failure) {
             LOG.warn("Error while generating GeoJSON: {}", failure.getMessage(), failure);

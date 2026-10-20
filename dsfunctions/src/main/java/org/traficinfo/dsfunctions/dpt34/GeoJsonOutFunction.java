@@ -9,8 +9,6 @@ import org.traficinfo.dsfunctions.OOSResourceMetadata;
 import org.traficinfo.parsers.GeoJsonParser;
 import org.traficinfo.dsfunctions.OSMInfoProviderImpl;
 import org.traficinfo.dsfunctions.OpenStreetMapClient;
-import java.util.LinkedHashSet;
-import java.util.Set;
 
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -69,13 +67,12 @@ public class GeoJsonOutFunction {
     public String handleRequest(String input) {
         try {
             osmInfoProvider.loadCache();
-            Set<Long> waysToRefresh = new LinkedHashSet<>();
             Path mergedFile = Files.createTempFile("dpt34-geojson-", ".geojson");
             try {
                 try (Reader csvReader = new InputStreamReader(
                         inputClient.getResource(DataSourceFunction.CSV_OBJECT_NAME), StandardCharsets.UTF_8);
                      Writer writer = Files.newBufferedWriter(mergedFile, StandardCharsets.UTF_8)) {
-                    GeoJsonParser.parseAndMerge(GeoJsonParser.DataSource.DPT34, csvReader, writer, osmInfoProvider, waysToRefresh);
+                    GeoJsonParser.parseAndMerge(GeoJsonParser.DataSource.DPT34, csvReader, writer, osmInfoProvider);
                 }
                 try (InputStream mergedInput = Files.newInputStream(mergedFile)) {
                     outputClient.putResource(GEOJSON_OBJECT_NAME, "application/geo+json",
@@ -84,7 +81,7 @@ public class GeoJsonOutFunction {
             } finally {
                 Files.deleteIfExists(mergedFile);
             }
-            osmInfoProvider.refreshCache(waysToRefresh);
+            osmInfoProvider.refreshCache();
             return "OK";
         } catch (Exception failure) {
             LOG.warn("Error while generating DPT34 GeoJSON: {}", failure.getMessage(), failure);

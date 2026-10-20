@@ -6,9 +6,7 @@ import org.traficinfo.parsers.m3m.M3MComptage;
 
 import java.time.Instant;
 import java.util.Arrays;
-import java.util.LinkedHashSet;
 import java.util.Map;
-import java.util.Set;
 
 import static org.junit.Assert.*;
 
@@ -38,7 +36,7 @@ public class OSMWayInfoTest {
     }
 
     @Test
-    public void enrichesCountsAndQueuesUniqueMissingOrStaleWays() {
+    public void enrichesCountsWithCachedSpeeds() {
         M3MComptage fresh = count(1L);
         M3MComptage stale = count(2L);
         M3MComptage missing = count(3L);
@@ -46,18 +44,16 @@ public class OSMWayInfoTest {
         M3MComptage noId = count(null);
         M3MComptage invalidId = count(0L);
         M3MComptage noSpeed = count(4L);
-        Set<Long> pending = new LinkedHashSet<>();
         GeoJsonParser.applyOsmInfo(Arrays.asList(fresh, stale, missing, duplicate, noId, invalidId, noSpeed),
                 Map.<Long, OSMWayInfo>of(1L, new OSMWayInfo(NOW, Map.of("maxspeed", "50")),
                        2L, new OSMWayInfo(Instant.parse("2025-01-01T00:00:00Z"), Map.of("maxspeed", "30")),
-                       4L, new OSMWayInfo(NOW, Map.of("highway", "residential")))::get, pending, NOW);
+                       4L, new OSMWayInfo(NOW, Map.of("highway", "residential")))::get);
         assertEquals(50, fresh.getMaximumSpeed());
         assertEquals(30, stale.getMaximumSpeed());
         assertEquals(-1, missing.getMaximumSpeed());
         assertEquals(-1, noId.getMaximumSpeed());
         assertEquals(-1, invalidId.getMaximumSpeed());
         assertEquals(-1, noSpeed.getMaximumSpeed());
-        assertEquals(new LinkedHashSet<>(Arrays.asList(2L, 3L)), pending);
     }
 
     private static M3MComptage count(Long id) {
@@ -95,12 +91,10 @@ public class OSMWayInfoTest {
                 return null;
             }
         };
-        Set<Long> refresh = new LinkedHashSet<>();
-        GeoJsonParser.applyOsmInfo(Arrays.asList(missing, provided, noCoordinates), provider, refresh, NOW);
+        GeoJsonParser.applyOsmInfo(Arrays.asList(missing, provided, noCoordinates), provider);
         assertEquals(Long.valueOf(1), missing.getOsmWayId());
         assertEquals(Long.valueOf(77), provided.getOsmWayId());
         assertEquals(80, missing.getMaximumSpeed());
         assertEquals(Arrays.asList("DPT34_A", "MMM_A"), seen);
-        assertTrue(refresh.isEmpty());
     }
 }
