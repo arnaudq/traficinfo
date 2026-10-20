@@ -9,6 +9,11 @@ import com.oracle.bmc.objectstorage.responses.GetObjectResponse;
 import com.oracle.bmc.objectstorage.responses.PutObjectResponse;
 import org.junit.Test;
 import org.traficinfo.dsfunctions.ObjectStoreClient;
+import org.traficinfo.dsfunctions.OSMInfoProviderImpl;
+import org.traficinfo.dsfunctions.OpenStreetMapClient;
+import java.io.InputStream;
+import java.time.Instant;
+import java.util.Map;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -54,7 +59,8 @@ public class GeoJsonOutFunctionTest {
             assertEquals("500 (" + YEAR + ") 400 (" + (YEAR - 1) + ") ",
                     properties.get("moyenne_annuelle_history").asText());
             assertEquals("Green", properties.get("_umap_options").get("color").asText());
-            assertFalse(properties.has("maximum_speed"));
+            assertEquals("80", properties.get("maximum_speed").asText());
+            assertEquals(1, stub.mappingUploads);
             stub.assertStreamsClosed();
         }
     }
@@ -95,6 +101,31 @@ public class GeoJsonOutFunctionTest {
         stub.assertStreamsClosed();
     }
 
+    @Test
+    public void savesUnmappedCounterOnceWithLatestCoordinates() throws Exception {
+        StorageStub stub = new StorageStub(false);
+        // Newest row deliberately comes before the old row.
+        stub.csv += "Tou.034.0002.00.3;" + YEAR + ";D2;COMMUNE;3;500;44.01;4.01\n"
+                + "Tou.034.0002.00.3;" + (YEAR - 1) + ";D2;COMMUNE;3;400;44;4\n";
+        assertEquals("OK", stub.function().handleRequest(""));
+        JsonNode saved = new ObjectMapper().readTree(stub.mappings);
+        assertEquals(2, saved.size());
+        JsonNode missing = saved.get("DPT34_Tou.034.0002.00.3");
+        assertEquals("MISSING", missing.get("status").asText());
+        assertTrue(missing.get("osmWayId").isNull());
+        assertEquals(44.01, missing.get("latitude").asDouble(), 0);
+        assertEquals(4.01, missing.get("longitude").asDouble(), 0);
+    }
+
+    @Test
+    public void reportsMappingWriteFailureAfterPublishingGeoJson() {
+        StorageStub stub = new StorageStub(false);
+        stub.failMappingUpload = true;
+        assertEquals("KO", stub.function().handleRequest(""));
+        assertEquals(1, stub.uploads);
+        assertEquals(1, stub.mappingUploads);
+    }
+
     private static class StorageStub {
         final boolean gzip;
         final List<String> downloads = new ArrayList<>();
@@ -102,6 +133,9 @@ public class GeoJsonOutFunctionTest {
         String csv = CSV;
         boolean failDownload;
         boolean failUpload;
+        boolean failMappingUpload;
+        int mappingUploads;
+        byte[] mappings;
         int uploads;
         byte[] output;
 
@@ -151,8 +185,34 @@ public class GeoJsonOutFunctionTest {
                         }
                         return PutObjectResponse.builder().build();
                     });
+            ObjectStoreClient cacheStore = new ObjectStoreClient(null, "namespace", "osminfo") {
+                @Override
+                public InputStream getResource(String name) {
+                    if (name.equals("mappings.json") && mappings != null) {
+                        return new ByteArrayInputStream(mappings);
+                    }
+                    String json = name.equals("tags.json")
+                            ? "{\"123\":{\"lastUpdated\":\"" + Instant.now() + "\",\"tags\":{\"maxspeed\":\"80\"}}}"
+                            : "{\"DPT34_Per.034.2005.00.3\":{\"osmWayId\":123}}";
+                    return new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
+                }
+                @Override
+                public void putResource(String name, String type, org.traficinfo.dsfunctions.OOSResourceMetadata metadata,
+                                        InputStream body) throws IOException {
+                    assertNotNull("Cache must be saved after GeoJSON publication", output);
+                    assertEquals("mappings.json", name);
+                    mappingUploads++;
+                    if (failMappingUpload) throw new IOException("Mapping upload failed");
+                    mappings = body.readAllBytes();
+                }
+            };
+            OSMInfoProviderImpl provider = new OSMInfoProviderImpl(cacheStore, new OpenStreetMapClient() {
+                @Override public Map<String, String> getWayTags(long id) {
+                    throw new AssertionError("Fresh tags should not need requests");
+                }
+            }, "tags.json", "mappings.json");
             return new GeoJsonOutFunction(new ObjectStoreClient(storage, "namespace", "dsdpt34"),
-                    new ObjectStoreClient(storage, "namespace", "traficinfo"));
+                    new ObjectStoreClient(storage, "namespace", "traficinfo"), provider);
         }
 
         void assertStreamsClosed() {

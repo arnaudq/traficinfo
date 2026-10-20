@@ -128,6 +128,11 @@ public class DPT30Comptage implements Comptage {
     return routeId;
   }
 
+  @Override
+  public String getRoadReference() {
+    return routeId;
+  }
+
   public void setRouteId(String routeId) {
     this.routeId = routeId;
   }

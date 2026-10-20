@@ -9,7 +9,6 @@ app_name="${OCI_FN_APPLICATION_NAME:?Run source ./setup.sh first}"
 runtime_name=java21.ol9
 output_bucket="${BUCKETNAME_OUT:-traficinfo}"
 osm_bucket="${BUCKETNAME_OSM:-osminfo}"
-osm_cache_object="${OSM_CACHE_OBJECT:-MMM_OSMInfo.json}"
 jar_file="$root_dir/dsfunctions/target/dsfunctions-1.0-SNAPSHOT-jar-with-dependencies.jar"
 
 # Deployment-specific Java handlers. Resource names and buckets come from dsconfig.json.
@@ -71,11 +70,14 @@ build_function_config() {
   validate_bucket_name "$output_bucket" BUCKETNAME_OUT || return
   config="$(jq -cn --arg namespace "$namespace" --arg input "$input" --arg output "$output_bucket" \
     '{NAMESPACE: $namespace, BUCKETNAME_IN: $input, BUCKETNAME_OUT: $output}')" || return
-  if [ "$(jq -r '.id' <<< "$source")" = MMM ]; then
-    validate_bucket_name "$osm_bucket" BUCKETNAME_OSM || return
-    config="$(jq -c --arg bucket "$osm_bucket" --arg object "$osm_cache_object" \
-      '. + {BUCKETNAME_OSM: $bucket, OSM_CACHE_OBJECT: $object}' <<< "$config")" || return
-  fi
+  validate_bucket_name "$osm_bucket" BUCKETNAME_OSM || return
+  local id object mapping
+  id="$(jq -r '.id' <<< "$source")"
+  object="${OSM_CACHE_OBJECT:-${id}_OSMInfo.json}"
+  mapping="${OSM_WAY_MAPPING_OBJECT:-${id}_OSMWayMapping.json}"
+  config="$(jq -c --arg bucket "$osm_bucket" --arg object "$object" --arg mapping "$mapping" \
+    '. + {BUCKETNAME_OSM: $bucket, OSM_CACHE_OBJECT: $object, OSM_WAY_MAPPING_OBJECT: $mapping}' \
+    <<< "$config")" || return
   printf '%s\n' "$config"
 }
 

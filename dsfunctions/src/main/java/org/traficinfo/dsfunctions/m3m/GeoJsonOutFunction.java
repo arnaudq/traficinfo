@@ -56,6 +56,8 @@ public class GeoJsonOutFunction {
         String osmBucket = ctx.getConfigurationByKey(CONFIG_KEY_OSM_BUCKET).orElse("osminfo");
         String osmCacheObject = ctx.getConfigurationByKey(CONFIG_KEY_OSM_CACHE_OBJECT)
                 .orElse(DEFAULT_OSM_CACHE_OBJECT);
+        String mappingObject = ctx.getConfigurationByKey("OSM_WAY_MAPPING_OBJECT")
+                .orElse("MMM_OSMWayMapping.json");
         boolean useResourcePrincipal = Boolean.parseBoolean(
                 ctx.getConfigurationByKey(CONFIG_KEY_USE_RESOURCE_PRINCIPAL).orElse("true"));
 
@@ -63,7 +65,7 @@ public class GeoJsonOutFunction {
         outputClient = new ObjectStoreClient(useResourcePrincipal, namespace, outputBucket);
         osmInfoProvider = new OSMInfoProviderImpl(
                 new ObjectStoreClient(useResourcePrincipal, namespace, osmBucket),
-                new OpenStreetMapClient(), osmCacheObject);
+                new OpenStreetMapClient(), osmCacheObject, mappingObject);
         LOG.info("GeoJsonOut3M Function configured. Namespace = {}, Input bucket = {}, Output bucket = {}",
                 namespace, inputBucket, outputBucket);
     }

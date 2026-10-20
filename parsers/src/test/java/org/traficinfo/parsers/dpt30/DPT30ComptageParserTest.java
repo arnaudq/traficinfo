@@ -44,6 +44,7 @@ public class DPT30ComptageParserTest extends ParserBaseTest {
     assertEquals(Integer.valueOf(619), first.getTmjaPoidsLourds());
     assertEquals(Double.valueOf(10.71), first.getPourcentageTmjaPoidsLourds());
     assertEquals("D6086", first.getRouteId());
+    assertEquals("D6086", first.getRoadReference());
     assertEquals("Pont-Saint-Esprit", first.getCityName());
     assertEquals("D6086 - Pont-Saint-Esprit", first.getDisplayName());
     Point point = (Point) first.getGeometry();

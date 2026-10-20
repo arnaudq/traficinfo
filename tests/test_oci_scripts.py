@@ -127,7 +127,7 @@ class OciScriptsTest(unittest.TestCase):
                         OCI_OBJECT_STORAGE_NAMESPACE='testnamespace',
                         OCI_FN_APPLICATION_NAME='3MOpenDataProcessor')
         for key in ['OCI_FN_APPLICATION_ID', 'BUCKETNAME_IN', 'BUCKETNAME_DPT34',
-                    'BUCKETNAME_OUT', 'BUCKETNAME_OSM', 'OSM_CACHE_OBJECT']:
+                    'BUCKETNAME_OUT', 'BUCKETNAME_OSM', 'OSM_CACHE_OBJECT', 'OSM_WAY_MAPPING_OBJECT']:
             self.env.pop(key, None)
         self.state = {
             'applications': [{'id': 'ocid1.fnapp.test', 'display-name': '3MOpenDataProcessor',
@@ -260,7 +260,9 @@ class OciScriptsTest(unittest.TestCase):
                                  {'NAMESPACE': 'testnamespace', 'BUCKETNAME': 'ds3mbucket'})
                 self.assertEqual(functions['DPT34OpenDataSource']['config']['BUCKETNAME'], 'dsdpt34')
                 self.assertEqual(functions['3MGeoJsonOut']['config']['BUCKETNAME_OSM'], 'osminfo')
-                self.assertNotIn('BUCKETNAME_OSM', functions['DPT34GeoJsonOut']['config'])
+                self.assertEqual(functions['DPT34GeoJsonOut']['config']['BUCKETNAME_OSM'], 'osminfo')
+                self.assertEqual(functions['DPT34GeoJsonOut']['config']['OSM_CACHE_OBJECT'], 'DPT34_OSMInfo.json')
+                self.assertEqual(functions['DPT34GeoJsonOut']['config']['OSM_WAY_MAPPING_OBJECT'], 'DPT34_OSMWayMapping.json')
                 for name, cadence in [('3MOpenDataSource', 'Daily'), ('DPT34OpenDataSource', 'Monthly')]:
                     self.assertEqual(functions[name]['defined-tags'],
                                      {'TraficInfo': {'DataSourceSchedule': cadence}})

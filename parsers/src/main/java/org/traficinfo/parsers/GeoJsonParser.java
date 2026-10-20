@@ -6,6 +6,7 @@ import org.traficinfo.parsers.m3m.M3MComptageParser;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.geojson.Feature;
+import org.geojson.Point;
 import org.geojson.FeatureCollection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -134,8 +135,15 @@ public class GeoJsonParser {
 
     static void applyOsmInfo(List<? extends Comptage> comptages, OSMInfoProvider osmInfoProvider,
                              Set<Long> waysToRefresh, Instant now) {
-        for (Comptage comptage : comptages) {
+        List<Comptage> chronological = new ArrayList<>(comptages);
+        chronological.sort(Comparator.comparingInt(Comptage::getAnnee));
+        for (Comptage comptage : chronological) {
             Long wayId = comptage.getOsmWayId();
+            if (wayId == null || wayId <= 0) {
+                wayId = osmInfoProvider.getWayId(comptage.getCodeCentrale(),
+                        comptage.getGeometry() instanceof Point point ? point : null, comptage.getRoadReference());
+                comptage.setOsmWayId(wayId);
+            }
             if (wayId == null || wayId <= 0) {
                 continue;
             }

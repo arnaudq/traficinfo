@@ -74,8 +74,9 @@ Configure `NAMESPACE`, `BUCKETNAME_IN` (default `dsdpt34`) and
 The handler accepts plain or gzip CSV and uploads `DPT34_TraficInfo.geojson`
 with content type `application/geo+json` and gzip encoding. It preserves the
 parser's filtering, latest geometry selection, annual history and map styling.
-No companion GeoJSON or OSM cache is needed: the CSV supplies coordinates
-and no OSM way IDs. Temporary output files are removed on success and failure.
+No companion GeoJSON is needed: the CSV supplies coordinates. Cached way IDs
+from `DPT34_OSMWayMapping.json` allow speed-limit enrichment through
+`DPT34_OSMInfo.json`. Both objects are stored in `osminfo`. Temporary output files are removed on success and failure.
 The handler returns `OK` on success and `KO` on download, parsing or upload failure,
 matching the M3M output function.
 
@@ -100,7 +101,8 @@ the repository root with `mvn -pl dsfunctions -am package`.
 ### OpenStreetMap cache
 
 At the beginning of each invocation, the function loads the OSM way cache from
-bucket `osminfo`, object `MMM_OSMInfo.json`, in `NAMESPACE`. Override these defaults
+bucket `osminfo`, object `<sourceId>_OSMInfo.json`, in `NAMESPACE` (for example,
+`MMM_OSMInfo.json` or `DPT34_OSMInfo.json`). Override these defaults
 with function configuration keys `BUCKETNAME_OSM` and `OSM_CACHE_OBJECT`.
 The bucket must exist and the function must have permission to read and write
 its objects. A missing cache object starts an empty cache; other storage errors
@@ -108,11 +110,11 @@ or invalid JSON return `KO` without overwriting the cache.
 
 `org.traficinfo.dsfunctions.OSMInfoProviderImpl` handles cache loading, refreshing,
 and persistence using `org.traficinfo.dsfunctions.OpenStreetMapClient` for OSM
-requests. The M3M `GeoJsonOutFunction` calls `loadCache()` before parsing and
+requests. Both GeoJSON functions call `loadCache()` before parsing and
 `refreshCache(waysToRefresh)` after publishing the GeoJSON. The cache map remains
 private to the implementation. Parsers use the
-`org.traficinfo.parsers.OSMInfoProvider` interface, which exposes only
-`OSMWayInfo get(long wayId)`.
+`org.traficinfo.parsers.OSMInfoProvider` interface, which exposes `OSMWayInfo get(long wayId)` and the cache-only
+`getWayId(centraleId, point, roadReference)` lookup.
 
 The JSON object is keyed by OSM way ID. Each record contains `lastUpdated`, an
 ISO 8601 UTC timestamp of the successful fetch, and `tags`, all tag values
@@ -152,6 +154,38 @@ deployment timeouts.
 OSM endpoint and tagging references: [API v0.6](https://wiki.openstreetmap.org/wiki/API_v0.6)
 and [maxspeed](https://wiki.openstreetmap.org/wiki/Key:maxspeed).
 
+### Counter-to-way mapping cache (no reverse lookup)
+
+At startup the provider also reads `<sourceId>_OSMWayMapping.json` from the same
+bucket. Override its name with `OSM_WAY_MAPPING_OBJECT`. The cache uses the
+source's `codeCentrale` as its key, for example `DPT34_Per.034.2005.00.3`, and
+supports the seed file in `data/osm/DPT34_OSMWayMapping.json`.
+
+For records without a source-provided OSM ID, the parser asks the provider for
+the counter's cached positive `osmWayId`. If no valid ID exists, the provider
+records the counter in memory once per run. New entries have `osmWayId: null`,
+`status: "MISSING"`, coordinates (null if unavailable), `firstSeen` and `lastSeen`.
+Historical rows are processed oldest first so unresolved counters retain their
+latest available coordinates and road reference. Missing entries also store
+`sourceRoadReference` (null when unavailable), for future comparison with OSM.
+DPT34 derives it from `route_id` by removing the department prefix:
+`34D0011` becomes `D0011`. DPT30 retains `numero_route`, for example `D6086`.
+No comparison or normalization against OSM is performed at this stage.
+Existing fields, including seed review metadata,
+are preserved. Neither source-provided IDs nor positive cached IDs are replaced.
+
+After GeoJSON publication, `refreshCache()` saves the entire mapping cache,
+including unresolved counters, before performing the existing way-tag refresh.
+INFO logs show entries loaded, unique counters missing a usable ID, and entries
+saved. Missing objects start empty; other storage errors or invalid JSON fail
+without overwriting that cache. A failed mapping upload returns `KO` after the
+GeoJSON has been published.
+
+There is no reverse HTTP call, validation, expiry or automatic ID assignment.
+Populate `osmWayId` manually in Object Storage and it is used on the next run;
+positive IDs are used regardless of any older descriptive `status` field.
+Unresolved entries do not consume the existing 100-request way-tag budget.
+
 ## Archive deployment (code-only function)
 
 From the repository root, run `./deploy-functions.sh`. It builds the Maven
@@ -168,8 +202,9 @@ uses the exported OCI credentials, `OCI_COMPARTMENT_ID`,
 and `TRAFICINFO_DSCONFIG`. Set `OCI_FN_APPLICATION_ID` to bypass application
 lookup. The compartment and storage namespace are resolved during setup rather
 than queried again during each deployment. `3MOpenDataSource` and `DPT34OpenDataSource`
-receives `NAMESPACE` and `BUCKETNAME`; `3MGeoJsonOut` receives `NAMESPACE`,
-`BUCKETNAME_IN`, `BUCKETNAME_OUT`, `BUCKETNAME_OSM`, and `OSM_CACHE_OBJECT`.
+receive `NAMESPACE` and `BUCKETNAME`; both GeoJSON functions receive `NAMESPACE`,
+`BUCKETNAME_IN`, `BUCKETNAME_OUT`, `BUCKETNAME_OSM`, `OSM_CACHE_OBJECT`, and
+`OSM_WAY_MAPPING_OBJECT`.
 The script requires `jq` to prepare function configuration.
 Function names and input buckets are derived by `oci-common.sh` from each
 data source's `id`, `functionPrefix`, and `inputBucket` in `dsconfig.json`.
@@ -177,8 +212,9 @@ MMM currently uses `ds3mbucket`, overridable with `BUCKETNAME_IN`; DPT34 uses
 `dsdpt34`, overridable with `BUCKETNAME_DPT34`. The output bucket
 defaults to the existing `traficinfo` bucket in the same compartment and can be
 overridden with `BUCKETNAME_OUT`. The OSM bucket defaults to `osminfo` and its
-cache object to `MMM_OSMInfo.json`; override these with environment variables
-`BUCKETNAME_OSM` and `OSM_CACHE_OBJECT`. The script sets the full function
+tag cache object to `<sourceId>_OSMInfo.json`, with mappings in
+`<sourceId>_OSMWayMapping.json`; override these with environment variables
+`BUCKETNAME_OSM`, `OSM_CACHE_OBJECT`, and `OSM_WAY_MAPPING_OBJECT`. The script sets the full function
 configuration from these defaults and environment overrides on both creation
 and updates.
 

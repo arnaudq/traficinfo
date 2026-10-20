@@ -121,6 +121,11 @@ public class DPT34Comptage implements Comptage {
     return routeId;
   }
 
+  @Override
+  public String getRoadReference() {
+    return routeId != null && routeId.startsWith("34") ? routeId.substring(2) : routeId;
+  }
+
   public void setRouteId(String routeId) {
     this.routeId = routeId;
   }

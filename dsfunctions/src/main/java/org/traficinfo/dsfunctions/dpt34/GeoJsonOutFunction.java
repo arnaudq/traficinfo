@@ -7,6 +7,10 @@ import org.slf4j.LoggerFactory;
 import org.traficinfo.dsfunctions.ObjectStoreClient;
 import org.traficinfo.dsfunctions.OOSResourceMetadata;
 import org.traficinfo.parsers.GeoJsonParser;
+import org.traficinfo.dsfunctions.OSMInfoProviderImpl;
+import org.traficinfo.dsfunctions.OpenStreetMapClient;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -30,14 +34,16 @@ public class GeoJsonOutFunction {
 
     private ObjectStoreClient inputClient;
     private ObjectStoreClient outputClient;
+    private OSMInfoProviderImpl osmInfoProvider;
 
     public GeoJsonOutFunction() {
         LOG.info("GeoJsonOutDPT34 Function booting");
     }
 
-    GeoJsonOutFunction(ObjectStoreClient inputClient, ObjectStoreClient outputClient) {
+    GeoJsonOutFunction(ObjectStoreClient inputClient, ObjectStoreClient outputClient, OSMInfoProviderImpl osmInfoProvider) {
         this.inputClient = inputClient;
         this.outputClient = outputClient;
+        this.osmInfoProvider = osmInfoProvider;
     }
 
     @FnConfiguration
@@ -49,18 +55,27 @@ public class GeoJsonOutFunction {
                 ctx.getConfigurationByKey(CONFIG_KEY_USE_RESOURCE_PRINCIPAL).orElse("true"));
         inputClient = new ObjectStoreClient(useResourcePrincipal, namespace, inputBucket);
         outputClient = new ObjectStoreClient(useResourcePrincipal, namespace, outputBucket);
+        String osmBucket = ctx.getConfigurationByKey("BUCKETNAME_OSM").orElse("osminfo");
+        String tagObject = ctx.getConfigurationByKey("OSM_CACHE_OBJECT").orElse("DPT34_OSMInfo.json");
+        String mappingObject = ctx.getConfigurationByKey("OSM_WAY_MAPPING_OBJECT")
+                .orElse("DPT34_OSMWayMapping.json");
+        osmInfoProvider = new OSMInfoProviderImpl(
+                new ObjectStoreClient(useResourcePrincipal, namespace, osmBucket),
+                new OpenStreetMapClient(), tagObject, mappingObject);
         LOG.info("GeoJsonOutDPT34 configured. Namespace = {}, Input bucket = {}, Output bucket = {}",
                 namespace, inputBucket, outputBucket);
     }
 
     public String handleRequest(String input) {
         try {
+            osmInfoProvider.loadCache();
+            Set<Long> waysToRefresh = new LinkedHashSet<>();
             Path mergedFile = Files.createTempFile("dpt34-geojson-", ".geojson");
             try {
                 try (Reader csvReader = new InputStreamReader(
                         inputClient.getResource(DataSourceFunction.CSV_OBJECT_NAME), StandardCharsets.UTF_8);
                      Writer writer = Files.newBufferedWriter(mergedFile, StandardCharsets.UTF_8)) {
-                    GeoJsonParser.parseAndMerge(GeoJsonParser.DataSource.DPT34, csvReader, writer);
+                    GeoJsonParser.parseAndMerge(GeoJsonParser.DataSource.DPT34, csvReader, writer, osmInfoProvider, waysToRefresh);
                 }
                 try (InputStream mergedInput = Files.newInputStream(mergedFile)) {
                     outputClient.putResource(GEOJSON_OBJECT_NAME, "application/geo+json",
@@ -69,6 +84,7 @@ public class GeoJsonOutFunction {
             } finally {
                 Files.deleteIfExists(mergedFile);
             }
+            osmInfoProvider.refreshCache(waysToRefresh);
             return "OK";
         } catch (Exception failure) {
             LOG.warn("Error while generating DPT34 GeoJSON: {}", failure.getMessage(), failure);

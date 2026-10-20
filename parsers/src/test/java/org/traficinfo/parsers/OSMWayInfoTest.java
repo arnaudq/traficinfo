@@ -1,6 +1,7 @@
 package org.traficinfo.parsers;
 
 import org.junit.Test;
+import org.geojson.Point;
 import org.traficinfo.parsers.m3m.M3MComptage;
 
 import java.time.Instant;
@@ -63,5 +64,43 @@ public class OSMWayInfoTest {
         M3MComptage count = new M3MComptage();
         count.setOsmWayId(id);
         return count;
+    }
+
+    @Test
+    public void usesCachedCounterMappingAndPreservesSourceWayId() {
+        org.traficinfo.parsers.dpt34.DPT34Comptage missing = new org.traficinfo.parsers.dpt34.DPT34Comptage();
+        missing.setCodeCentrale("DPT34_A");
+        missing.setRouteId("34D0011");
+        missing.setLatitude(43.0);
+        missing.setLongitude(3.0);
+        M3MComptage provided = count(77L);
+        M3MComptage noCoordinates = count(null);
+        noCoordinates.setCodeCentrale("MMM_A");
+        java.util.List<String> seen = new java.util.ArrayList<>();
+        OSMInfoProvider provider = new OSMInfoProvider() {
+            @Override public OSMWayInfo get(long id) {
+                return new OSMWayInfo(NOW, Map.of("maxspeed", "80"));
+            }
+            @Override public Long getWayId(String id, Point point, String roadReference) {
+                seen.add(id);
+                if ("DPT34_A".equals(id)) {
+                    assertEquals("D0011", roadReference);
+                    assertNotNull(point);
+                    assertEquals(43.0, point.getCoordinates().getLatitude(), 0);
+                    assertEquals(3.0, point.getCoordinates().getLongitude(), 0);
+                    return 1L;
+                }
+                assertNull(roadReference);
+                assertNull(point);
+                return null;
+            }
+        };
+        Set<Long> refresh = new LinkedHashSet<>();
+        GeoJsonParser.applyOsmInfo(Arrays.asList(missing, provided, noCoordinates), provider, refresh, NOW);
+        assertEquals(Long.valueOf(1), missing.getOsmWayId());
+        assertEquals(Long.valueOf(77), provided.getOsmWayId());
+        assertEquals(80, missing.getMaximumSpeed());
+        assertEquals(Arrays.asList("DPT34_A", "MMM_A"), seen);
+        assertTrue(refresh.isEmpty());
     }
 }

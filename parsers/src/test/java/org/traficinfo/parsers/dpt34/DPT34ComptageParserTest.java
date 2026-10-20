@@ -38,6 +38,7 @@ public class DPT34ComptageParserTest extends ParserBaseTest {
     assertEquals(4349, rows.get(1).getMoyenneJourAnnuelle());
     assertEquals("Olonzac", first.getCityName());
     assertEquals("34D0011", first.getRouteId());
+    assertEquals("D0011", first.getRoadReference());
     assertEquals("OLONZAC D11 - Olonzac", first.getDisplayName());
     assertEquals("OUPIA D52 <> DPT. AUDE D610", first.getAltStreetName());
     assertEquals(Double.valueOf(43.26700822), first.getLatitude());

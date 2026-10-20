@@ -16,6 +16,15 @@ public interface Comptage {
   void setOsmWayId(Long osmWayId);
 
   /**
+   * Official road reference retained for later comparison with an OSM ref tag.
+   * For example, DPT34 route_id 34D0011 yields D0011 (typically D 11 in OSM).
+   * @return the road reference, or null when the source does not provide one.
+   */
+  default String getRoadReference() {
+    return null;
+  }
+
+  /**
    * Street + City name.
    * @return street name or null if not provided (case for 202207 data set).
    */
