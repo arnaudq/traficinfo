@@ -73,7 +73,7 @@ public class OpenStreetMapClientTest {
             requests.incrementAndGet();
             String query = exchange.getRequestURI().getQuery();
             assertTrue(query, query.contains("lat=43.2") && query.contains("lon=3.5"));
-            assertTrue(query, query.contains("format=jsonv2&zoom=17&layer=address&extratags=1"));
+            assertTrue(query, query.contains("format=jsonv2&zoom=17&layer=address&extratags=1&namedetails=1"));
             assertTrue(exchange.getRequestHeaders().getFirst("User-Agent").contains("traficinfo"));
             byte[] body = "{\"osm_type\":\"way\",\"osm_id\":123,\"category\":\"highway\"}".getBytes(StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(200, body.length);

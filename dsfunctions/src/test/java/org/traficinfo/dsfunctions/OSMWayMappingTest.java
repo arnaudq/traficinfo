@@ -27,7 +27,7 @@ public class OSMWayMappingTest {
         assertEquals(mapper.readTree(json), mapper.readTree(mapper.writeValueAsBytes(mapping)));
 
         mapping.setOsmWayId(456L);
-        mapping.setStatus("MATCHED");
+        mapping.setStatus(OSMWayMappingStatus.MATCHED);
         JsonNode saved = mapper.valueToTree(mapping);
         assertEquals(456L, saved.get("osmWayId").asLong());
         assertEquals("MATCHED", saved.get("status").asText());

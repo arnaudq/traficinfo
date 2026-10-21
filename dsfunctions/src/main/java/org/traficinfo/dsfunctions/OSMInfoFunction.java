@@ -8,6 +8,8 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 
@@ -68,8 +70,13 @@ public class OSMInfoFunction {
     public String handleRequest(String input) {
         int caches = 0;
         int failures = 0;
+        int loadedCaches = 0;
+        long listedCaches = 0;
+        Map<String, Map<OSMWayMappingStatus, Integer>> processedStatuses = new TreeMap<>();
+        Map<String, Map<OSMWayMappingStatus, Integer>> allStatuses = new TreeMap<>();
         try {
             List<String> resources = new ArrayList<>(osmCacheOSClient.listResources());
+            listedCaches = resources.stream().filter(name -> name.endsWith(MAPPING_SUFFIX)).count();
             // Vary processing order so the same caches are not always handled first.
             Collections.shuffle(resources);
             long started = nanoTime.getAsLong();
@@ -83,12 +90,15 @@ public class OSMInfoFunction {
                 if (!name.endsWith(MAPPING_SUFFIX)) {
                     continue;
                 }
+                String prefix = name.substring(0, name.length() - MAPPING_SUFFIX.length());
+                String infoName = prefix + "_OSMInfo.json";
+                OSMInfoProviderImpl provider = new OSMInfoProviderImpl(osmCacheOSClient,
+                        osmClient, infoName, name);
+                boolean loaded = false;
                 try {
-                    String infoName = name.substring(0, name.length() - MAPPING_SUFFIX.length())
-                            + "_OSMInfo.json";
-                    OSMInfoProviderImpl provider = new OSMInfoProviderImpl(osmCacheOSClient,
-                            osmClient, infoName, name);
                     provider.loadCache();
+                    loaded = true;
+                    loadedCaches++;
                     LOG.info("OSM way mapping cache {}: {} unknown entries out of {} entries",
                             name, provider.getUnknownWayMappingCount(), provider.getWayMappingCount());
                     LOG.info("OSM info cache {}: {} entries", infoName, provider.getWayInfoCount());
@@ -102,6 +112,11 @@ public class OSMInfoFunction {
                 } catch (Exception failure) {
                     failures++;
                     LOG.warn("Could not report OSM way mapping cache {}", name, failure);
+                } finally {
+                    if (loaded) {
+                        processedStatuses.put(prefix, provider.getProcessedWayMappingStatusCounts());
+                        allStatuses.put(prefix, provider.getWayMappingStatusCounts());
+                    }
                 }
             }
             LOG.info("OSM mapping report: {} caches processed, {} failures", caches, failures);
@@ -109,6 +124,15 @@ public class OSMInfoFunction {
         } catch (Exception failure) {
             LOG.warn("Could not list OSM way mapping caches", failure);
             return "KO";
+        } finally {
+            processedStatuses.forEach((prefix, counts) -> {
+                LOG.info("OSM mapping statuses for {} processed records: {}", prefix, counts);
+                LOG.info("OSM mapping statuses for {} all records: {}", prefix, allStatuses.get(prefix));
+            });
+            if (listedCaches > loadedCaches) {
+                LOG.info("OSM status totals exclude {} mapping caches not loaded because of the time budget or load errors",
+                        listedCaches - loadedCaches);
+            }
         }
     }
 }

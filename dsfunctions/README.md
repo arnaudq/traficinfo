@@ -238,6 +238,16 @@ Unresolved entries do not consume the existing 100-request way-tag budget.
 For each cache it loads that mapping and the matching `<prefix>_OSMInfo.json`
 through `OSMInfoProviderImpl.loadCache()`. INFO logs report unknown/total mappings,
 way-info entries, attempted reverse lookups, resolved entries, and HTTP failures.
+Each reverse result logs its counter ID, status, assigned/candidate way ID,
+source and OSM references, and review reason. `OSMWayMappingStatus` defines the
+four JSON status values (`MISSING`, `MATCHED`, `NEEDS_REVIEW`, `NOT_FOUND`), with
+comments describing their meaning. New mappings start as `MISSING`.
+
+At the end of each invocation, including failures and interruption, two summaries per data source, identified by its cache prefix,
+list counts for every status, including zeros: first for unique records attempted
+this run (HTTP failures count as attempted and retain their existing status),
+then for all records in loaded caches, including records not attempted. Each summary covers only that data source. Any caches excluded by the time budget or
+load failures are explicitly reported as not loaded and excluded from totals.
 A missing cache starts empty; other load/save errors return `KO` after processing
 the remaining resources. An empty bucket returns `OK`.
 
@@ -255,9 +265,9 @@ integer constants in `OSMInfoFunction` provide defaults when the keys are absent
 
 All reverse interaction is initiated by `OSMInfoProviderImpl.refreshWayMappings()`.
 It uses valid cached coordinates and requests Nominatim with `format=jsonv2`,
-`zoom=17`, `layer=address`, and `extratags=1`. Only positive OSM **way** IDs with
+`zoom=17`, `layer=address`, `extratags=1`, and `namedetails=1`. Only positive OSM **way** IDs with
 road highway classifications are accepted; buildings, nodes, relations, and
-footways are rejected. When a source road reference exists, the OSM `ref` must
+footways are rejected. When a source road reference exists, the OSM `namedetails.ref` must
 match after removing spacing and leading numeric zeroes (`D0011` matches `D 11`).
 A change from `D 11` to `M 11` requires review rather than automatic assignment.
 Without a source reference, a road way may be accepted by its classification.

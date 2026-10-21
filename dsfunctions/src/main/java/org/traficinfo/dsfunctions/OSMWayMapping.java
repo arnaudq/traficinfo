@@ -28,7 +28,7 @@ public class OSMWayMapping {
     @JsonInclude(JsonInclude.Include.ALWAYS)
     // Source road identifier retained for later comparison: D0011 may match OSM ref D 11.
     private String sourceRoadReference;
-    private String status;
+    private OSMWayMappingStatus status = OSMWayMappingStatus.MISSING;
     private String firstSeen;
     private String lastSeen;
     private String lastUpdated;
@@ -75,11 +75,11 @@ public class OSMWayMapping {
         this.sourceRoadReference = sourceRoadReference;
     }
 
-    public String getStatus() {
+    public OSMWayMappingStatus getStatus() {
         return status;
     }
 
-    public void setStatus(String status) {
+    public void setStatus(OSMWayMappingStatus status) {
         this.status = status;
     }
 

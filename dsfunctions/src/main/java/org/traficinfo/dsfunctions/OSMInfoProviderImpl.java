@@ -26,6 +26,8 @@ import java.util.Objects;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.Collection;
+import java.util.EnumMap;
 
 /** Loads and refreshes OSM tags in Object Storage, with a bounded request budget. */
 public class OSMInfoProviderImpl implements OSMInfoProvider {
@@ -43,6 +45,7 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
             .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
     private Map<String, OSMWayMapping> mappings = new LinkedHashMap<>();
     private final Set<String> missingMappings = new LinkedHashSet<>();
+    private final Set<String> processedMappings = new LinkedHashSet<>();
 
     public OSMInfoProviderImpl(ObjectStoreClient osmCacheOSClient, OpenStreetMapClient osmClient,
                            String osmCacheObject) {
@@ -74,6 +77,7 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
     /** A missing cache object starts empty; other read errors propagate. */
     public void loadCache() throws IOException {
         missingMappings.clear();
+        processedMappings.clear();
         waysToRefresh.clear();
         cache = readCache(osmCacheObject, new TypeReference<LinkedHashMap<Long, OSMWayInfo>>() { });
         LOG.info("Loaded {} OSM entries from cache {}", cache.size(), osmCacheObject);
@@ -114,6 +118,28 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
         return (int) mappings.values().stream().filter(mapping -> mappedWayId(mapping) == null).count();
     }
 
+    /** Status counts across every loaded mapping, including records not attempted this run. */
+    public Map<OSMWayMappingStatus, Integer> getWayMappingStatusCounts() {
+        return statusCounts(mappings.values());
+    }
+
+    /** Final statuses of unique records attempted this run, including HTTP failures. */
+    public Map<OSMWayMappingStatus, Integer> getProcessedWayMappingStatusCounts() {
+        return statusCounts(processedMappings.stream().map(mappings::get).toList());
+    }
+
+    private static Map<OSMWayMappingStatus, Integer> statusCounts(Collection<OSMWayMapping> records) {
+        Map<OSMWayMappingStatus, Integer> counts = new EnumMap<>(OSMWayMappingStatus.class);
+        for (OSMWayMappingStatus status : OSMWayMappingStatus.values()) {
+            counts.put(status, 0);
+        }
+        for (OSMWayMapping mapping : records) {
+            OSMWayMappingStatus status = mapping == null ? OSMWayMappingStatus.MISSING : mapping.getStatus();
+            counts.merge(status, 1, Integer::sum);
+        }
+        return counts;
+    }
+
     private static Long mappedWayId(OSMWayMapping mapping) {
         Long id = mapping == null ? null : mapping.getOsmWayId();
         return id != null && id > 0 ? id : null;
@@ -133,7 +159,7 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
         String now = clock.instant().toString();
         if (mapping == null) {
             mapping = new OSMWayMapping();
-            mapping.setStatus("MISSING");
+            mapping.setStatus(OSMWayMappingStatus.MISSING);
             mapping.setFirstSeen(now);
             mappings.put(centraleId, mapping);
         }
@@ -156,25 +182,28 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
         if (mappingObject == null || maximumMappings <= 0) {
             return;
         }
-        List<OSMWayMapping> incomplete = new ArrayList<>();
-        for (OSMWayMapping mapping : mappings.values()) {
+        List<Map.Entry<String, OSMWayMapping>> incomplete = new ArrayList<>();
+        for (Map.Entry<String, OSMWayMapping> entry : mappings.entrySet()) {
+            OSMWayMapping mapping = entry.getValue();
             if (mappedWayId(mapping) == null && hasCoordinates(mapping) && !hasCachedReverseResult(mapping)) {
-                incomplete.add(mapping);
+                incomplete.add(entry);
             }
         }
         // Try entries never attempted first, then the oldest HTTP failures, to avoid starving later counters.
-        incomplete.sort(Comparator.comparing(OSMWayMapping::getLastLookupAt,
+        incomplete.sort(Comparator.comparing(entry -> entry.getValue().getLastLookupAt(),
                 Comparator.nullsFirst(Comparator.naturalOrder())));
         int attempted = 0;
         int resolved = 0;
         int failed = 0;
         boolean changed = false;
         try {
-            for (OSMWayMapping mapping : incomplete) {
+            for (Map.Entry<String, OSMWayMapping> entry : incomplete) {
+                OSMWayMapping mapping = entry.getValue();
                 if (attempted >= maximumMappings) {
                     break;
                 }
                 attempted++;
+                processedMappings.add(entry.getKey());
                 changed = true;
                 mapping.setLastLookupAt(clock.instant().toString());
                 try {
@@ -184,6 +213,9 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
                     mapping.setLastLookupLongitude(mapping.getLongitude());
                     mapping.setReverseLookupResult(result);
                     applyReverseResult(mapping, result);
+                    LOG.info("OSM reverse mapping {}: status={}, wayId={}, candidateWayId={}, sourceRef={}, osmRef={}, reason={}",
+                            entry.getKey(), mapping.getStatus(), mapping.getOsmWayId(), mapping.getCandidateOsmWayId(),
+                            mapping.getSourceRoadReference(), mapping.getOsmRoadReference(), mapping.getReviewReason());
                     Long wayId = mappedWayId(mapping);
                     if (wayId != null) {
                         waysToRefresh.add(wayId);
@@ -191,8 +223,8 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
                     }
                 } catch (IOException failure) {
                     failed++;
-                    LOG.warn("Could not reverse lookup coordinates {}, {}: {}",
-                            mapping.getLatitude(), mapping.getLongitude(), failure.getMessage());
+                    LOG.warn("Could not reverse lookup counter {} at coordinates {}, {}: {}",
+                            entry.getKey(), mapping.getLatitude(), mapping.getLongitude(), failure.getMessage());
                 }
             }
         } catch (InterruptedException interrupted) {
@@ -229,24 +261,24 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
         mapping.setLastUpdated(mapping.getLastLookupAt());
         mapping.setDistanceMeters(null);
         if (!road || wayId == null) {
-            mapping.setStatus("NOT_FOUND");
+            mapping.setStatus(OSMWayMappingStatus.NOT_FOUND);
             mapping.setCandidateOsmWayId(null);
             mapping.setOsmRoadReference(null);
             mapping.setReviewReason("no_road_way");
             return;
         }
-        String reference = result.path("extratags").path("ref").asText(null);
+        String reference = result.path("namedetails").path("ref").asText(null);
         mapping.setCandidateOsmWayId(wayId);
         mapping.setOsmRoadReference(reference);
         String source = mapping.getSourceRoadReference();
         if (source != null && !source.isBlank()
                 && (reference == null || !sameRoadReference(source, reference))) {
-            mapping.setStatus("NEEDS_REVIEW");
+            mapping.setStatus(OSMWayMappingStatus.NEEDS_REVIEW);
             mapping.setReviewReason(reference == null ? "missing_osm_ref" : "different_ref");
             return;
         }
         mapping.setOsmWayId(wayId);
-        mapping.setStatus("MATCHED");
+        mapping.setStatus(OSMWayMappingStatus.MATCHED);
         mapping.setCandidateOsmWayId(null);
         mapping.setReviewReason(null);
     }

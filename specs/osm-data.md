@@ -22,7 +22,7 @@ We use two APIs:
 - **Nominatim reverse API:** `https://nominatim.openstreetmap.org/reverse`
   finds an OSM object near a counter's latitude and longitude. We request road
   level results and accept only suitable road ways. Where available, the source
-  road reference is compared with OSM's `ref`, allowing formatting differences
+  road reference is compared with OSM's `namedetails.ref` (using `namedetails=1`), allowing formatting differences
   such as `D0011` versus `D 11`. If a source reference is provided, a missing or
   differing OSM reference leaves a candidate for review instead of assigning
   the way automatically.
@@ -30,6 +30,21 @@ We use two APIs:
 Reverse geocoding can return a nearby different road or another kind of object.
 The response is therefore a candidate to validate, not proof of the correct road.
 Existing positive way IDs are preserved.
+
+For a suitable road way, the following table determines whether its reference
+is accepted. Rows are the `Comptage` road identifier; columns are OSM's
+`namedetails.ref`. `null` means no reference, and `A` and `B` represent distinct
+references after normalization (for example, `D0011` and `D 11` both represent `A`).
+
+| Comptage road identifier \ OSM `namedetails.ref` | `null` | `A` | `B` |
+| --- | --- | --- | --- |
+| `null` | `MATCHED` | `MATCHED` | `MATCHED` |
+| `A` | `NEEDS_REVIEW` | `MATCHED` | `NEEDS_REVIEW` |
+| `B` | `NEEDS_REVIEW` | `NEEDS_REVIEW` | `MATCHED` |
+
+When a source identifier exists, `NEEDS_REVIEW` has reason `missing_osm_ref`
+if the OSM reference is absent, or `different_ref` if it differs. Without a
+source identifier, a suitable road way is accepted regardless of its reference.
 
 ## Caching and processing
 
@@ -48,11 +63,16 @@ available to subsequent invocations. Failed requests preserve existing tags.
 
 A dedicated OCI function, **`OSMInfoFunction`**, runs **hourly**, at the start of
 each hour. It processes incomplete mapping caches in bounded batches, saves
-results, and fetches tags for newly resolved ways. GeoJSON parsing itself does
-not perform reverse lookups.
+results, and fetches tags for newly resolved ways. At the end of the run it logs
+counts per data source, identified by its cache prefix, for each status among
+attempted records and then all records in its loaded cache;
+caches skipped by the time budget or load errors are identified separately.
+GeoJSON parsing itself does not perform reverse lookups.
 
 Unsuitable or absent road results are recorded as `NOT_FOUND`; ambiguous road
-references are recorded as `NEEDS_REVIEW`. These responses are cached for
+references are recorded as `NEEDS_REVIEW`. `MISSING` means no assignment yet,
+and `MATCHED` means an accepted way assignment. These values are defined in
+`OSMWayMappingStatus`. These responses are cached for
 unchanged coordinates to avoid repeating unsuccessful queries. HTTP failures
 remain eligible for a later retry.
 

@@ -45,7 +45,7 @@ public class OpenStreetMapClient {
     public synchronized JsonNode reverseLookup(double latitude, double longitude)
             throws IOException, InterruptedException {
         String query = "lat=" + latitude + "&lon=" + longitude
-                + "&format=jsonv2&zoom=17&layer=address&extratags=1";
+                + "&format=jsonv2&zoom=17&layer=address&extratags=1&namedetails=1";
         URI requestUri = reverseApiBase.resolve("reverse?" + query);
         JsonNode cached = reverseResults.get(query);
         if (cached != null) {

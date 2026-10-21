@@ -51,7 +51,7 @@ public class OSMReverseMappingTest {
                 if (latitude == 47) return JSON.readTree("{\"error\":\"Unable to geocode\"}");
                 String reference = latitude == 45 ? "M 11" : "D 11";
                 return JSON.readTree("{\"osm_type\":\"way\",\"osm_id\":\"123\",\"category\":\"highway\","
-                        + "\"type\":\"secondary\",\"extratags\":{\"ref\":\"" + reference + "\"}}");
+                        + "\"type\":\"secondary\",\"namedetails\":{\"ref\":\"" + reference + "\"}}");
             }
             @Override public Map<String, String> getWayTags(long id) {
                 throw new AssertionError("Reverse mapping refresh must not request way tags");
@@ -125,6 +125,70 @@ public class OSMReverseMappingTest {
         } finally {
             Thread.interrupted();
         }
+    }
+
+    @Test
+    public void appliesReferenceMatrixAndCountsProcessedAndAllStatuses() throws Exception {
+        Store store = new Store();
+        Map<String, OSMWayMapping> mappings = new LinkedHashMap<>();
+        String[] references = {null, "A", "B"};
+        for (int row = 0; row < 3; row++) {
+            for (int column = 0; column < 3; column++) {
+                OSMWayMapping mapping = new OSMWayMapping();
+                mapping.setLatitude(43.0 + (row * 3 + column) / 100.0);
+                mapping.setLongitude(3.0);
+                mapping.setSourceRoadReference(references[row]);
+                mappings.put(row + "_" + column, mapping);
+            }
+        }
+        mappings.put("noCoordinates", new OSMWayMapping());
+        for (String key : List.of("httpError", "noRoad")) {
+            OSMWayMapping mapping = new OSMWayMapping();
+            mapping.setLatitude(key.equals("httpError") ? 44.0 : 44.1);
+            mapping.setLongitude(3.0);
+            mappings.put(key, mapping);
+        }
+        store.objects.put("mappings.json", JSON.writeValueAsBytes(mappings));
+        OSMInfoProviderImpl provider = provider(store, new OpenStreetMapClient() {
+            @Override public JsonNode reverseLookup(double latitude, double longitude) throws IOException {
+                if (latitude == 44) throw new IOException("HTTP 503");
+                if (latitude == 44.1) return JSON.readTree("{\"error\":\"Unable to geocode\"}");
+                int index = (int) Math.round((latitude - 43) * 100);
+                com.fasterxml.jackson.databind.node.ObjectNode result = JSON.createObjectNode();
+                result.put("osm_type", "way");
+                result.put("osm_id", 100 + index);
+                result.put("category", "highway");
+                result.put("type", "primary");
+                result.putObject("extratags").put("ref", "WRONG_FIELD");
+                if (references[index % 3] != null) {
+                    result.putObject("namedetails").put("ref", references[index % 3]);
+                }
+                return result;
+            }
+        });
+        provider.loadCache();
+        provider.refreshWayMappings(100);
+        JsonNode saved = JSON.readTree(store.objects.get("mappings.json"));
+        for (int row = 0; row < 3; row++) {
+            for (int column = 0; column < 3; column++) {
+                JsonNode mapping = saved.get(row + "_" + column);
+                boolean matched = row == 0 || row == column;
+                assertEquals(matched ? "MATCHED" : "NEEDS_REVIEW", mapping.get("status").asText());
+                if (!matched) {
+                    assertEquals(column == 0 ? "missing_osm_ref" : "different_ref",
+                            mapping.get("reviewReason").asText());
+                }
+            }
+        }
+        assertEquals(Map.of(OSMWayMappingStatus.MISSING, 1, OSMWayMappingStatus.MATCHED, 5,
+                OSMWayMappingStatus.NEEDS_REVIEW, 4, OSMWayMappingStatus.NOT_FOUND, 1),
+                provider.getProcessedWayMappingStatusCounts());
+        assertEquals(Map.of(OSMWayMappingStatus.MISSING, 2, OSMWayMappingStatus.MATCHED, 5,
+                OSMWayMappingStatus.NEEDS_REVIEW, 4, OSMWayMappingStatus.NOT_FOUND, 1),
+                provider.getWayMappingStatusCounts());
+        provider.loadCache();
+        assertTrue(provider.getProcessedWayMappingStatusCounts().values().stream().allMatch(count -> count == 0));
+        assertEquals(Integer.valueOf(5), provider.getWayMappingStatusCounts().get(OSMWayMappingStatus.MATCHED));
     }
 
     private static OSMInfoProviderImpl provider(Store store, OpenStreetMapClient client) {
