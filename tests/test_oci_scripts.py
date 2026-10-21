@@ -247,6 +247,9 @@ class OciScriptsTest(unittest.TestCase):
                                         'lifecycle-state': 'ACTIVE'})
         self.save()
         self.assertIn('ocid1.fnfunc.custom', self.script('invoke.sh', 'geojson', 'MMM').stdout)
+        self.assertNotIn('--read-timeout', self.state['calls'][-1])
+        self.script('invoke.sh', 'ds', 'DPT34')
+        self.assertNotIn('--read-timeout', self.state['calls'][-1])
         self.script('invoke.sh', 'ds', 'UNKNOWN', success=False)
 
     def test_invoke_osm_without_data_source_config(self):
@@ -258,6 +261,7 @@ class OciScriptsTest(unittest.TestCase):
         self.assertEqual(call[call.index('--fn-invoke-type') + 1], 'sync')
         self.assertEqual(call[call.index('--body') + 1], '')
         self.assertEqual(call[call.index('--file') + 1], '-')
+        self.assertEqual(call[call.index('--read-timeout') + 1], '360')
         self.state['functions'] = [f for f in self.state['functions']
                                    if f['display-name'] != 'OSMInfoFunction']
         self.state['calls'] = []

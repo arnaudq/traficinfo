@@ -10,6 +10,7 @@ usage() {
 
 main() {
   local type source function_name application_id function_id
+  local invocation_options=(--fn-invoke-type sync --body "" --file "-")
   type="${1:-}"
   case "$type" in
     ds|geojson)
@@ -20,6 +21,9 @@ main() {
     osm)
       if [ "$#" -ne 1 ]; then usage; return 1; fi
       function_name=OSMInfoFunction
+      # Keep this timeout aligned with OSMInfoFunction's MAX_LOOP_DURATION_SECONDS,
+      # allowing extra time for the final batch and response (function runtime: 300 seconds).
+      invocation_options+=(--read-timeout 360)
       ;;
     *) usage; return 1 ;;
   esac
@@ -27,7 +31,7 @@ main() {
   function_id="$(resolve_function_id "$application_id" "$function_name")"
   log "Invoking $function_name..."
   exec oci fn function invoke --function-id "$function_id" \
-    --fn-invoke-type sync --body "" --file "-"
+    "${invocation_options[@]}"
 }
 
 main "$@"

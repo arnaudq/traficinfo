@@ -382,7 +382,11 @@ To invoke a deployed function using OCI CLI:
 For data source functions, `invoke.sh` accepts two arguments: `ds|geojson` and
 the data source ID `MMM|DPT30|DPT34` from `dsconfig.json`. `MMM` maps to the
 existing `3M` function names. Use `./invoke.sh osm` with no data source argument
-to invoke `OSMInfoFunction`, independently of `dsconfig.json`.
+to invoke `OSMInfoFunction`, independently of `dsconfig.json`. For `osm` only,
+the script sets `--read-timeout 360`, allowing the client to wait up to six minutes
+for the response. This exceeds the function's configured 300-second runtime.
+Other invocation types use the OCI CLI's existing timeout settings (the default
+read timeout is 60 seconds; see [invocation timeouts](https://docs.oracle.com/en-us/iaas/Content/Functions/Tasks/functionsinvokingfunctions.htm)).
 The script resolves the selected function in `3MOpenDataProcessor`, invokes
 synchronously with an empty body, and prints the
 function response to standard output. OCI errors propagate as a failing exit code.
