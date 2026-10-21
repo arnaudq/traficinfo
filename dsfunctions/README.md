@@ -153,9 +153,9 @@ or invalid JSON return `KO` without overwriting the cache.
 and persistence using `org.traficinfo.dsfunctions.OpenStreetMapClient` for OSM
 requests. All GeoJSON functions call `loadCache()` before parsing and
 `refreshCache()` after publishing the GeoJSON. The cache map remains
-private to the implementation. Calls to `get(wayId)` queue missing or stale ways
+private to the implementation. Calls to `getWayInfo(wayId)` queue missing or stale ways
 internally for the deferred refresh. Parsers use the
-`org.traficinfo.parsers.OSMInfoProvider` interface, which exposes `OSMWayInfo get(long wayId)` and the cache-only
+`org.traficinfo.parsers.OSMInfoProvider` interface, which exposes `OSMWayInfo getWayInfo(long wayId)` and the cache-only
 `getWayId(centraleId, point, roadReference)` lookup.
 
 The JSON object is keyed by OSM way ID. Each record contains `lastUpdated`, an
@@ -213,8 +213,10 @@ latest available coordinates and road reference. Missing entries also store
 DPT34 derives it from `route_id` by removing the department prefix:
 `34D0011` becomes `D0011`. DPT30 retains `numero_route`, for example `D6086`.
 No comparison or normalization against OSM is performed at this stage.
-Existing fields, including seed review metadata,
-are preserved. Neither source-provided IDs nor positive cached IDs are replaced.
+Each mapping is represented by `OSMWayMapping`, with getters and setters for
+its way IDs, coordinates, timestamps, status, road references, and review fields.
+Extra seed annotations are retained as additional properties during JSON
+round trips. Existing fields, including seed review metadata, are preserved. Neither source-provided IDs nor positive cached IDs are replaced.
 
 After GeoJSON publication, `refreshCache()` saves the entire mapping cache,
 including unresolved counters, before performing the existing way-tag refresh.
@@ -236,6 +238,15 @@ For each cache it logs at INFO level the number of unknown entries and the total
 entry count. An entry is unknown when `osmWayId` is absent, null, or not a positive
 integer fitting in a Java `long`. A `candidateOsmWayId` does not resolve an entry.
 An empty cache logs zero unknown entries. Tag caches and metadata files are skipped.
+For each mapping cache, the report also loads `<prefix>_OSMInfo.json` from the
+same bucket through `OSMInfoProviderImpl.loadCache()`, and logs its entry count.
+The implementation exposes `getWayInfoCount()`, `getWayMappingCount()`, and
+`getUnknownWayMappingCount()` for reporting; these methods are not part of the
+`OSMInfoProvider` parser interface. Unknown mappings are counted across the full
+cache, independently of which counters were looked up during the run. For
+example, `DPT34_OSMWayMapping.json` loads `DPT34_OSMInfo.json`. A missing info
+object starts empty; invalid JSON or other read errors fail that cache's report
+while processing continues for the other caches.
 The report performs no OSM requests and does not modify the cache objects.
 
 Configure `NAMESPACE`, optionally `BUCKETNAME_OSM` (default `osminfo`), and

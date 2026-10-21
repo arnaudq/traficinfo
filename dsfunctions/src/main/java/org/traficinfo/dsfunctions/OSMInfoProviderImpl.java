@@ -2,8 +2,7 @@ package org.traficinfo.dsfunctions;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import java.util.LinkedHashSet;
 import com.oracle.bmc.model.BmcException;
 import org.geojson.Point;
@@ -34,8 +33,9 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
     private Map<Long, OSMWayInfo> cache = new LinkedHashMap<>();
     private final Set<Long> waysToRefresh = new LinkedHashSet<>();
     private final String mappingObject;
-    private final ObjectMapper mapper = new ObjectMapper();
-    private Map<String, ObjectNode> mappings = new LinkedHashMap<>();
+    private final ObjectMapper mapper = new ObjectMapper()
+            .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
+    private Map<String, OSMWayMapping> mappings = new LinkedHashMap<>();
     private final Set<String> missingMappings = new LinkedHashSet<>();
 
     public OSMInfoProviderImpl(ObjectStoreClient osmCacheOSClient, OpenStreetMapClient osmClient,
@@ -72,7 +72,7 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
         cache = readCache(osmCacheObject, new TypeReference<LinkedHashMap<Long, OSMWayInfo>>() { });
         LOG.info("Loaded {} OSM entries from cache {}", cache.size(), osmCacheObject);
         if (mappingObject != null) {
-            mappings = readCache(mappingObject, new TypeReference<LinkedHashMap<String, ObjectNode>>() { });
+            mappings = readCache(mappingObject, new TypeReference<LinkedHashMap<String, OSMWayMapping>>() { });
             LOG.info("Loaded {} counter-to-way mappings from {}", mappings.size(), mappingObject);
         }
     }
@@ -93,41 +93,55 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
         }
     }
 
+    /** Number of cached OSM ways, including entries without a maximum speed tag. */
+    public int getWayInfoCount() {
+        return cache.size();
+    }
+
+    /** Total number of entries in the counter-to-way mapping cache. */
+    public int getWayMappingCount() {
+        return mappings.size();
+    }
+
+    /** Number of cached mappings without a positive integral way ID, including review candidates. */
+    public int getUnknownWayMappingCount() {
+        return (int) mappings.values().stream().filter(mapping -> mappedWayId(mapping) == null).count();
+    }
+
+    private static Long mappedWayId(OSMWayMapping mapping) {
+        Long id = mapping == null ? null : mapping.getOsmWayId();
+        return id != null && id > 0 ? id : null;
+    }
+
     @Override
     public Long getWayId(String centraleId, Point point, String roadReference) {
         if (mappingObject == null || centraleId == null || centraleId.isBlank()) {
             return null;
         }
-        ObjectNode mapping = mappings.get(centraleId);
-        JsonNode id = mapping == null ? null : mapping.get("osmWayId");
-        if (id != null && id.isIntegralNumber() && id.canConvertToLong() && id.asLong() > 0) {
-            return id.asLong();
+        OSMWayMapping mapping = mappings.get(centraleId);
+        Long wayId = mappedWayId(mapping);
+        if (wayId != null) {
+            return wayId;
         }
         missingMappings.add(centraleId);
         String now = clock.instant().toString();
         if (mapping == null) {
-            mapping = mapper.createObjectNode();
-            mapping.putNull("osmWayId");
-            mapping.put("status", "MISSING");
-            mapping.put("firstSeen", now);
+            mapping = new OSMWayMapping();
+            mapping.setStatus("MISSING");
+            mapping.setFirstSeen(now);
             mappings.put(centraleId, mapping);
         }
         Double latitude = point == null || point.getCoordinates() == null ? null : point.getCoordinates().getLatitude();
         Double longitude = point == null || point.getCoordinates() == null ? null : point.getCoordinates().getLongitude();
         if (latitude != null && longitude != null && Double.isFinite(latitude) && Double.isFinite(longitude)
                 && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180) {
-            mapping.put("latitude", latitude);
-            mapping.put("longitude", longitude);
-        } else if (!mapping.has("latitude") && !mapping.has("longitude")) {
-            mapping.putNull("latitude");
-            mapping.putNull("longitude");
+            mapping.setLatitude(latitude);
+            mapping.setLongitude(longitude);
         }
         if (roadReference != null && !roadReference.isBlank()) {
-            mapping.put("sourceRoadReference", roadReference);
-        } else if (!mapping.has("sourceRoadReference")) {
-            mapping.putNull("sourceRoadReference");
+            mapping.setSourceRoadReference(roadReference);
         }
-        mapping.put("lastSeen", now);
+        mapping.setLastSeen(now);
         return null;
     }
 
@@ -144,7 +158,7 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
     }
 
     @Override
-    public OSMWayInfo get(long wayId) {
+    public OSMWayInfo getWayInfo(long wayId) {
         OSMWayInfo info = cache.get(wayId);
         if (wayId > 0 && (info == null || info.needsRefresh(clock.instant()))) {
             waysToRefresh.add(wayId);

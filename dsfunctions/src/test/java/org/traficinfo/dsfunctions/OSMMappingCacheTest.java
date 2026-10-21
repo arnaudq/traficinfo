@@ -151,12 +151,12 @@ public class OSMMappingCacheTest {
             }
         }, "tags.json", Clock.fixed(NOW, ZoneOffset.UTC));
         provider.loadCache();
-        assertEquals(50, provider.get(1).getMaximumSpeed());
-        assertEquals(30, provider.get(2).getMaximumSpeed());
-        assertNull(provider.get(3));
-        assertNull(provider.get(3));
-        assertNull(provider.get(0));
-        assertNull(provider.get(-1));
+        assertEquals(50, provider.getWayInfo(1).getMaximumSpeed());
+        assertEquals(30, provider.getWayInfo(2).getMaximumSpeed());
+        assertNull(provider.getWayInfo(3));
+        assertNull(provider.getWayInfo(3));
+        assertNull(provider.getWayInfo(0));
+        assertNull(provider.getWayInfo(-1));
         assertTrue("Reads must defer HTTP requests", requests.isEmpty());
         provider.refreshCache();
         assertEquals(List.of(2L, 3L), requests);
@@ -164,9 +164,9 @@ public class OSMMappingCacheTest {
         assertEquals(3, saved.size());
         assertEquals("80", saved.get("3").get("tags").get("maxspeed").asText());
 
-        assertNull(provider.get(4));
+        assertNull(provider.getWayInfo(4));
         provider.loadCache();
-        provider.get(1);
+        provider.getWayInfo(1);
         provider.refreshCache();
         assertEquals("Loading must clear the previous invocation's queue", List.of(2L, 3L), requests);
     }

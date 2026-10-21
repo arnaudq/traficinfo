@@ -1,6 +1,5 @@
 package org.traficinfo.dsfunctions;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oracle.bmc.model.BmcException;
 import org.junit.Test;
 
@@ -24,25 +23,38 @@ public class OSMInfoFunctionTest {
                 + "\"decimal\":{\"osmWayId\":12.3},\"overflow\":{\"osmWayId\":9223372036854775808},"
                 + "\"review\":{\"osmWayId\":null,\"candidateOsmWayId\":456,\"status\":\"NEEDS_REVIEW\"},"
                 + "\"nullEntry\":null}";
-        assertEquals(9, OSMInfoFunction.countUnknownEntries(new ObjectMapper().readTree(json)));
-        assertEquals(0, OSMInfoFunction.countUnknownEntries(new ObjectMapper().readTree("{}")));
-        for (String invalid : List.of("null", "[]", "42")) {
-            try {
-                OSMInfoFunction.countUnknownEntries(new ObjectMapper().readTree(invalid));
-                fail("Invalid cache must fail");
-            } catch (IOException expected) { }
-        }
+        Store store = new Store();
+        store.objects.put("mapping.json", json);
+        store.objects.put("info.json", "{\"123\":{\"tags\":{\"maxspeed\":\"80\"}}}");
+        OSMInfoProviderImpl provider = new OSMInfoProviderImpl(store, new OpenStreetMapClient(),
+                "info.json", "mapping.json");
+        provider.loadCache();
+        assertEquals(9, provider.getUnknownWayMappingCount());
+        assertEquals(10, provider.getWayMappingCount());
+        assertEquals(1, provider.getWayInfoCount());
+        provider.getWayId("new", null, null);
+        assertEquals(10, provider.getUnknownWayMappingCount());
+        assertEquals(11, provider.getWayMappingCount());
+        store.objects.clear();
+        provider.loadCache();
+        assertEquals(0, provider.getUnknownWayMappingCount());
+        assertEquals(0, provider.getWayMappingCount());
+        assertEquals(0, provider.getWayInfoCount());
     }
 
     @Test
-    public void logsEachMappingCacheAndSkipsOtherObjects() {
+    public void loadsMatchingInfoForEachMappingAndSkipsOtherObjects() {
         Store store = new Store();
         store.objects.put("DPT34_OSMWayMapping.json", "{\"A\":{\"osmWayId\":123},\"B\":{\"osmWayId\":null}}");
         store.objects.put("MMM_OSMWayMapping.json", "{}");
-        store.objects.put("DPT34_OSMInfo.json", "must not be read");
+        store.objects.put("DPT34_OSMInfo.json", "{\"123\":{\"lastUpdated\":\"2026-10-20T12:00:00Z\","
+                + "\"tags\":{\"maxspeed\":\"80\"}}}");
+        store.objects.put("MMM_OSMInfo.json", "{}");
+        store.objects.put("unrelated_OSMInfo.json", "must not be read");
         store.objects.put("DPT34_OSMWayMapping.metadata.json", "must not be read");
         assertEquals("OK", new OSMInfoFunction(store).handleRequest(""));
-        assertEquals(List.of("DPT34_OSMWayMapping.json", "MMM_OSMWayMapping.json"), store.read);
+        assertEquals(List.of("DPT34_OSMInfo.json", "DPT34_OSMWayMapping.json",
+                "MMM_OSMInfo.json", "MMM_OSMWayMapping.json"), store.read);
         assertEquals(store.read, store.closed);
     }
 
@@ -51,22 +63,43 @@ public class OSMInfoFunctionTest {
         for (String invalid : List.of("invalid", "null", "[]", "{} trailing")) {
             Store store = new Store();
             store.objects.put("bad_OSMWayMapping.json", invalid);
+            store.objects.put("bad_OSMInfo.json", "{}");
             store.objects.put("good_OSMWayMapping.json", "{}");
+            store.objects.put("good_OSMInfo.json", "{}");
             assertEquals("KO", new OSMInfoFunction(store).handleRequest(""));
-            assertEquals(2, store.read.size());
+            assertEquals(4, store.read.size());
             assertEquals(store.read, store.closed);
         }
         Store unreadable = new Store();
         unreadable.objects.put("denied_OSMWayMapping.json", null);
+        unreadable.objects.put("denied_OSMInfo.json", "{}");
         unreadable.objects.put("good_OSMWayMapping.json", "{}");
         assertEquals("KO", new OSMInfoFunction(unreadable).handleRequest(""));
-        assertEquals(2, unreadable.read.size());
+        assertEquals(4, unreadable.read.size());
         assertEquals("OK", new OSMInfoFunction(new Store()).handleRequest(""));
         assertEquals("KO", new OSMInfoFunction(new Store() {
             @Override public List<String> listResources() {
                 throw new BmcException(403, "Forbidden", "Denied", "request");
             }
         }).handleRequest(""));
+    }
+
+    @Test
+    public void missingInfoStartsEmptyButInvalidOrForbiddenInfoFailsAndContinues() {
+        Store missing = new Store();
+        missing.objects.put("DPT34_OSMWayMapping.json", "{}");
+        assertEquals("OK", new OSMInfoFunction(missing).handleRequest(""));
+        assertEquals(List.of("DPT34_OSMInfo.json", "DPT34_OSMWayMapping.json"), missing.read);
+        for (String info : new String[]{"invalid", "null", "[]", "{} trailing", null}) {
+            Store store = new Store();
+            store.objects.put("bad_OSMWayMapping.json", "{}");
+            store.objects.put("bad_OSMInfo.json", info);
+            store.objects.put("good_OSMWayMapping.json", "{}");
+            store.objects.put("good_OSMInfo.json", "{}");
+            assertEquals("KO", new OSMInfoFunction(store).handleRequest(""));
+            assertEquals(List.of("bad_OSMInfo.json", "good_OSMInfo.json", "good_OSMWayMapping.json"), store.read);
+            assertTrue(store.closed.contains("good_OSMInfo.json"));
+        }
     }
 
     private static class Store extends ObjectStoreClient {
@@ -77,6 +110,9 @@ public class OSMInfoFunctionTest {
         @Override public List<String> listResources() { return new ArrayList<>(objects.keySet()); }
         @Override public InputStream getResource(String name) {
             read.add(name);
+            if (!objects.containsKey(name)) {
+                throw new BmcException(404, "NotFound", "Missing", "request");
+            }
             if (objects.get(name) == null) {
                 throw new BmcException(403, "Forbidden", "Denied", "request");
             }

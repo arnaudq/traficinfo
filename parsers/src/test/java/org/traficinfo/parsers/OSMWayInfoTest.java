@@ -74,7 +74,7 @@ public class OSMWayInfoTest {
         noCoordinates.setCodeCentrale("MMM_A");
         java.util.List<String> seen = new java.util.ArrayList<>();
         OSMInfoProvider provider = new OSMInfoProvider() {
-            @Override public OSMWayInfo get(long id) {
+            @Override public OSMWayInfo getWayInfo(long id) {
                 return new OSMWayInfo(NOW, Map.of("maxspeed", "80"));
             }
             @Override public Long getWayId(String id, Point point, String roadReference) {

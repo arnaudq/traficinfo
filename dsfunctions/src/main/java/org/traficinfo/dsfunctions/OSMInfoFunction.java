@@ -1,22 +1,14 @@
 package org.traficinfo.dsfunctions;
 
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fnproject.fn.api.FnConfiguration;
 import com.fnproject.fn.api.RuntimeContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.io.InputStream;
-
 /** Daily report of unresolved counter-to-way mappings in Object Storage. */
 public class OSMInfoFunction {
     private static final Logger LOG = LoggerFactory.getLogger(OSMInfoFunction.class);
     private static final String MAPPING_SUFFIX = "_OSMWayMapping.json";
-    private final ObjectMapper mapper = new ObjectMapper()
-            .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
     private ObjectStoreClient osmCacheOSClient;
 
     public OSMInfoFunction() { }
@@ -42,11 +34,15 @@ public class OSMInfoFunction {
                 if (!name.endsWith(MAPPING_SUFFIX)) {
                     continue;
                 }
-                try (InputStream stream = osmCacheOSClient.getResource(name)) {
-                    JsonNode mappings = mapper.readTree(stream);
-                    int unknown = countUnknownEntries(mappings);
+                try {
+                    String infoName = name.substring(0, name.length() - MAPPING_SUFFIX.length())
+                            + "_OSMInfo.json";
+                    OSMInfoProviderImpl provider = new OSMInfoProviderImpl(osmCacheOSClient,
+                            new OpenStreetMapClient(), infoName, name);
+                    provider.loadCache();
                     LOG.info("OSM way mapping cache {}: {} unknown entries out of {} entries",
-                            name, unknown, mappings.size());
+                            name, provider.getUnknownWayMappingCount(), provider.getWayMappingCount());
+                    LOG.info("OSM info cache {}: {} entries", infoName, provider.getWayInfoCount());
                     caches++;
                 } catch (Exception failure) {
                     failures++;
@@ -59,19 +55,5 @@ public class OSMInfoFunction {
             LOG.warn("Could not list OSM way mapping caches", failure);
             return "KO";
         }
-    }
-
-    static int countUnknownEntries(JsonNode mappings) throws IOException {
-        if (mappings == null || !mappings.isObject()) {
-            throw new IOException("OSM way mapping cache must be a JSON object");
-        }
-        int unknown = 0;
-        for (JsonNode mapping : mappings) {
-            JsonNode wayId = mapping.path("osmWayId");
-            if (!wayId.isIntegralNumber() || !wayId.canConvertToLong() || wayId.asLong() <= 0) {
-                unknown++;
-            }
-        }
-        return unknown;
     }
 }

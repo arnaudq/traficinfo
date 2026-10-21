@@ -142,7 +142,7 @@ public class GeoJsonParser {
             if (wayId == null || wayId <= 0) {
                 continue;
             }
-            OSMWayInfo info = osmInfoProvider.get(wayId);
+            OSMWayInfo info = osmInfoProvider.getWayInfo(wayId);
             comptage.setMaximumSpeed(info == null ? -1 : info.getMaximumSpeed());
         }
     }
