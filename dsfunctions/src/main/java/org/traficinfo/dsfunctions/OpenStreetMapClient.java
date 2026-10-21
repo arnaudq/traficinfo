@@ -3,6 +3,8 @@ package org.traficinfo.dsfunctions;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.URI;
@@ -17,6 +19,7 @@ import java.util.concurrent.TimeUnit;
 
 /** OSM way-tag and rate-limited reverse requests, without redirects or retries. */
 public class OpenStreetMapClient {
+    private static final Logger LOG = LoggerFactory.getLogger(OpenStreetMapClient.class);
     private final HttpClient client;
     private final URI apiBase;
     private final ObjectMapper mapper = new ObjectMapper();
@@ -43,8 +46,10 @@ public class OpenStreetMapClient {
             throws IOException, InterruptedException {
         String query = "lat=" + latitude + "&lon=" + longitude
                 + "&format=jsonv2&zoom=17&layer=address&extratags=1";
+        URI requestUri = reverseApiBase.resolve("reverse?" + query);
         JsonNode cached = reverseResults.get(query);
         if (cached != null) {
+            LOG.info("OSM reverse lookup {}: cached response {}", requestUri, cached);
             return cached;
         }
         if (lastReverseRequest != null) {
@@ -53,13 +58,22 @@ public class OpenStreetMapClient {
                 TimeUnit.NANOSECONDS.sleep(wait);
             }
         }
-        HttpRequest request = HttpRequest.newBuilder(reverseApiBase.resolve("reverse?" + query))
+        HttpRequest request = HttpRequest.newBuilder(requestUri)
                 .timeout(Duration.ofSeconds(5))
                 .header("Accept", "application/json")
                 .header("User-Agent", "traficinfo/1.0 (https://github.com/arnaudq/traficinfo)")
                 .GET().build();
+        LOG.info("OSM reverse request: GET {}", requestUri);
         lastReverseRequest = System.nanoTime();
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response;
+        try {
+            response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        } catch (IOException | InterruptedException failure) {
+            LOG.warn("OSM reverse request {} failed without a response: {}", requestUri, failure.toString());
+            throw failure;
+        }
+        LOG.info("OSM reverse response for {}: HTTP {}, body: {}",
+                requestUri, response.statusCode(), response.body());
         JsonNode result;
         if (response.statusCode() == 200 || response.statusCode() == 404) {
             result = mapper.readTree(response.body());

@@ -225,13 +225,13 @@ saved. Missing objects start empty; other storage errors or invalid JSON fail
 without overwriting that cache. A failed mapping upload returns `KO` after the
 GeoJSON has been published.
 
-GeoJSON functions perform no reverse HTTP calls. The daily `OSMInfoFunction`
+GeoJSON functions perform no reverse HTTP calls. The hourly `OSMInfoFunction`
 can resolve incomplete mappings as described below. Alternatively, populate
 `osmWayId` manually in Object Storage and it is used on the next run;
 positive IDs are used regardless of any older descriptive `status` field.
 Unresolved entries do not consume the existing 100-request way-tag budget.
 
-## Daily OSM mapping refresh
+## Hourly OSM mapping refresh
 
 `org.traficinfo.dsfunctions.OSMInfoFunction::handleRequest` lists the objects in
 `osminfo`, shuffles the list, and processes objects ending in `_OSMWayMapping.json`.
@@ -271,7 +271,7 @@ unset. Responses without a suitable road way set `NOT_FOUND`. Responses and the
 query coordinates are saved in `reverseLookupResult`, `lastLookupLatitude`, and
 `lastLookupLongitude`, with attempt time in `lastLookupAt`. Successful negative
 and review responses are cached, so unchanged coordinates are not repeatedly
-queried on subsequent daily runs. Changed coordinates become eligible again.
+queried on subsequent hourly runs. Changed coordinates become eligible again.
 HTTP errors remain eligible for later runs. Existing positive IDs and unrelated
 seed metadata are preserved; only changed mapping caches are written. Each
 successfully resolved mapping queues its way ID for tag refresh, deduplicated
@@ -283,8 +283,10 @@ failed requests count toward that limit and preserve previous cached tags.
 
 The shared reverse client spaces request starts by at least **15 seconds** across
 all resources, caches repeated coordinates within the process, identifies the
-application with its User-Agent, and makes no immediate retries. Each HTTP request
-has a five-second timeout. These settings follow the public service's
+application with its User-Agent, and makes no immediate retries. Each reverse lookup logs its full request URL and response at INFO level,
+including the HTTP status and complete body for unsuccessful responses; cached
+responses are identified explicitly. Transport failures log the URL and error.
+Each HTTP request has a five-second timeout. These settings follow the public service's
 [Nominatim usage policy](https://operations.osmfoundation.org/policies/nominatim/):
 scheduled jobs are limited to four requests per minute and results must be cached.
 Run a single invocation at a time, including manual invocations, to avoid overlap.
@@ -302,8 +304,8 @@ paginated listings are supported. Count getters `getWayInfoCount()`,
 
 `deploy-functions.sh` registers `OSMInfoFunction`, sets its runtime timeout to
 **300 seconds** on creation and updates, and applies
-`TraficInfo.DataSourceSchedule=Daily`. The existing `Daily` schedule invokes it at
-**15:30 UTC**. After `source ./setup.sh`, run `./deploy-functions.sh` and
+`TraficInfo.DataSourceSchedule=Hourly`. The `Hourly` schedule invokes it at
+**the start of every hour (UTC)**. After `source ./setup.sh`, run `./deploy-functions.sh` and
 `./setup-schedules.sh` to deploy and reconcile the schedule. Set environment
 variables `MAX_LOOP_DURATION_SECONDS` and `MAX_WAY_MAPPINGS_PER_RESOURCE` before deployment to override the defaults;
 the script applies these values on creation and updates. Keep the function runtime

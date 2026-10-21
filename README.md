@@ -95,17 +95,18 @@ an error. No ETags or tool-availability checks are used. The script waits for
 active rules and verifies their conditions and enabled function actions.
 Existing CSV objects are not processed until the next matching object event.
 
-## Daily, weekly and monthly schedules
+## Hourly, daily, weekly and monthly schedules
 
-Run `./setup-schedules.sh` to create or reconcile `Daily`, `Weekly` (Wednesdays),
-and `Monthly` (the 5th of each month), all at **15:30 UTC**. Each uses dynamic
+Run `./setup-schedules.sh` to create or reconcile `Hourly` (at **the start of every hour**),
+`Daily`, `Weekly` (Wednesdays), and `Monthly` (the 5th of each month). The latter
+three run at **15:30 UTC**; all schedules use UTC. Each uses dynamic
 resource filters selecting only `FunctionsFunction` resources in `TraficInfo`
 (excluding child compartments) with defined tag `TraficInfo.DataSourceSchedule`
-equal to its name: `Daily`, `Weekly`, or `Monthly`.
+equal to its name: `Hourly`, `Daily`, `Weekly`, or `Monthly`.
 
 Create the `TraficInfo` tag namespace and `DataSourceSchedule` key definition
-first, with allowed values `Daily`, `Weekly`, and `Monthly`. Apply the appropriate
-value directly to each data source function. The script does not tag functions
+first, with allowed values `Hourly`, `Daily`, `Weekly`, and `Monthly`. Apply the
+appropriate value directly to each data source function. The script does not tag functions
 or attach function OCIDs; OCI selects matching functions dynamically at run time.
 Untagged functions do not match. Deployment with `./deploy-functions.sh` reads
 `dsconfig.json` and sets `TraficInfo.DataSourceSchedule` on the data source
@@ -113,9 +114,9 @@ functions: `MMM` maps to `3MOpenDataSource`, and `DPT34` maps to
 `DPT34OpenDataSource`. Current schedules are Daily and Monthly respectively.
 Both creation and updates set the data source function's complete defined-tag
 map to the configured scheduling tag. Deployment also tags `OSMInfoFunction` as
-`Daily` so it reports unknown entries in each OSM way-mapping cache at 15:30 UTC. GeoJSON functions receive no scheduling
-tag from deployment. Deploy the intended functions before converting an existing
-schedule from static targets to filters.
+`Hourly` so it refreshes incomplete OSM way mappings at the start of every hour.
+GeoJSON functions receive no scheduling tag from deployment. Deploy the intended
+functions before converting an existing schedule from static targets to filters.
 
 ```sh
 ./setup-schedules.sh --dry-run

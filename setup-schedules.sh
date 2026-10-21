@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Ensure Daily, Weekly and Monthly schedules use defined-tag resource filters.
+# Ensure Hourly, Daily, Weekly and Monthly schedules use defined-tag resource filters.
 set -euo pipefail
 
 source "${TRAFICINFO_ROOT:?Run source ./setup.sh first}/oci-common.sh"
 
 # Recorded from OCI during script preparation; no schedule is a runtime template.
+hourly_clock='BYMINUTE=0;BYSECOND=0'
 schedule_clock='BYHOUR=15;BYMINUTE=30;BYSECOND=0'
 schedule_timezone=UTC
 tag_namespace=TraficInfo
@@ -128,17 +129,18 @@ list_schedules() {
 main() {
   local dry_run=false compartment_id schedules
   local name id recurrence payload index state
-  local names=(Daily Weekly Monthly) ids=() payloads=() operations=()
+  local names=(Hourly Daily Weekly Monthly) ids=() payloads=() operations=()
   dry_run="$(parse_dry_run_arguments "$@")"
   compartment_id="${OCI_COMPARTMENT_ID:?Run source ./setup.sh first}"
   log 'Reading existing schedules...'
   schedules="$(list_schedules)"
   # Check all names for ambiguity before submitting any creation.
   for name in "${names[@]}"; do ids+=("$(find_schedule_id "$name")"); done
-  log "Using configured time: $schedule_clock; timezone $schedule_timezone."
-  for index in 0 1 2; do
+  log "Using hourly timing $hourly_clock; other schedules $schedule_clock; timezone $schedule_timezone."
+  for index in "${!names[@]}"; do
     name="${names[$index]}"
     case "$name" in
+      Hourly) recurrence="FREQ=HOURLY;$hourly_clock" ;;
       Daily) recurrence="FREQ=DAILY;$schedule_clock" ;;
       Weekly) recurrence="FREQ=WEEKLY;BYDAY=WE;$schedule_clock" ;;
       Monthly) recurrence="FREQ=MONTHLY;BYMONTHDAY=5;$schedule_clock" ;;
@@ -153,7 +155,7 @@ main() {
         log "$name already uses the requested timing and tag filters."
       else
         operations+=(update)
-        log "$name will be updated to use $tag_namespace.$tag_key=$name at 15:30 UTC."
+        log "$name will be updated to use $tag_namespace.$tag_key=$name; $recurrence ($schedule_timezone)."
       fi
     else
       operations+=(create)
@@ -165,14 +167,14 @@ main() {
     fi
   done
   if [ "$dry_run" = true ]; then log 'Dry run complete; no changes submitted.'; return 0; fi
-  for index in 0 1 2; do
+  for index in "${!names[@]}"; do
     case "${operations[$index]}" in
       create) create_schedule "${names[$index]}" "${payloads[$index]}" ;;
       update) update_schedule "${ids[$index]}" "${payloads[$index]}" ;;
       skip) ;;
     esac
   done
-  log 'Daily, Weekly and Monthly schedules use the configured tag filters.'
+  log 'Hourly, Daily, Weekly and Monthly schedules use the configured tag filters.'
 }
 
 main "$@"

@@ -99,7 +99,7 @@ build_function_config() {
 schedule_tags() {
   jq -ce '
     .schedule as $schedule
-    | if (["Daily", "Weekly", "Monthly"] | index($schedule)) == null then
+    | if (["Hourly", "Daily", "Weekly", "Monthly"] | index($schedule)) == null then
         error("Invalid or missing schedule for data source \(.id)")
       else {TraficInfo: {DataSourceSchedule: $schedule}} end
   ' <<< "$1"
@@ -179,7 +179,7 @@ main() {
     IFS='|' read -r data_source_id type handler <<< "$definition"
     if [ "$type" = osm ]; then
       function_name="$data_source_id"
-      source='{"id":"OSMInfoFunction","schedule":"Daily"}'
+      source='{"id":"OSMInfoFunction","schedule":"Hourly"}'
     else
       source="$(get_data_source "$data_source_id" "$sources")"
       function_name="$(data_source_function_name "$source" "$type")"

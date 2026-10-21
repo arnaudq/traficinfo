@@ -287,7 +287,7 @@ class OciScriptsTest(unittest.TestCase):
                                   'MAX_LOOP_DURATION_SECONDS': '120', 'MAX_WAY_MAPPINGS_PER_RESOURCE': '5'})
                 self.assertEqual(functions['OSMInfoFunction']['timeout-in-seconds'], 300)
                 self.assertEqual(functions['OSMInfoFunction']['defined-tags'],
-                                 {'TraficInfo': {'DataSourceSchedule': 'Daily'}})
+                                 {'TraficInfo': {'DataSourceSchedule': 'Hourly'}})
                 self.assertEqual(functions['3MOpenDataSource']['config'],
                                  {'NAMESPACE': 'testnamespace', 'BUCKETNAME': 'ds3mbucket'})
                 self.assertEqual(functions['DPT34OpenDataSource']['config']['BUCKETNAME'], 'dsdpt34')
@@ -349,18 +349,35 @@ class OciScriptsTest(unittest.TestCase):
         self.assertEqual(conditions['DPT34ComptageCsvToGeoJson']['data']['additionalDetails']['bucketName'],
                          ['dsdpt34'])
         self.script('setup-schedules.sh')
-        self.assertEqual(len(self.state['schedules']), 3)
+        self.assertEqual(len(self.state['schedules']), 4)
+        schedules = {s['display-name']: s for s in self.state['schedules']}
+        self.assertEqual(schedules['Hourly']['recurrence-details'], 'FREQ=HOURLY;BYMINUTE=0;BYSECOND=0')
+        self.assertEqual(schedules['Hourly']['local-time-zone'], 'UTC')
+        hourly_tags = next(f for f in schedules['Hourly']['resource-filters'] if f['attribute'] == 'DEFINED_TAGS')
+        self.assertEqual(hourly_tags['value'],
+                         [{'namespace': 'TraficInfo', 'tag-key': 'DataSourceSchedule', 'value': 'Hourly'}])
+        self.assertEqual(schedules['Daily']['recurrence-details'],
+                         'FREQ=DAILY;BYHOUR=15;BYMINUTE=30;BYSECOND=0')
+        self.assertEqual(schedules['Weekly']['recurrence-details'],
+                         'FREQ=WEEKLY;BYDAY=WE;BYHOUR=15;BYMINUTE=30;BYSECOND=0')
+        self.assertEqual(schedules['Monthly']['recurrence-details'],
+                         'FREQ=MONTHLY;BYMONTHDAY=5;BYHOUR=15;BYMINUTE=30;BYSECOND=0')
         writes = list(self.state['writes'])
         self.script('setup-events.sh')
         self.script('setup-schedules.sh')
         self.assertEqual(self.state['writes'], writes)
         self.state['rules'][0]['is-enabled'] = False
-        self.state['schedules'][0]['resources'] = [{'id': 'old-target'}]
+        hourly = next(s for s in self.state['schedules'] if s['display-name'] == 'Hourly')
+        hourly['resources'] = [{'id': 'old-target'}]
+        hourly['recurrence-details'] = 'FREQ=DAILY;BYHOUR=15;BYMINUTE=30;BYSECOND=0'
         self.save()
         self.script('setup-events.sh')
         self.script('setup-schedules.sh')
         self.assertEqual(self.state['writes'][-2][1], 'update')
-        self.assertEqual(self.state['writes'][-1][1], 'update')
+        self.assertEqual(self.state['writes'][-1], ['schedule', 'update', 'Hourly'])
+        hourly = next(s for s in self.state['schedules'] if s['display-name'] == 'Hourly')
+        self.assertEqual(hourly['resources'], [])
+        self.assertEqual(hourly['recurrence-details'], 'FREQ=HOURLY;BYMINUTE=0;BYSECOND=0')
 
     def test_setup_in_bash_and_zsh_exports_environment(self):
         setup = self.directory / 'setup.sh'

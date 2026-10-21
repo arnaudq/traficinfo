@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 
-/** Daily bounded reverse lookup of unresolved counter-to-way mappings in Object Storage. */
+/** Hourly bounded reverse lookup of unresolved counter-to-way mappings in Object Storage. */
 public class OSMInfoFunction {
     private static final Logger LOG = LoggerFactory.getLogger(OSMInfoFunction.class);
     private static final String MAPPING_SUFFIX = "_OSMWayMapping.json";
