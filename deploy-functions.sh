@@ -67,8 +67,13 @@ build_function_config() {
   local type="$1" namespace="$2" source="$3" input config
   if [ "$type" = osm ]; then
     validate_bucket_name "$osm_bucket" BUCKETNAME_OSM || return
-    jq -cn --arg namespace "$namespace" --arg bucket "$osm_bucket" \
-      '{NAMESPACE: $namespace, BUCKETNAME_OSM: $bucket}'
+    jq -cne --arg namespace "$namespace" --arg bucket "$osm_bucket" \
+      --arg max_loop "${MAX_LOOP_DURATION_SECONDS-120}" --arg max_way "${MAX_WAY_MAPPINGS_PER_RESOURCE-5}" '
+      def positive_integer:
+        test("^[1-9][0-9]*$") and (tonumber <= 2147483647);
+      if ($max_loop | positive_integer) and ($max_way | positive_integer) then
+        {NAMESPACE: $namespace, BUCKETNAME_OSM: $bucket, MAX_LOOP_DURATION_SECONDS: $max_loop, MAX_WAY_MAPPINGS_PER_RESOURCE: $max_way}
+      else error("MAX_LOOP_DURATION_SECONDS and MAX_WAY_MAPPINGS_PER_RESOURCE must be positive integers fitting in a Java int") end'
     return
   fi
   input="$(input_bucket_for_source "$source")" || return
@@ -106,13 +111,15 @@ create_archive_function() {
   function_name="$2"
   handler="$3"
   config="$4"
+  local timeout=30
+  if [ "$function_name" = OSMInfoFunction ]; then timeout=300; fi
   local options=(--query '"opc-work-request-id"' --raw-output)
   if [ -n "$5" ]; then options+=(--defined-tags "$5"); fi
   printf 'Creating archive function %s in %s\n' "$function_name" "$app_name" >&2
   oci fn function create archive-function direct-archive fn-update-runtime-config \
     --application-id "$application_id" --display-name "$function_name" \
     --archive-file "$jar_file" --functions-runtime-name "$runtime_name" \
-    --handler "$handler" --memory-in-mbs 2048 --timeout-in-seconds 30 \
+    --handler "$handler" --memory-in-mbs 2048 --timeout-in-seconds "$timeout" \
     --config "$config" "${options[@]}"
 }
 
@@ -123,6 +130,7 @@ update_archive_function() {
   handler="$3"
   config="$4"
   local options=(--force --query '"opc-work-request-id"' --raw-output)
+  if [ "$function_name" = OSMInfoFunction ]; then options+=(--timeout-in-seconds 300); fi
   if [ -n "$5" ]; then options+=(--defined-tags "$5"); fi
   printf 'Updating archive function %s (%s)\n' "$function_name" "$function_id" >&2
   oci fn function update archive-function --function-id "$function_id" \

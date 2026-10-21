@@ -37,6 +37,10 @@ public class OSMWayMapping {
     private String osmRoadReference;
     private String reviewReason;
     private Double distanceMeters;
+    private Double lastLookupLatitude;
+    private Double lastLookupLongitude;
+    private String lastLookupAt;
+    private JsonNode reverseLookupResult;
     private final Map<String, JsonNode> additionalProperties = new LinkedHashMap<>();
 
     public Long getOsmWayId() {
@@ -133,6 +137,38 @@ public class OSMWayMapping {
 
     public void setDistanceMeters(Double distanceMeters) {
         this.distanceMeters = distanceMeters;
+    }
+
+    public Double getLastLookupLatitude() {
+        return lastLookupLatitude;
+    }
+
+    public void setLastLookupLatitude(Double lastLookupLatitude) {
+        this.lastLookupLatitude = lastLookupLatitude;
+    }
+
+    public Double getLastLookupLongitude() {
+        return lastLookupLongitude;
+    }
+
+    public void setLastLookupLongitude(Double lastLookupLongitude) {
+        this.lastLookupLongitude = lastLookupLongitude;
+    }
+
+    public String getLastLookupAt() {
+        return lastLookupAt;
+    }
+
+    public void setLastLookupAt(String lastLookupAt) {
+        this.lastLookupAt = lastLookupAt;
+    }
+
+    public JsonNode getReverseLookupResult() {
+        return reverseLookupResult;
+    }
+
+    public void setReverseLookupResult(JsonNode reverseLookupResult) {
+        this.reverseLookupResult = reverseLookupResult;
     }
 
     /** Preserve extra seed annotations without coupling the model to every audit field. */

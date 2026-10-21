@@ -3,6 +3,7 @@ package org.traficinfo.dsfunctions;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.util.LinkedHashSet;
 import com.oracle.bmc.model.BmcException;
 import org.geojson.Point;
@@ -17,6 +18,11 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Clock;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -145,11 +151,141 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
         return null;
     }
 
+    /** Resolves a bounded batch; successful negative and review results are cached until coordinates change. */
+    public void refreshWayMappings(int maximumMappings) throws IOException, InterruptedException {
+        if (mappingObject == null || maximumMappings <= 0) {
+            return;
+        }
+        List<OSMWayMapping> incomplete = new ArrayList<>();
+        for (OSMWayMapping mapping : mappings.values()) {
+            if (mappedWayId(mapping) == null && hasCoordinates(mapping) && !hasCachedReverseResult(mapping)) {
+                incomplete.add(mapping);
+            }
+        }
+        // Try entries never attempted first, then the oldest HTTP failures, to avoid starving later counters.
+        incomplete.sort(Comparator.comparing(OSMWayMapping::getLastLookupAt,
+                Comparator.nullsFirst(Comparator.naturalOrder())));
+        int attempted = 0;
+        int resolved = 0;
+        int failed = 0;
+        boolean changed = false;
+        try {
+            for (OSMWayMapping mapping : incomplete) {
+                if (attempted >= maximumMappings) {
+                    break;
+                }
+                attempted++;
+                changed = true;
+                mapping.setLastLookupAt(clock.instant().toString());
+                try {
+                    JsonNode result = osmClient.reverseLookup(mapping.getLatitude(), mapping.getLongitude());
+                    mapping.setLastLookupAt(clock.instant().toString());
+                    mapping.setLastLookupLatitude(mapping.getLatitude());
+                    mapping.setLastLookupLongitude(mapping.getLongitude());
+                    mapping.setReverseLookupResult(result);
+                    applyReverseResult(mapping, result);
+                    Long wayId = mappedWayId(mapping);
+                    if (wayId != null) {
+                        waysToRefresh.add(wayId);
+                        resolved++;
+                    }
+                } catch (IOException failure) {
+                    failed++;
+                    LOG.warn("Could not reverse lookup coordinates {}, {}: {}",
+                            mapping.getLatitude(), mapping.getLongitude(), failure.getMessage());
+                }
+            }
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw interrupted;
+        } finally {
+            if (changed) {
+                saveMappings();
+            }
+        }
+        LOG.info("OSM way mapping cache {}: {} attempted, {} resolved, {} failed, {} still unknown",
+                mappingObject, attempted, resolved, failed, getUnknownWayMappingCount());
+    }
+
+    private static boolean hasCoordinates(OSMWayMapping mapping) {
+        return mapping != null && mapping.getLatitude() != null && mapping.getLongitude() != null
+                && Double.isFinite(mapping.getLatitude()) && Double.isFinite(mapping.getLongitude())
+                && Math.abs(mapping.getLatitude()) <= 90 && Math.abs(mapping.getLongitude()) <= 180;
+    }
+
+    private static boolean hasCachedReverseResult(OSMWayMapping mapping) {
+        return mapping.getReverseLookupResult() != null
+                && Objects.equals(mapping.getLatitude(), mapping.getLastLookupLatitude())
+                && Objects.equals(mapping.getLongitude(), mapping.getLastLookupLongitude());
+    }
+
+    private static void applyReverseResult(OSMWayMapping mapping, JsonNode result) {
+        Long wayId = reverseWayId(result.path("osm_id"));
+        boolean road = "way".equals(result.path("osm_type").asText())
+                && "highway".equals(result.path("category").asText())
+                && Set.of("motorway", "trunk", "primary", "secondary", "tertiary", "unclassified",
+                        "residential", "living_street", "service", "road", "motorway_link", "trunk_link",
+                        "primary_link", "secondary_link", "tertiary_link").contains(result.path("type").asText());
+        mapping.setLastUpdated(mapping.getLastLookupAt());
+        mapping.setDistanceMeters(null);
+        if (!road || wayId == null) {
+            mapping.setStatus("NOT_FOUND");
+            mapping.setCandidateOsmWayId(null);
+            mapping.setOsmRoadReference(null);
+            mapping.setReviewReason("no_road_way");
+            return;
+        }
+        String reference = result.path("extratags").path("ref").asText(null);
+        mapping.setCandidateOsmWayId(wayId);
+        mapping.setOsmRoadReference(reference);
+        String source = mapping.getSourceRoadReference();
+        if (source != null && !source.isBlank()
+                && (reference == null || !sameRoadReference(source, reference))) {
+            mapping.setStatus("NEEDS_REVIEW");
+            mapping.setReviewReason(reference == null ? "missing_osm_ref" : "different_ref");
+            return;
+        }
+        mapping.setOsmWayId(wayId);
+        mapping.setStatus("MATCHED");
+        mapping.setCandidateOsmWayId(null);
+        mapping.setReviewReason(null);
+    }
+
+    private static Long reverseWayId(JsonNode id) {
+        if (id.isIntegralNumber() && id.canConvertToLong() && id.asLong() > 0) {
+            return id.asLong();
+        }
+        if (id.isTextual() && id.asText().matches("[0-9]+")) {
+            try {
+                long value = Long.parseLong(id.asText());
+                return value > 0 ? value : null;
+            } catch (NumberFormatException invalidId) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private static boolean sameRoadReference(String source, String osmReference) {
+        for (String reference : osmReference.split(";")) {
+            if (normalizeRoadReference(source).equals(normalizeRoadReference(reference))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static String normalizeRoadReference(String reference) {
+        return reference.toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]", "")
+                .replaceFirst("^([A-Z]+)0+(?=[0-9])", "$1");
+    }
+
     private void saveMappings() throws IOException {
         if (mappingObject == null) {
             return;
         }
-        LOG.info("OSM way mappings: {} counters missing a usable way ID", missingMappings.size());
+        LOG.info("OSM way mappings: {} unresolved entries; {} counters looked up without a usable ID this run",
+                getUnknownWayMappingCount(), missingMappings.size());
         byte[] json = mapper.writeValueAsBytes(mappings);
         try (InputStream input = new ByteArrayInputStream(json)) {
             osmCacheOSClient.putResource(mappingObject, "application/json", new OOSResourceMetadata(), input);
@@ -170,6 +306,11 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
     public void refreshCache()
             throws IOException, InterruptedException {
         saveMappings();
+        refreshWayInfo();
+    }
+
+    /** Processes queued way IDs and persists successful tag fetches without rewriting mappings. */
+    public void refreshWayInfo() throws IOException, InterruptedException {
         LOG.info("OSM cache: {} entries need refresh", waysToRefresh.size());
         int requests = 0;
         int found = 0;

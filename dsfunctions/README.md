@@ -196,7 +196,7 @@ deployment timeouts.
 OSM endpoint and tagging references: [API v0.6](https://wiki.openstreetmap.org/wiki/API_v0.6)
 and [maxspeed](https://wiki.openstreetmap.org/wiki/Key:maxspeed).
 
-### Counter-to-way mapping cache (no reverse lookup)
+### Counter-to-way mapping cache
 
 At startup the provider also reads `<sourceId>_OSMWayMapping.json` from the same
 bucket. Override its name with `OSM_WAY_MAPPING_OBJECT`. The cache uses the
@@ -225,44 +225,91 @@ saved. Missing objects start empty; other storage errors or invalid JSON fail
 without overwriting that cache. A failed mapping upload returns `KO` after the
 GeoJSON has been published.
 
-There is no reverse HTTP call, validation, expiry or automatic ID assignment.
-Populate `osmWayId` manually in Object Storage and it is used on the next run;
+GeoJSON functions perform no reverse HTTP calls. The daily `OSMInfoFunction`
+can resolve incomplete mappings as described below. Alternatively, populate
+`osmWayId` manually in Object Storage and it is used on the next run;
 positive IDs are used regardless of any older descriptive `status` field.
 Unresolved entries do not consume the existing 100-request way-tag budget.
 
-## Daily OSM mapping report
+## Daily OSM mapping refresh
 
 `org.traficinfo.dsfunctions.OSMInfoFunction::handleRequest` lists the objects in
-`osminfo` and reads every object whose name ends with `_OSMWayMapping.json`.
-For each cache it logs at INFO level the number of unknown entries and the total
-entry count. An entry is unknown when `osmWayId` is absent, null, or not a positive
-integer fitting in a Java `long`. A `candidateOsmWayId` does not resolve an entry.
-An empty cache logs zero unknown entries. Tag caches and metadata files are skipped.
-For each mapping cache, the report also loads `<prefix>_OSMInfo.json` from the
-same bucket through `OSMInfoProviderImpl.loadCache()`, and logs its entry count.
-The implementation exposes `getWayInfoCount()`, `getWayMappingCount()`, and
-`getUnknownWayMappingCount()` for reporting; these methods are not part of the
-`OSMInfoProvider` parser interface. Unknown mappings are counted across the full
-cache, independently of which counters were looked up during the run. For
-example, `DPT34_OSMWayMapping.json` loads `DPT34_OSMInfo.json`. A missing info
-object starts empty; invalid JSON or other read errors fail that cache's report
-while processing continues for the other caches.
-The report performs no OSM requests and does not modify the cache objects.
+`osminfo`, shuffles the list, and processes objects ending in `_OSMWayMapping.json`.
+For each cache it loads that mapping and the matching `<prefix>_OSMInfo.json`
+through `OSMInfoProviderImpl.loadCache()`. INFO logs report unknown/total mappings,
+way-info entries, attempted reverse lookups, resolved entries, and HTTP failures.
+A missing cache starts empty; other load/save errors return `KO` after processing
+the remaining resources. An empty bucket returns `OK`.
 
-Configure `NAMESPACE`, optionally `BUCKETNAME_OSM` (default `osminfo`), and
-`USE_RESOURCE_PRINCIPAL` (default `true`). The function requires permission to
-list objects in the bucket and read mapping objects, including gzip-encoded
-objects. It follows all object-listing pages. An invalid or unreadable mapping
-is logged as a warning; reporting continues for the remaining caches and returns
-`KO`. Listing errors also return `KO`; an empty bucket returns `OK`.
+Two optional positive integer configuration values bound the work. Private static
+integer constants in `OSMInfoFunction` provide defaults when the keys are absent:
 
-`deploy-functions.sh` registers `OSMInfoFunction` and applies
-`TraficInfo.DataSourceSchedule=Daily` on creation and updates. The existing
-`Daily` Resource Scheduler schedule invokes it at **15:30 UTC**. After
-`source ./setup.sh`, run `./deploy-functions.sh` and `./setup-schedules.sh` to
-deploy the function and create or reconcile that schedule. The scheduling tag
-namespace/key and scheduler invoke permissions must already be configured as
-described in the root README.
+- `MAX_LOOP_DURATION_SECONDS` (default `120` seconds): elapsed time is checked before **every listed
+  resource**, including non-mapping objects. No further resource starts after the
+  budget is reached. There is deliberately no duration check between lookups;
+  the active resource's bounded batch finishes and saves, so total loop duration
+  can exceed the budget by that batch's remaining work and storage operations.
+- `MAX_WAY_MAPPINGS_PER_RESOURCE` (default `5` mappings per resource): at most five eligible incomplete mappings
+  are attempted per cache; HTTP errors also consume this limit. Entries never
+  attempted precede older failed attempts. Known positive IDs are preserved.
+
+All reverse interaction is initiated by `OSMInfoProviderImpl.refreshWayMappings()`.
+It uses valid cached coordinates and requests Nominatim with `format=jsonv2`,
+`zoom=17`, `layer=address`, and `extratags=1`. Only positive OSM **way** IDs with
+road highway classifications are accepted; buildings, nodes, relations, and
+footways are rejected. When a source road reference exists, the OSM `ref` must
+match after removing spacing and leading numeric zeroes (`D0011` matches `D 11`).
+A change from `D 11` to `M 11` requires review rather than automatic assignment.
+Without a source reference, a road way may be accepted by its classification.
+Reverse geocoding can still select a nearby different street; see the
+[Nominatim reverse API](https://nominatim.org/release-docs/latest/api/Reverse/).
+
+Successful results populate `osmWayId` and set `status` to `MATCHED`.
+Road-reference mismatches or missing OSM references set `NEEDS_REVIEW`, with
+`candidateOsmWayId`, `osmRoadReference`, and `reviewReason`; the usable ID remains
+unset. Responses without a suitable road way set `NOT_FOUND`. Responses and the
+query coordinates are saved in `reverseLookupResult`, `lastLookupLatitude`, and
+`lastLookupLongitude`, with attempt time in `lastLookupAt`. Successful negative
+and review responses are cached, so unchanged coordinates are not repeatedly
+queried on subsequent daily runs. Changed coordinates become eligible again.
+HTTP errors remain eligible for later runs. Existing positive IDs and unrelated
+seed metadata are preserved; only changed mapping caches are written. Each
+successfully resolved mapping queues its way ID for tag refresh, deduplicated
+within that cache. At the end of each resource's reverse batch, the function calls
+`refreshWayInfo()` to process the queue and save successful tag fetches to the
+matching `_OSMInfo.json` object. Candidates awaiting review are not queued.
+The existing limit of 100 way-tag requests per provider refresh still applies;
+failed requests count toward that limit and preserve previous cached tags.
+
+The shared reverse client spaces request starts by at least **15 seconds** across
+all resources, caches repeated coordinates within the process, identifies the
+application with its User-Agent, and makes no immediate retries. Each HTTP request
+has a five-second timeout. These settings follow the public service's
+[Nominatim usage policy](https://operations.osmfoundation.org/policies/nominatim/):
+scheduled jobs are limited to four requests per minute and results must be cached.
+Run a single invocation at a time, including manual invocations, to avoid overlap.
+Reverse results contain data © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright),
+available under ODbL.
+
+Configure `NAMESPACE`, optionally `BUCKETNAME_OSM` (default `osminfo`),
+`USE_RESOURCE_PRINCIPAL` (default `true`), `MAX_LOOP_DURATION_SECONDS`, and `MAX_WAY_MAPPINGS_PER_RESOURCE`. Invalid,
+nonpositive, or out-of-range limits fail configuration. The reverse API endpoint
+is fixed to `https://nominatim.openstreetmap.org/`. The function needs permission
+to list/read bucket objects and write mapping and way-info objects, plus outbound
+HTTPS access. Gzip cache objects and
+paginated listings are supported. Count getters `getWayInfoCount()`,
+`getWayMappingCount()`, and `getUnknownWayMappingCount()` remain implementation-only.
+
+`deploy-functions.sh` registers `OSMInfoFunction`, sets its runtime timeout to
+**300 seconds** on creation and updates, and applies
+`TraficInfo.DataSourceSchedule=Daily`. The existing `Daily` schedule invokes it at
+**15:30 UTC**. After `source ./setup.sh`, run `./deploy-functions.sh` and
+`./setup-schedules.sh` to deploy and reconcile the schedule. Set environment
+variables `MAX_LOOP_DURATION_SECONDS` and `MAX_WAY_MAPPINGS_PER_RESOURCE` before deployment to override the defaults;
+the script applies these values on creation and updates. Keep the function runtime
+timeout above the configured loop budget plus time for the last bounded batch.
+The scheduling tag namespace/key and scheduler invoke permissions must already
+be configured as described in the root README.
 
 ## Archive deployment (code-only function)
 
@@ -285,7 +332,7 @@ than queried again during each deployment. `3MOpenDataSource` and `DPT34OpenData
 receive `NAMESPACE` and `BUCKETNAME`; both GeoJSON functions receive `NAMESPACE`,
 `BUCKETNAME_IN`, `BUCKETNAME_OUT`, `BUCKETNAME_OSM`, `OSM_CACHE_OBJECT`, and
 `OSM_WAY_MAPPING_OBJECT`.
-`OSMInfoFunction` receives `NAMESPACE` and `BUCKETNAME_OSM`.
+`OSMInfoFunction` receives `NAMESPACE`, `BUCKETNAME_OSM`, `MAX_LOOP_DURATION_SECONDS`, and `MAX_WAY_MAPPINGS_PER_RESOURCE`.
 The script requires `jq` to prepare function configuration.
 Function names and input buckets are derived by `oci-common.sh` from each
 data source's `id`, `functionPrefix`, and `inputBucket` in `dsconfig.json`.

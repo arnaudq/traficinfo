@@ -54,6 +54,7 @@ elif command in [['fn', 'function', 'create'], ['fn', 'function', 'update']]:
         function = next(f for f in state['functions'] if f['id'] == opt('--function-id'))
         name = function['display-name']
     function['config'] = json.loads(opt('--config'))
+    if '--timeout-in-seconds' in args: function['timeout-in-seconds'] = int(opt('--timeout-in-seconds'))
     if '--defined-tags' in args: function['defined-tags'] = json.loads(opt('--defined-tags'))
     write('function', operation, name)
     print('ocid1.functionsworkrequest.test')
@@ -127,7 +128,7 @@ class OciScriptsTest(unittest.TestCase):
                         OCI_OBJECT_STORAGE_NAMESPACE='testnamespace',
                         OCI_FN_APPLICATION_NAME='3MOpenDataProcessor')
         for key in ['OCI_FN_APPLICATION_ID', 'BUCKETNAME_IN', 'BUCKETNAME_DPT34',
-                    'BUCKETNAME_OUT', 'BUCKETNAME_OSM', 'OSM_CACHE_OBJECT', 'OSM_WAY_MAPPING_OBJECT']:
+                    'BUCKETNAME_OUT', 'BUCKETNAME_OSM', 'OSM_CACHE_OBJECT', 'OSM_WAY_MAPPING_OBJECT', 'MAX_LOOP_DURATION_SECONDS', 'MAX_WAY_MAPPINGS_PER_RESOURCE']:
             self.env.pop(key, None)
         self.state = {
             'applications': [{'id': 'ocid1.fnapp.test', 'display-name': '3MOpenDataProcessor',
@@ -282,7 +283,9 @@ class OciScriptsTest(unittest.TestCase):
                 self.assertEqual(len(self.state['writes']), 7)
                 functions = {f['display-name']: f for f in self.state['functions']}
                 self.assertEqual(functions['OSMInfoFunction']['config'],
-                                 {'NAMESPACE': 'testnamespace', 'BUCKETNAME_OSM': 'osminfo'})
+                                 {'NAMESPACE': 'testnamespace', 'BUCKETNAME_OSM': 'osminfo',
+                                  'MAX_LOOP_DURATION_SECONDS': '120', 'MAX_WAY_MAPPINGS_PER_RESOURCE': '5'})
+                self.assertEqual(functions['OSMInfoFunction']['timeout-in-seconds'], 300)
                 self.assertEqual(functions['OSMInfoFunction']['defined-tags'],
                                  {'TraficInfo': {'DataSourceSchedule': 'Daily'}})
                 self.assertEqual(functions['3MOpenDataSource']['config'],
@@ -300,14 +303,26 @@ class OciScriptsTest(unittest.TestCase):
 
     def test_osm_report_uses_bucket_override_and_handler(self):
         self.env['BUCKETNAME_OSM'] = 'custom-osminfo'
+        self.env['MAX_LOOP_DURATION_SECONDS'] = '60'
+        self.env['MAX_WAY_MAPPINGS_PER_RESOURCE'] = '2'
         self.deploy()
         function = next(f for f in self.state['functions'] if f['display-name'] == 'OSMInfoFunction')
         self.assertEqual(function['config'],
-                         {'NAMESPACE': 'testnamespace', 'BUCKETNAME_OSM': 'custom-osminfo'})
+                         {'NAMESPACE': 'testnamespace', 'BUCKETNAME_OSM': 'custom-osminfo',
+                          'MAX_LOOP_DURATION_SECONDS': '60', 'MAX_WAY_MAPPINGS_PER_RESOURCE': '2'})
         calls = [c for c in self.state['calls'] if '--handler' in c
                  and c[c.index('--handler') + 1] == 'org.traficinfo.dsfunctions.OSMInfoFunction::handleRequest']
         self.assertEqual(len(calls), 1)
         self.assertEqual(calls[0][calls[0].index('--function-id') + 1], function['id'])
+
+    def test_invalid_osm_limits_fail_before_deployment(self):
+        for key in ['MAX_LOOP_DURATION_SECONDS', 'MAX_WAY_MAPPINGS_PER_RESOURCE']:
+            for value in ['', '0', '-1', 'abc', '1.5', '2147483648']:
+                with self.subTest(key=key, value=value):
+                    self.env[key] = value
+                    self.deploy(success=False)
+                    self.assertNotIn('writes', self.state)
+            self.env.pop(key)
 
     def test_bucket_configuration_follows_source_config(self):
         config = json.loads(self.config_file.read_text())
