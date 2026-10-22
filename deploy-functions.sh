@@ -22,6 +22,38 @@ functions=(
   'DPT30|geojson|org.traficinfo.dsfunctions.dpt30.GeoJsonOutFunction::handleRequest'
 )
 
+usage() {
+  printf 'Usage: %s [<ds|geojson> <data-source-id> | osm]\n' "$0" >&2
+}
+
+select_functions() {
+  if [ "$#" -eq 0 ]; then return; fi
+  local selected_type="$1" selected_source='' definition data_source_id type handler
+  local selected_functions=()
+  case "$selected_type" in
+    ds|geojson)
+      if [ "$#" -ne 2 ]; then usage; return 1; fi
+      get_data_source "$2" >/dev/null || return
+      selected_source="$2"
+      ;;
+    osm)
+      if [ "$#" -ne 1 ]; then usage; return 1; fi
+      ;;
+    *) usage; return 1 ;;
+  esac
+  for definition in "${functions[@]}"; do
+    IFS='|' read -r data_source_id type handler <<< "$definition"
+    if [ "$type" = "$selected_type" ] && { [ "$type" = osm ] || [ "$data_source_id" = "$selected_source" ]; }; then
+      selected_functions+=("$definition")
+    fi
+  done
+  if [ "${#selected_functions[@]}" -ne 1 ]; then
+    printf 'No unique deployment handler for %s %s.\n' "$selected_type" "$selected_source" >&2
+    return 1
+  fi
+  functions=("${selected_functions[@]}")
+}
+
 build_jar() {
   printf 'Building %s\n' "$jar_file"
   mvn -f "$root_dir/pom.xml" -pl dsfunctions -am -DskipTests package
@@ -173,6 +205,7 @@ main() {
   local application_id function_id work_request_id definition function_name handler namespace config
   local data_source_id type tags sources source index=0
   local function_ids=() function_names=() configs=() defined_tags=()
+  select_functions "$@"
   sources="$(load_data_sources)"
   # Prepare all configs and tags before any build or OCI mutation.
   for definition in "${functions[@]}"; do
