@@ -191,6 +191,43 @@ public class OSMReverseMappingTest {
         assertEquals(Integer.valueOf(5), provider.getWayMappingStatusCounts().get(OSMWayMappingStatus.MATCHED));
     }
 
+    @Test
+    public void normalizesLeadingZeroesInRoadAndExtensionNumbers() throws Exception {
+        String[] sourceReferences = {"D0111E01", "D0111E01", "D0111E01", "D0051E05",
+                "D0002E02", "D0908E02", "D0111E01", "D0111E01"};
+        String[] osmReferences = {"D 111E1", "d-00111e0001", "D 999;D 111E1", "D 51E5",
+                "D 2E2", "D 908E2", "D 111E2", "M 111E1"};
+        for (int i = 0; i < osmReferences.length; i++) {
+            Store store = new Store();
+            OSMWayMapping mapping = new OSMWayMapping();
+            mapping.setLatitude(43.633493);
+            mapping.setLongitude(3.69301);
+            mapping.setSourceRoadReference(sourceReferences[i]);
+            store.objects.put("mappings.json", JSON.writeValueAsBytes(Map.of("DPT34_Tou.034.3116.00.3", mapping)));
+            String osmReference = osmReferences[i];
+            OSMInfoProviderImpl provider = provider(store, new OpenStreetMapClient() {
+                @Override public JsonNode reverseLookup(double latitude, double longitude) {
+                    com.fasterxml.jackson.databind.node.ObjectNode result = JSON.createObjectNode();
+                    result.put("osm_type", "way");
+                    result.put("osm_id", 30754670);
+                    result.put("category", "highway");
+                    result.put("type", "secondary");
+                    result.putObject("namedetails").put("ref", osmReference);
+                    return result;
+                }
+            });
+            provider.loadCache();
+            provider.refreshWayMappings(1);
+            JsonNode saved = JSON.readTree(store.objects.get("mappings.json")).get("DPT34_Tou.034.3116.00.3");
+            assertEquals(sourceReferences[i] + " versus " + osmReference, i < 6 ? "MATCHED" : "NEEDS_REVIEW", saved.get("status").asText());
+            if (i < 6) {
+                assertEquals(30754670L, saved.get("osmWayId").asLong());
+            } else {
+                assertEquals("different_ref", saved.get("reviewReason").asText());
+            }
+        }
+    }
+
     private static OSMInfoProviderImpl provider(Store store, OpenStreetMapClient client) {
         return new OSMInfoProviderImpl(store, client, "tags.json", "mappings.json", Clock.fixed(NOW, ZoneOffset.UTC));
     }

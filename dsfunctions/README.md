@@ -245,11 +245,33 @@ comments describing their meaning. New mappings start as `MISSING`.
 
 At the end of each invocation, including failures and interruption, two summaries per data source, identified by its cache prefix,
 list counts for every status, including zeros: first for unique records attempted
-this run (HTTP failures count as attempted and retain their existing status),
-then for all records in loaded caches, including records not attempted. Each summary covers only that data source. Any caches excluded by the time budget or
-load failures are explicitly reported as not loaded and excluded from totals.
+this run or manually approved (HTTP failures retain their existing status),
+then for all records in loaded caches, including records not attempted. Each
+summary covers only that data source. All source caches are loaded and manual
+approvals saved before the bounded API loop, so sources skipped by the API time
+budget still appear in the totals and global review document.
 A missing cache starts empty; other load/save errors return `KO` after processing
 the remaining resources. An empty bucket returns `OK`.
+
+`OSMWayMapping_NEEDS_REVIEW.json` in the same bucket is a pretty-printed global
+review document: data source prefix → counter ID → mapping record. Every loaded
+source has an object, empty when it has no `NEEDS_REVIEW` records. At startup,
+the function reads this file (a missing object starts empty). A reviewer can
+change a record to `MATCHED` and optionally correct `candidateOsmWayId`, then
+reupload it. For a current review candidate, the function assigns that positive
+candidate ID to `osmWayId`, clears the candidate/review reason, updates
+`lastUpdated`, saves the source mapping cache, and queues tag refresh. Existing
+positive assignments are preserved. Invalid approvals fail without replacing
+the review file. Processed counts include manual approvals.
+
+At the end, the document is rebuilt from all source caches, including sources
+whose API batches were skipped by the time budget. Applied approvals disappear
+from it. A load/save failure preserves the previous review document rather than
+publishing incomplete results. Each mapping has generated `candidateOsmWayUrl`,
+`osmWayIdUrl`, and `coordinatesOsmUrl` links where IDs/coordinates are valid; map
+links use `https://www.openstreetmap.org/?mlat={latitude}&mlon={longitude}#map=17/{latitude}/{longitude}`
+to show a marker at the exact coordinates. Uploaded
+links are ignored and regenerated, including when a candidate ID is edited.
 
 Two optional positive integer configuration values bound the work. Private static
 integer constants in `OSMInfoFunction` provide defaults when the keys are absent:
@@ -268,7 +290,8 @@ It uses valid cached coordinates and requests Nominatim with `format=jsonv2`,
 `zoom=17`, `layer=address`, `extratags=1`, and `namedetails=1`. Only positive OSM **way** IDs with
 road highway classifications are accepted; buildings, nodes, relations, and
 footways are rejected. When a source road reference exists, the OSM `namedetails.ref` must
-match after removing spacing and leading numeric zeroes (`D0011` matches `D 11`).
+match after removing spacing, punctuation, and leading zeroes from each number
+following a letter (`D0011` matches `D 11`; `D0111E01` matches `D 111E1`).
 A change from `D 11` to `M 11` requires review rather than automatic assignment.
 Without a source reference, a road way may be accepted by its classification.
 Reverse geocoding can still select a nearby different street; see the
@@ -334,6 +357,18 @@ the managed `java21.ol9` runtime, which can run this project's Java 17 bytecode.
 On later runs, the script updates each exact-name archive function with its own
 handler (`DataSourceFunction::handleRequest`, `GeoJsonOutFunction::handleRequest`,
 or `OSMInfoFunction::handleRequest`).
+
+With no arguments, all functions are deployed. To deploy just one, use the same
+selectors as `invoke.sh`:
+
+```sh
+./deploy-functions.sh ds DPT34
+./deploy-functions.sh geojson MMM
+./deploy-functions.sh osm
+```
+
+The script still builds the shared JAR once, then validates and deploys only the
+selected function. Invalid selectors fail before building or making OCI calls.
 
 First run `source ./setup.sh` to initialize the shared environment. Deployment
 uses the exported OCI credentials, `OCI_COMPARTMENT_ID`,

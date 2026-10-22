@@ -62,9 +62,9 @@ public class OSMInfoFunctionTest {
         store.objects.put("DPT34_OSMWayMapping.metadata.json", "must not be read");
         assertEquals("OK", new OSMInfoFunction(store).handleRequest(""));
         assertEquals(List.of("DPT34_OSMInfo.json", "DPT34_OSMWayMapping.json",
-                "MMM_OSMInfo.json", "MMM_OSMWayMapping.json").stream().sorted().toList(),
+                "MMM_OSMInfo.json", "MMM_OSMWayMapping.json", OSMWayMappingReviewStore.OBJECT_NAME).stream().sorted().toList(),
                 store.read.stream().sorted().toList());
-        assertEquals(store.read, store.closed);
+        assertEquals(store.read.stream().filter(name -> !name.equals(OSMWayMappingReviewStore.OBJECT_NAME)).toList(), store.closed);
     }
 
     @Test
@@ -76,15 +76,15 @@ public class OSMInfoFunctionTest {
             store.objects.put("good_OSMWayMapping.json", "{}");
             store.objects.put("good_OSMInfo.json", "{}");
             assertEquals("KO", new OSMInfoFunction(store).handleRequest(""));
-            assertEquals(4, store.read.size());
-            assertEquals(store.read, store.closed);
+            assertEquals(5, store.read.size());
+            assertEquals(store.read.stream().filter(name -> !name.equals(OSMWayMappingReviewStore.OBJECT_NAME)).toList(), store.closed);
         }
         Store unreadable = new Store();
         unreadable.objects.put("denied_OSMWayMapping.json", null);
         unreadable.objects.put("denied_OSMInfo.json", "{}");
         unreadable.objects.put("good_OSMWayMapping.json", "{}");
         assertEquals("KO", new OSMInfoFunction(unreadable).handleRequest(""));
-        assertEquals(4, unreadable.read.size());
+        assertEquals(5, unreadable.read.size());
         assertEquals("OK", new OSMInfoFunction(new Store()).handleRequest(""));
         assertEquals("KO", new OSMInfoFunction(new Store() {
             @Override public List<String> listResources() {
@@ -98,7 +98,7 @@ public class OSMInfoFunctionTest {
         Store missing = new Store();
         missing.objects.put("DPT34_OSMWayMapping.json", "{}");
         assertEquals("OK", new OSMInfoFunction(missing).handleRequest(""));
-        assertEquals(List.of("DPT34_OSMInfo.json", "DPT34_OSMWayMapping.json"), missing.read);
+        assertEquals(List.of(OSMWayMappingReviewStore.OBJECT_NAME, "DPT34_OSMInfo.json", "DPT34_OSMWayMapping.json"), missing.read);
         for (String info : new String[]{"invalid", "null", "[]", "{} trailing", null}) {
             Store store = new Store();
             store.objects.put("bad_OSMWayMapping.json", "{}");
@@ -106,14 +106,14 @@ public class OSMInfoFunctionTest {
             store.objects.put("good_OSMWayMapping.json", "{}");
             store.objects.put("good_OSMInfo.json", "{}");
             assertEquals("KO", new OSMInfoFunction(store).handleRequest(""));
-            assertEquals(List.of("bad_OSMInfo.json", "good_OSMInfo.json", "good_OSMWayMapping.json"),
+            assertEquals(List.of(OSMWayMappingReviewStore.OBJECT_NAME, "bad_OSMInfo.json", "good_OSMInfo.json", "good_OSMWayMapping.json"),
                     store.read.stream().sorted().toList());
             assertTrue(store.closed.contains("good_OSMInfo.json"));
         }
     }
 
     @Test
-    public void checksTimeBetweenResourcesButFinishesTheCurrentBoundedBatch() {
+    public void checksTimeBetweenResourcesButFinishesTheCurrentBoundedBatch() throws Exception {
         for (Map<String, String> limits : List.of(Map.<String, String>of(),
                 Map.of("MAX_LOOP_DURATION_SECONDS", "1", "MAX_WAY_MAPPINGS_PER_RESOURCE", "2"))) {
             Store store = new Store();
@@ -121,7 +121,7 @@ public class OSMInfoFunctionTest {
             for (int i = 0; i < 8; i++) {
                 mappings += (i == 0 ? "" : ",") + "\"A" + i + "\":{\"latitude\":43,\"longitude\":3}";
             }
-            mappings += "}";
+            mappings += ",\"review\":{\"status\":\"NEEDS_REVIEW\",\"candidateOsmWayId\":456}}";
             store.objects.put("A_OSMWayMapping.json", mappings);
             store.objects.put("B_OSMWayMapping.json", mappings);
             AtomicLong elapsed = new AtomicLong();
@@ -137,8 +137,14 @@ public class OSMInfoFunctionTest {
             function.configureLimits(context(limits));
             assertEquals("OK", function.handleRequest(""));
             assertEquals(limits.isEmpty() ? 5 : 2, lookups.get());
-            assertEquals(2, store.read.size());
-            assertEquals(1, store.writes);
+            assertEquals(5, store.read.size()); // Both caches plus the global review document.
+            assertEquals(2, store.writes);
+            JsonNode review = new ObjectMapper().readTree(store.objects.get(OSMWayMappingReviewStore.OBJECT_NAME));
+            // Both sources remain present even though only one gets an API batch this run.
+            assertEquals(1, review.get("A").size());
+            assertEquals(1, review.get("B").size());
+            assertEquals("NEEDS_REVIEW", review.get("A").get("review").get("status").asText());
+            assertEquals("NEEDS_REVIEW", review.get("B").get("review").get("status").asText());
         }
     }
 
@@ -165,7 +171,7 @@ public class OSMInfoFunctionTest {
         };
         assertEquals("OK", new OSMInfoFunction(store, client, () -> 0L).handleRequest(""));
         assertEquals(List.of("reverse:43.0", "reverse:44.0", "reverse:45.0", "tags:123"), requests);
-        assertEquals(2, store.writes);
+        assertEquals(3, store.writes);
         JsonNode tags = new ObjectMapper().readTree(store.objects.get("A_OSMInfo.json"));
         assertEquals(1, tags.size());
         assertEquals("80", tags.get("123").get("tags").get("maxspeed").asText());
@@ -173,6 +179,77 @@ public class OSMInfoFunctionTest {
         assertEquals(123, mappings.get("A").get("osmWayId").asLong());
         assertEquals(123, mappings.get("B").get("osmWayId").asLong());
         assertEquals("NEEDS_REVIEW", mappings.get("review").get("status").asText());
+    }
+
+    @Test
+    public void exportsReviewForEverySourceAndAppliesUploadedApprovalsWithoutReverseLookup() throws Exception {
+        Store store = new Store();
+        ObjectMapper json = new ObjectMapper();
+        for (String prefix : List.of("DPT30", "DPT34")) {
+            store.objects.put(prefix + "_OSMWayMapping.json", "{\"counter\":{"
+                    + "\"status\":\"NEEDS_REVIEW\",\"candidateOsmWayId\":456,\"latitude\":43.5,\"longitude\":3.2,"
+                    + "\"lastLookupLatitude\":43.5,\"lastLookupLongitude\":3.2,\"reverseLookupResult\":{},"
+                    + "\"reviewReason\":\"different_ref\",\"sourceRoadReference\":\"D11\",\"osmRoadReference\":\"M11\"}}");
+        }
+        List<Long> tagsRequested = new ArrayList<>();
+        OpenStreetMapClient client = new OpenStreetMapClient() {
+            @Override public JsonNode reverseLookup(double latitude, double longitude) {
+                throw new AssertionError("Cached reviews and manual approvals must not trigger reverse lookup");
+            }
+            @Override public Map<String, String> getWayTags(long id) {
+                tagsRequested.add(id);
+                return Map.of("maxspeed", "80");
+            }
+        };
+        assertEquals("OK", new OSMInfoFunction(store, client, () -> 0L).handleRequest(""));
+        String reviewName = OSMWayMappingReviewStore.OBJECT_NAME;
+        JsonNode review = json.readTree(store.objects.get(reviewName));
+        assertEquals(2, review.size());
+        assertEquals("NEEDS_REVIEW", review.get("DPT34").get("counter").get("status").asText());
+        assertEquals("https://www.openstreetmap.org/way/456",
+                review.get("DPT30").get("counter").get("candidateOsmWayUrl").asText());
+        assertEquals("https://www.openstreetmap.org/?mlat=43.5&mlon=3.2#map=17/43.5/3.2",
+                review.get("DPT30").get("counter").get("coordinatesOsmUrl").asText());
+        com.fasterxml.jackson.databind.node.ObjectNode approved =
+                (com.fasterxml.jackson.databind.node.ObjectNode) review.get("DPT30").get("counter");
+        approved.put("status", "MATCHED");
+        approved.put("candidateOsmWayId", 777);
+        store.objects.put(reviewName, json.writeValueAsString(review));
+        assertEquals("OK", new OSMInfoFunction(store, client, () -> 0L).handleRequest(""));
+        assertEquals(List.of(777L), tagsRequested);
+        JsonNode saved = json.readTree(store.objects.get("DPT30_OSMWayMapping.json")).get("counter");
+        assertEquals("MATCHED", saved.get("status").asText());
+        assertEquals(777L, saved.get("osmWayId").asLong());
+        assertEquals("https://www.openstreetmap.org/way/777", saved.get("osmWayIdUrl").asText());
+        assertFalse(saved.has("candidateOsmWayId"));
+        assertFalse(saved.has("reviewReason"));
+        assertEquals("D11", saved.get("sourceRoadReference").asText());
+        review = json.readTree(store.objects.get(reviewName));
+        assertEquals(0, review.get("DPT30").size());
+        assertEquals(1, review.get("DPT34").size());
+        assertEquals("OK", new OSMInfoFunction(store, client, () -> 0L).handleRequest(""));
+        assertEquals(List.of(777L), tagsRequested);
+    }
+
+    @Test
+    public void preservesReviewDocumentOnInvalidInputOrCacheLoadFailure() {
+        for (String document : List.of("invalid", "null", "{} trailing", "{\"DPT30\":null}",
+                "{\"DPT30\":{\"counter\":null}}",
+                "{\"DPT30\":{\"counter\":{\"status\":\"MATCHED\",\"candidateOsmWayId\":0}}}")) {
+            Store store = new Store();
+            store.objects.put(OSMWayMappingReviewStore.OBJECT_NAME, document);
+            store.objects.put("DPT30_OSMWayMapping.json", "{}");
+            assertEquals("KO", new OSMInfoFunction(store).handleRequest(""));
+            assertEquals(document, store.objects.get(OSMWayMappingReviewStore.OBJECT_NAME));
+            assertEquals(0, store.writes);
+        }
+        Store store = new Store();
+        String review = "{\"DPT30\":{\"counter\":{\"status\":\"NEEDS_REVIEW\"}}}";
+        store.objects.put(OSMWayMappingReviewStore.OBJECT_NAME, review);
+        store.objects.put("DPT30_OSMWayMapping.json", "invalid");
+        assertEquals("KO", new OSMInfoFunction(store).handleRequest(""));
+        assertEquals(review, store.objects.get(OSMWayMappingReviewStore.OBJECT_NAME));
+        assertEquals(0, store.writes);
     }
 
     @Test

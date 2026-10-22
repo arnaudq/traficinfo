@@ -140,6 +140,57 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
         return counts;
     }
 
+    /** Remaining review candidates, keyed by counter ID; the cache itself stays private. */
+    public Map<String, OSMWayMapping> getWayMappingsNeedingReview() {
+        Map<String, OSMWayMapping> review = new LinkedHashMap<>();
+        mappings.forEach((id, mapping) -> {
+            if (mapping != null && mapping.getStatus() == OSMWayMappingStatus.NEEDS_REVIEW) {
+                review.put(id, mapper.convertValue(mapping, OSMWayMapping.class));
+            }
+        });
+        return review;
+    }
+
+    /** Apply explicit manual approvals to current review candidates and persist before any API calls. */
+    public void applyReviewedWayMappings(Map<String, OSMWayMapping> reviewed) throws IOException {
+        // Validate the whole batch before changing the cache.
+        for (Map.Entry<String, OSMWayMapping> entry : reviewed.entrySet()) {
+            OSMWayMapping decision = entry.getValue();
+            if (decision == null) {
+                throw new IOException("Null OSM review record: " + entry.getKey());
+            }
+            if (decision.getStatus() == OSMWayMappingStatus.MATCHED
+                    && (decision.getCandidateOsmWayId() == null || decision.getCandidateOsmWayId() <= 0)) {
+                throw new IOException("Manual MATCHED record requires a positive candidateOsmWayId: " + entry.getKey());
+            }
+            if (decision.getStatus() == OSMWayMappingStatus.MATCHED && mappings.get(entry.getKey()) == null) {
+                throw new IOException("Manual MATCHED record has no corresponding cached counter: " + entry.getKey());
+            }
+        }
+        int approved = 0;
+        for (Map.Entry<String, OSMWayMapping> entry : reviewed.entrySet()) {
+            OSMWayMapping decision = entry.getValue();
+            OSMWayMapping current = mappings.get(entry.getKey());
+            // A stale review must not replace a way that has already been assigned.
+            if (decision.getStatus() != OSMWayMappingStatus.MATCHED || current == null
+                    || current.getStatus() != OSMWayMappingStatus.NEEDS_REVIEW || mappedWayId(current) != null) {
+                continue;
+            }
+            current.setOsmWayId(decision.getCandidateOsmWayId());
+            current.setStatus(OSMWayMappingStatus.MATCHED);
+            current.setCandidateOsmWayId(null);
+            current.setReviewReason(null);
+            current.setLastUpdated(clock.instant().toString());
+            waysToRefresh.add(current.getOsmWayId());
+            processedMappings.add(entry.getKey());
+            approved++;
+        }
+        if (approved > 0) {
+            saveMappings();
+            LOG.info("Applied {} manual OSM approvals to {}", approved, mappingObject);
+        }
+    }
+
     private static Long mappedWayId(OSMWayMapping mapping) {
         Long id = mapping == null ? null : mapping.getOsmWayId();
         return id != null && id > 0 ? id : null;
@@ -309,7 +360,7 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
 
     private static String normalizeRoadReference(String reference) {
         return reference.toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]", "")
-                .replaceFirst("^([A-Z]+)0+(?=[0-9])", "$1");
+                .replaceAll("([A-Z])0+(?=[0-9])", "$1");
     }
 
     private void saveMappings() throws IOException {

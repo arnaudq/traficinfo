@@ -3,6 +3,8 @@ package org.traficinfo.dsfunctions;
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
 import com.fasterxml.jackson.databind.DeserializationContext;
@@ -17,6 +19,8 @@ import java.util.Map;
 
 /** A counter's cached OSM way assignment, location, and review metadata. */
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonPropertyOrder({"osmWayId", "osmWayIdUrl", "candidateOsmWayId", "candidateOsmWayUrl",
+        "latitude", "longitude", "coordinatesOsmUrl"})
 public class OSMWayMapping {
     @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonDeserialize(using = WayIdDeserializer.class)
@@ -171,6 +175,31 @@ public class OSMWayMapping {
         this.reverseLookupResult = reverseLookupResult;
     }
 
+    /** Derived review links are regenerated from the identifiers and coordinates on serialization. */
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    public String getCandidateOsmWayUrl() {
+        return wayUrl(candidateOsmWayId);
+    }
+
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    public String getOsmWayIdUrl() {
+        return wayUrl(osmWayId);
+    }
+
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    public String getCoordinatesOsmUrl() {
+        if (latitude == null || longitude == null || !Double.isFinite(latitude) || !Double.isFinite(longitude)
+                || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) {
+            return null;
+        }
+        return "https://www.openstreetmap.org/?mlat=" + latitude + "&mlon=" + longitude
+                + "#map=17/" + latitude + "/" + longitude;
+    }
+
+    private static String wayUrl(Long id) {
+        return id != null && id > 0 ? "https://www.openstreetmap.org/way/" + id : null;
+    }
+
     /** Preserve extra seed annotations without coupling the model to every audit field. */
     @JsonAnyGetter
     public Map<String, JsonNode> getAdditionalProperties() {
@@ -179,7 +208,10 @@ public class OSMWayMapping {
 
     @JsonAnySetter
     public void setAdditionalProperty(String name, JsonNode value) {
-        additionalProperties.put(name, value);
+        // Jackson's any-setter also receives read-only properties; never retain uploaded derived links.
+        if (!name.equals("candidateOsmWayUrl") && !name.equals("coordinatesOsmUrl") && !name.equals("osmWayIdUrl")) {
+            additionalProperties.put(name, value);
+        }
     }
 
     /** Avoid coercing string or fractional IDs into usable OSM way identifiers. */

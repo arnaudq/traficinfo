@@ -23,7 +23,7 @@ We use two APIs:
   finds an OSM object near a counter's latitude and longitude. We request road
   level results and accept only suitable road ways. Where available, the source
   road reference is compared with OSM's `namedetails.ref` (using `namedetails=1`), allowing formatting differences
-  such as `D0011` versus `D 11`. If a source reference is provided, a missing or
+  such as `D0011` versus `D 11` or `D0111E01` versus `D 111E1`. If a source reference is provided, a missing or
   differing OSM reference leaves a candidate for review instead of assigning
   the way automatically.
 
@@ -65,9 +65,33 @@ A dedicated OCI function, **`OSMInfoFunction`**, runs **hourly**, at the start o
 each hour. It processes incomplete mapping caches in bounded batches, saves
 results, and fetches tags for newly resolved ways. At the end of the run it logs
 counts per data source, identified by its cache prefix, for each status among
-attempted records and then all records in its loaded cache;
-caches skipped by the time budget or load errors are identified separately.
+processed records (including manual approvals) and then all records in its loaded
+cache. All caches are loaded before the bounded API loop, so sources skipped by
+its time budget still appear in the review document and status summaries.
 GeoJSON parsing itself does not perform reverse lookups.
+
+The global `OSMWayMapping_NEEDS_REVIEW.json` object in the same bucket groups
+all `NEEDS_REVIEW` records by data source prefix, then counter ID. For example:
+
+```json
+{
+  "DPT30": { "counter-id": { "status": "NEEDS_REVIEW", "candidateOsmWayId": 123 } },
+  "DPT34": {}
+}
+```
+
+Download this file, change an accepted record's `status` to `MATCHED`, and upload
+it to the same object. If necessary, correct its `candidateOsmWayId` as well.
+At the start of the next run, accepted candidates become `osmWayId` assignments
+in their source caches, with tag refresh queued. Existing assigned ways are
+preserved. The final review file contains only records still needing review.
+If any source cache cannot be loaded or saved, the previous review file is kept
+so that pending decisions are not lost.
+
+Each mapping includes derived review links when the relevant values are available:
+`candidateOsmWayUrl`, `osmWayIdUrl`, and `coordinatesOsmUrl` (map zoom 17, with
+a marker at the exact latitude and longitude).
+Uploaded link values are ignored and regenerated from IDs and coordinates.
 
 Unsuitable or absent road results are recorded as `NOT_FOUND`; ambiguous road
 references are recorded as `NEEDS_REVIEW`. `MISSING` means no assignment yet,
@@ -88,3 +112,5 @@ OSM data is attributed to OpenStreetMap contributors under the ODbL.
 - [Nominatim reverse API](https://nominatim.org/release-docs/latest/api/Reverse/)
 - [Nominatim usage policy](https://operations.osmfoundation.org/policies/nominatim/)
 - [OpenStreetMap attribution and licence](https://www.openstreetmap.org/copyright)
+- [Lozère — Référentiel routier mesuré: road identifier structure and letter indices](https://www.data.gouv.fr/datasets/referentiel-routier-mesure)
+- [Hérault — Bornage du réseau routier départemental: padded road codes and display names](https://www.herault-data.fr/explore/dataset/bornage-routier-34/)

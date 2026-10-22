@@ -70,69 +70,97 @@ public class OSMInfoFunction {
     public String handleRequest(String input) {
         int caches = 0;
         int failures = 0;
-        int loadedCaches = 0;
-        long listedCaches = 0;
-        Map<String, Map<OSMWayMappingStatus, Integer>> processedStatuses = new TreeMap<>();
-        Map<String, Map<OSMWayMappingStatus, Integer>> allStatuses = new TreeMap<>();
+        boolean completeReview = false;
+        OSMWayMappingReviewStore reviewStore = new OSMWayMappingReviewStore(osmCacheOSClient);
+        Map<String, OSMInfoProviderImpl> osmProvidersMap = new TreeMap<>();
         try {
+            Map<String, Map<String, OSMWayMapping>> reviewed = reviewStore.load();
             List<String> resources = new ArrayList<>(osmCacheOSClient.listResources());
-            listedCaches = resources.stream().filter(name -> name.endsWith(MAPPING_SUFFIX)).count();
             // Vary processing order so the same caches are not always handled first.
             Collections.shuffle(resources);
+            // Load every source and save approvals before the bounded API loop. This also makes
+            // the final review document complete for sources skipped by the API time budget.
+            for (String osResourceName : resources) {
+                if (!osResourceName.endsWith(MAPPING_SUFFIX)) {
+                    continue;
+                }
+                String datasourceName = osResourceName.substring(0, osResourceName.length() - MAPPING_SUFFIX.length());
+                OSMInfoProviderImpl osmProvider = new OSMInfoProviderImpl(osmCacheOSClient,
+                        osmClient, datasourceName + "_OSMInfo.json", osResourceName);
+                try {
+                    osmProvider.loadCache();
+                    osmProvider.applyReviewedWayMappings(reviewed.getOrDefault(datasourceName, Map.of()));
+                    osmProvidersMap.put(datasourceName, osmProvider);
+                    LOG.info("OSM way mapping cache {}: {} unknown entries out of {} entries",
+                            osResourceName, osmProvider.getUnknownWayMappingCount(), osmProvider.getWayMappingCount());
+                    LOG.info("OSM info cache {}_OSMInfo.json: {} entries", datasourceName, osmProvider.getWayInfoCount());
+                } catch (Exception failure) {
+                    failures++;
+                    LOG.warn("Could not load or apply reviews to OSM way mapping cache {}", osResourceName, failure);
+                }
+            }
+            completeReview = failures == 0;
             long started = nanoTime.getAsLong();
-            for (String name : resources) {
+            for (String osResourceName : resources) {
                 // Check only between resources, allowing the current bounded batch to finish and save.
                 if (nanoTime.getAsLong() - started >= TimeUnit.SECONDS.toNanos(maxLoopSeconds)) {
                     LOG.info("OSM resource loop reached its {} second budget; remaining caches wait for the next run",
                             maxLoopSeconds);
                     break;
                 }
-                if (!name.endsWith(MAPPING_SUFFIX)) {
+                if (!osResourceName.endsWith(MAPPING_SUFFIX)) {
                     continue;
                 }
-                String prefix = name.substring(0, name.length() - MAPPING_SUFFIX.length());
-                String infoName = prefix + "_OSMInfo.json";
-                OSMInfoProviderImpl provider = new OSMInfoProviderImpl(osmCacheOSClient,
-                        osmClient, infoName, name);
-                boolean loaded = false;
+                String datasourceName = osResourceName.substring(0, osResourceName.length() - MAPPING_SUFFIX.length());
+                OSMInfoProviderImpl osmProvider = osmProvidersMap.get(datasourceName);
+                if (osmProvider == null) {
+                    LOG.info("Skipping OSM resource {} for data source {}: no loaded OSM provider",
+                            osResourceName, datasourceName);
+                    continue;
+                }
                 try {
-                    provider.loadCache();
-                    loaded = true;
-                    loadedCaches++;
-                    LOG.info("OSM way mapping cache {}: {} unknown entries out of {} entries",
-                            name, provider.getUnknownWayMappingCount(), provider.getWayMappingCount());
-                    LOG.info("OSM info cache {}: {} entries", infoName, provider.getWayInfoCount());
-                    provider.refreshWayMappings(maxWayMappings);
-                    provider.refreshWayInfo();
+                    osmProvider.refreshWayMappings(maxWayMappings);
+                    osmProvider.refreshWayInfo();
                     caches++;
                 } catch (InterruptedException interrupted) {
                     Thread.currentThread().interrupt();
+                    failures++;
                     LOG.warn("OSM mapping refresh interrupted", interrupted);
-                    return "KO";
+                    break;
                 } catch (Exception failure) {
                     failures++;
-                    LOG.warn("Could not report OSM way mapping cache {}", name, failure);
-                } finally {
-                    if (loaded) {
-                        processedStatuses.put(prefix, provider.getProcessedWayMappingStatusCounts());
-                        allStatuses.put(prefix, provider.getWayMappingStatusCounts());
-                    }
+                    // Do not replace the review file if mapping persistence may have failed.
+                    completeReview = false;
+                    LOG.warn("Could not refresh OSM way mapping cache {}", osResourceName, failure);
                 }
             }
-            LOG.info("OSM mapping report: {} caches processed, {} failures", caches, failures);
-            return failures == 0 ? "OK" : "KO";
         } catch (Exception failure) {
-            LOG.warn("Could not list OSM way mapping caches", failure);
-            return "KO";
-        } finally {
-            processedStatuses.forEach((prefix, counts) -> {
-                LOG.info("OSM mapping statuses for {} processed records: {}", prefix, counts);
-                LOG.info("OSM mapping statuses for {} all records: {}", prefix, allStatuses.get(prefix));
-            });
-            if (listedCaches > loadedCaches) {
-                LOG.info("OSM status totals exclude {} mapping caches not loaded because of the time budget or load errors",
-                        listedCaches - loadedCaches);
-            }
+            failures++;
+            LOG.warn("Could not load OSM review document or list mapping caches", failure);
         }
+        Map<String, Map<String, OSMWayMapping>> review = new TreeMap<>();
+        for (Map.Entry<String, OSMInfoProviderImpl> entry : osmProvidersMap.entrySet()) {
+            String datasourceName = entry.getKey();
+            OSMInfoProviderImpl osmProvider = entry.getValue();
+            LOG.info("OSM mapping statuses for {} processed records: {}", datasourceName,
+                    osmProvider.getProcessedWayMappingStatusCounts());
+            LOG.info("OSM mapping statuses for {} all records: {}", datasourceName, osmProvider.getWayMappingStatusCounts());
+            review.put(datasourceName, osmProvider.getWayMappingsNeedingReview());
+        }
+        if (completeReview) {
+            try {
+                reviewStore.save(review);
+                LOG.info("Stored OSM review document {}: {} records across {} data sources",
+                        OSMWayMappingReviewStore.OBJECT_NAME,
+                        review.values().stream().mapToInt(Map::size).sum(), review.size());
+            } catch (Exception failure) {
+                failures++;
+                LOG.warn("Could not store OSM review document", failure);
+            }
+        } else {
+            LOG.warn("Preserving existing OSM review document because not all mapping caches were loaded and saved successfully");
+        }
+        LOG.info("OSM mapping report: {} caches processed, {} failures", caches, failures);
+        return failures == 0 ? "OK" : "KO";
     }
 }
