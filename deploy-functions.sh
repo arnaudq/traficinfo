@@ -17,9 +17,11 @@ functions=(
   'MMM|ds|org.traficinfo.dsfunctions.m3m.DataSourceFunction::handleRequest'
   'DPT34|ds|org.traficinfo.dsfunctions.dpt34.DataSourceFunction::handleRequest'
   'DPT30|ds|org.traficinfo.dsfunctions.dpt30.DataSourceFunction::handleRequest'
+  'MRN|ds|org.traficinfo.dsfunctions.mrn.DataSourceFunction::handleRequest'
   'MMM|geojson|org.traficinfo.dsfunctions.m3m.GeoJsonOutFunction::handleRequest'
   'DPT34|geojson|org.traficinfo.dsfunctions.dpt34.GeoJsonOutFunction::handleRequest'
   'DPT30|geojson|org.traficinfo.dsfunctions.dpt30.GeoJsonOutFunction::handleRequest'
+  'MRN|geojson|org.traficinfo.dsfunctions.mrn.GeoJsonOutFunction::handleRequest'
 )
 
 usage() {
@@ -90,6 +92,7 @@ input_bucket_for_source() {
     MMM) bucket="${BUCKETNAME_IN:-$bucket}" ;;
     DPT34) bucket="${BUCKETNAME_DPT34:-$bucket}" ;;
     DPT30) bucket="${BUCKETNAME_DPT30:-$bucket}" ;;
+    MRN) bucket="${BUCKETNAME_MRN:-$bucket}" ;;
   esac
   validate_bucket_name "$bucket" "$id" || return
   printf '%s\n' "$bucket"

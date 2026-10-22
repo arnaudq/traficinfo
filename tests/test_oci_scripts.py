@@ -127,7 +127,7 @@ class OciScriptsTest(unittest.TestCase):
                         OCI_COMPARTMENT_ID='ocid1.compartment.test',
                         OCI_OBJECT_STORAGE_NAMESPACE='testnamespace',
                         OCI_FN_APPLICATION_NAME='3MOpenDataProcessor')
-        for key in ['OCI_FN_APPLICATION_ID', 'BUCKETNAME_IN', 'BUCKETNAME_DPT34',
+        for key in ['OCI_FN_APPLICATION_ID', 'BUCKETNAME_IN', 'BUCKETNAME_DPT34', 'BUCKETNAME_MRN',
                     'BUCKETNAME_OUT', 'BUCKETNAME_OSM', 'OSM_CACHE_OBJECT', 'OSM_WAY_MAPPING_OBJECT', 'MAX_LOOP_DURATION_SECONDS', 'MAX_WAY_MAPPINGS_PER_RESOURCE']:
             self.env.pop(key, None)
         self.state = {
@@ -137,11 +137,11 @@ class OciScriptsTest(unittest.TestCase):
                            'lifecycle-state': 'ACTIVE', 'defined-tags': {'Old': {'Tag': 'value'}}}
                           for name in ['3MOpenDataSource', 'DPT34OpenDataSource', 'DPT30OpenDataSource',
                                        '3MGeoJsonOut', 'DPT34GeoJsonOut', 'DPT30GeoJsonOut',
-                                       'OSMInfoFunction']],
+                                       'MRNOpenDataSource', 'MRNGeoJsonOut', 'OSMInfoFunction']],
             'buckets': [{'name': name, 'compartment-id': 'ocid1.compartment.test',
                          'storage-tier': 'Standard', 'object-events-enabled': True,
                          'public-access-type': 'NoPublicAccess'}
-                        for name in ['ds3mbucket', 'dsdpt34', 'dsdpt30', 'traficinfo', 'osminfo']],
+                        for name in ['ds3mbucket', 'dsdpt34', 'dsdpt30', 'dsmrn', 'traficinfo', 'osminfo']],
             'rules': [], 'schedules': []}
         self.save()
 
@@ -186,6 +186,10 @@ class OciScriptsTest(unittest.TestCase):
         self.assertEqual(dpt34['geoJsonFunction'], 'DPT34GeoJsonOut')
         self.assertEqual(dpt34['csvObject'], 'DPT34_Comptage.csv')
         self.assertEqual(dpt34['inputBucket'], 'dsdpt34')
+        mrn = next(s for s in sources if s['id'] == 'MRN')
+        self.assertEqual(mrn['geoJsonFunction'], 'MRNGeoJsonOut')
+        self.assertEqual(mrn['csvObject'], 'MRN_Comptage.csv')
+        self.assertEqual(mrn['inputBucket'], 'dsmrn')
         self.common('get_data_source UNKNOWN', success=False)
 
     def test_invalid_source_config(self):
@@ -284,7 +288,7 @@ class OciScriptsTest(unittest.TestCase):
                     self.state['writes'] = []
                     self.save()
                 self.deploy()
-                self.assertEqual(len(self.state['writes']), 7)
+                self.assertEqual(len(self.state['writes']), 9)
                 functions = {f['display-name']: f for f in self.state['functions']}
                 self.assertEqual(functions['OSMInfoFunction']['config'],
                                  {'NAMESPACE': 'testnamespace', 'BUCKETNAME_OSM': 'osminfo',
@@ -295,14 +299,21 @@ class OciScriptsTest(unittest.TestCase):
                 self.assertEqual(functions['3MOpenDataSource']['config'],
                                  {'NAMESPACE': 'testnamespace', 'BUCKETNAME': 'ds3mbucket'})
                 self.assertEqual(functions['DPT34OpenDataSource']['config']['BUCKETNAME'], 'dsdpt34')
+                self.assertEqual(functions['MRNOpenDataSource']['config']['BUCKETNAME'], 'dsmrn')
+                self.assertEqual(functions['MRNGeoJsonOut']['config'],
+                                 {'NAMESPACE': 'testnamespace', 'BUCKETNAME_IN': 'dsmrn',
+                                  'BUCKETNAME_OUT': 'traficinfo', 'BUCKETNAME_OSM': 'osminfo',
+                                  'OSM_CACHE_OBJECT': 'MRN_OSMInfo.json',
+                                  'OSM_WAY_MAPPING_OBJECT': 'MRN_OSMWayMapping.json'})
                 self.assertEqual(functions['3MGeoJsonOut']['config']['BUCKETNAME_OSM'], 'osminfo')
                 self.assertEqual(functions['DPT34GeoJsonOut']['config']['BUCKETNAME_OSM'], 'osminfo')
                 self.assertEqual(functions['DPT34GeoJsonOut']['config']['OSM_CACHE_OBJECT'], 'DPT34_OSMInfo.json')
                 self.assertEqual(functions['DPT34GeoJsonOut']['config']['OSM_WAY_MAPPING_OBJECT'], 'DPT34_OSMWayMapping.json')
-                for name, cadence in [('3MOpenDataSource', 'Daily'), ('DPT34OpenDataSource', 'Monthly')]:
+                for name, cadence in [('3MOpenDataSource', 'Daily'), ('DPT34OpenDataSource', 'Monthly'),
+                                      ('MRNOpenDataSource', 'Daily')]:
                     self.assertEqual(functions[name]['defined-tags'],
                                      {'TraficInfo': {'DataSourceSchedule': cadence}})
-                for name in ['3MGeoJsonOut', 'DPT34GeoJsonOut']:
+                for name in ['3MGeoJsonOut', 'DPT34GeoJsonOut', 'MRNGeoJsonOut']:
                     self.assertNotIn('TraficInfo', functions[name].get('defined-tags', {}))
 
     def test_osm_report_uses_bucket_override_and_handler(self):
@@ -352,6 +363,10 @@ class OciScriptsTest(unittest.TestCase):
                          ['MMM_MMM_Comptage.csv'])
         self.assertEqual(conditions['DPT34ComptageCsvToGeoJson']['data']['additionalDetails']['bucketName'],
                          ['dsdpt34'])
+        self.assertEqual(conditions['MRNComptageCsvToGeoJson']['data']['resourceName'],
+                         ['MRN_Comptage.csv'])
+        self.assertEqual(conditions['MRNComptageCsvToGeoJson']['data']['additionalDetails']['bucketName'],
+                         ['dsmrn'])
         self.script('setup-schedules.sh')
         self.assertEqual(len(self.state['schedules']), 4)
         schedules = {s['display-name']: s for s in self.state['schedules']}

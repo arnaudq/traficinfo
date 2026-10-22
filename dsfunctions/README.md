@@ -17,7 +17,7 @@ invocation before the CSV is published and is reported as a function failure.
 ## Shared infrastructure
 
 `org.traficinfo.dsfunctions.HttpClient`, `ObjectStoreClient` and
-`OOSResourceMetadata` are shared by the M3M, DPT30 and DPT34 source functions.
+`OOSResourceMetadata` are shared by the M3M, DPT30, DPT34 and MRN source functions.
 The HTTP client sends `If-None-Match` for real server ETags and returns no body
 for HTTP 304. When the server supplies no ETag, it stages the complete response
 in a temporary file and exposes `sha256:<hex-digest>` through `getEtag()`.
@@ -28,6 +28,53 @@ the hash. Both real and synthetic validators use the same `current-etag` object
 metadata. Last-Modified remains optional and is not inferred by the HTTP client.
 Responses, body streams and temporary files are released when `EntityBody` is
 closed. Unchanged downloads and failed downloads also delete temporary files.
+
+### CSV function superclasses
+
+DPT30, DPT34 and MRN use `AbstractCsvDataSourceFunction` and
+`AbstractCsvGeoJsonOutFunction`. Their concrete handlers provide a `CsvDataSource`
+enum value to the superclass constructor. The enum exposes `getDataSourceId()`
+and `getCsvUri()`, selects the parser, and derives default bucket and object
+names. Existing public handler names, configuration keys, constants and return
+behavior are preserved. MMM remains separate because its companion GeoJSON
+requires a different input sequence.
+
+Both `config(RuntimeContext)` (annotated `@FnConfiguration`) and
+`handleRequest(String)` are public final methods on the superclasses. Fn runtime
+1.0.185 discovers them through inherited public methods. Tests use Fn's actual
+loader, configurer and runtime context to verify configuration and invocation,
+with fake clients replacing external services. Protected client constructors
+and factories allow testing without OCI credentials or network requests.
+
+## MRN functions
+
+`org.traficinfo.dsfunctions.mrn.DataSourceFunction::handleRequest` downloads the
+Métropole Rouen Normandie
+[CSV export](https://data.metropole-rouen-normandie.fr/api/explore/v2.1/catalog/datasets/comptages-et-enquetes-sur-le-reseau-routier/exports/csv?use_labels=true&delimiter=%3B).
+Keep French labels and semicolon delimiters. Configure `NAMESPACE`, optionally
+`BUCKETNAME` (default `dsmrn`) and `USE_RESOURCE_PRINCIPAL` (default `true`).
+The current object is `MRN_Comptage.csv`; previous versions are archived as
+`MRN_Comptage_YYYYMMDD.csv` before replacement. Publication uses the shared gzip
+storage, download metadata and content-change detection. On October 22, 2026,
+the export returned neither ETag nor Last-Modified, so the HTTP client's SHA-256
+fallback applies and still requires downloading the full export to compare it.
+
+`org.traficinfo.dsfunctions.mrn.GeoJsonOutFunction::handleRequest` reads plain or
+gzip CSV with `GeoJsonParser.DataSource.MRN` and publishes gzip
+`MRN_TraficInfo.geojson` in `traficinfo`. Configuration keys are `NAMESPACE`,
+`BUCKETNAME_IN` (default `dsmrn`), `BUCKETNAME_OUT` (default `traficinfo`), and
+`USE_RESOURCE_PRINCIPAL`. OSM configuration uses the shared `BUCKETNAME_OSM`,
+`OSM_CACHE_OBJECT` and `OSM_WAY_MAPPING_OBJECT` overrides, defaulting to `osminfo`,
+`MRN_OSMInfo.json` and `MRN_OSMWayMapping.json`. No road reference is extracted
+from Rouen street labels. See the parser package README for campaign filtering.
+
+The MRN entry in `dsconfig.json` selects Daily retrieval. Deployment registers
+`MRNOpenDataSource` and `MRNGeoJsonOut`; `BUCKETNAME_MRN` overrides their input
+bucket. Bucket and event setup use the configured source ID, matching only the
+current `MRN_Comptage.csv` object. After `source ./setup.sh`, use
+`./deploy-functions.sh ds MRN`, `./deploy-functions.sh geojson MRN`,
+`./invoke.sh ds MRN` or `./invoke.sh geojson MRN`. Add/reconcile buckets, events
+and schedules with the existing setup scripts before relying on scheduled runs.
 
 ## DPT30 functions
 
@@ -350,8 +397,8 @@ be configured as described in the root README.
 
 From the repository root, run `./deploy-functions.sh`. It builds the Maven
 `jar-with-dependencies` artifact once and uploads it directly to OCI Functions as
-`3MOpenDataSource`, `DPT30OpenDataSource`, `DPT34OpenDataSource`,
-`3MGeoJsonOut`, `DPT30GeoJsonOut`, `DPT34GeoJsonOut` and `OSMInfoFunction`
+`3MOpenDataSource`, `DPT30OpenDataSource`, `DPT34OpenDataSource`, `MRNOpenDataSource`,
+`3MGeoJsonOut`, `DPT30GeoJsonOut`, `DPT34GeoJsonOut`, `MRNGeoJsonOut` and `OSMInfoFunction`
 in the existing `3MOpenDataProcessor` application. It uses
 the managed `java21.ol9` runtime, which can run this project's Java 17 bytecode.
 On later runs, the script updates each exact-name archive function with its own
@@ -425,7 +472,7 @@ To invoke a deployed function using OCI CLI:
 ```
 
 For data source functions, `invoke.sh` accepts two arguments: `ds|geojson` and
-the data source ID `MMM|DPT30|DPT34` from `dsconfig.json`. `MMM` maps to the
+the data source ID `MMM|DPT30|DPT34|MRN` from `dsconfig.json`. `MMM` maps to the
 existing `3M` function names. Use `./invoke.sh osm` with no data source argument
 to invoke `OSMInfoFunction`, independently of `dsconfig.json`. For `osm` only,
 the script sets `--read-timeout 360`, allowing the client to wait up to six minutes

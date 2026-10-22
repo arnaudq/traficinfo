@@ -40,7 +40,7 @@ the compartment selected by `source ./setup.sh`. It uses the exported
 `OCI_COMPARTMENT_ID`, `OCI_OBJECT_STORAGE_NAMESPACE`, and OCI credentials.
 
 Input buckets are read from `dsconfig.json`, using the shared naming defaults
-and overrides. Currently these are `ds3mbucket` and `dsdpt34`. Both have object
+and overrides. Currently these are `ds3mbucket`, `dsdpt30`, `dsdpt34` and `dsmrn`. All have object
 events enabled and are private on creation. `osminfo` is private. `traficinfo`
 uses `ObjectReadWithoutList`: anyone can download an object using its URL,
 while listing objects requires authentication. All buckets use Standard
@@ -62,6 +62,8 @@ run `./setup-events.sh` to create or update one Events rule for every entry in
 | --- | --- | --- | --- |
 | MMM | `3MComptageCsvToGeoJson` | `ds3mbucket/MMM_MMM_Comptage.csv` | `3MGeoJsonOut` |
 | DPT34 | `DPT34ComptageCsvToGeoJson` | `dsdpt34/DPT34_Comptage.csv` | `DPT34GeoJsonOut` |
+| DPT30 | `DPT30ComptageCsvToGeoJson` | `dsdpt30/DPT30_Comptage.csv` | `DPT30GeoJsonOut` |
+| MRN | `MRNComptageCsvToGeoJson` | `dsmrn/MRN_Comptage.csv` | `MRNGeoJsonOut` |
 
 Names default to function `${id}GeoJsonOut`, rule `${id}ComptageCsvToGeoJson`,
 bucket `ds${lowercase(id)}`, and CSV `${id}_Comptage.csv`. Optional per-source

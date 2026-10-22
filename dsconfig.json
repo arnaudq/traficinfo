@@ -14,6 +14,12 @@
     "schedule": "Monthly",
     "datasetInfoUrl": "https://www.data.gouv.fr/datasets/les-trafics-moyens-journaliers-annuels-mesures-sur-le-reseau-routier-departemental-du-gard"
   },
+  "MRN": {
+    "id": "MRN",
+    "name": "Comptages véhicules et vélos - Métropole Rouen Normandie",
+    "schedule": "Daily",
+    "datasetInfoUrl": "https://data.metropole-rouen-normandie.fr/explore/assets/comptages-et-enquetes-sur-le-reseau-routier/"
+  },
   "DPT34": {
     "id": "DPT34",
     "name": "Comptages véhicules - Département de l'Hérault",
