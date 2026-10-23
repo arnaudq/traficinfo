@@ -136,7 +136,7 @@ public class OSMInfoFunctionTest {
             OSMInfoFunction function = new OSMInfoFunction(store, client, elapsed::get);
             function.configureLimits(context(limits));
             assertEquals("OK", function.handleRequest(""));
-            assertEquals(limits.isEmpty() ? 5 : 2, lookups.get());
+            assertEquals(limits.isEmpty() ? 6 : 2, lookups.get());
             assertEquals(5, store.read.size()); // Both caches plus the global review document.
             assertEquals(2, store.writes);
             JsonNode review = new ObjectMapper().readTree(store.objects.get(OSMWayMappingReviewStore.OBJECT_NAME));

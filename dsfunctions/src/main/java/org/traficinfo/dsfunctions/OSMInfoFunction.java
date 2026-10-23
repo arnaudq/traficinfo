@@ -17,8 +17,8 @@ import java.util.function.LongSupplier;
 public class OSMInfoFunction {
     private static final Logger LOG = LoggerFactory.getLogger(OSMInfoFunction.class);
     private static final String MAPPING_SUFFIX = "_OSMWayMapping.json";
-    private static final int MAX_LOOP_DURATION_SECONDS = 120;
-    private static final int MAX_WAY_MAPPINGS_PER_RESOURCE = 5;
+    private static final int MAX_LOOP_DURATION_SECONDS = 180;
+    private static final int MAX_WAY_MAPPINGS_PER_RESOURCE = 6;
     private int maxLoopSeconds = MAX_LOOP_DURATION_SECONDS;
     private int maxWayMappings = MAX_WAY_MAPPINGS_PER_RESOURCE;
     private ObjectStoreClient osmCacheOSClient;

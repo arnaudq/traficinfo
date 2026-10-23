@@ -323,12 +323,12 @@ links are ignored and regenerated, including when a candidate ID is edited.
 Two optional positive integer configuration values bound the work. Private static
 integer constants in `OSMInfoFunction` provide defaults when the keys are absent:
 
-- `MAX_LOOP_DURATION_SECONDS` (default `120` seconds): elapsed time is checked before **every listed
+- `MAX_LOOP_DURATION_SECONDS` (default `180` seconds): elapsed time is checked before **every listed
   resource**, including non-mapping objects. No further resource starts after the
   budget is reached. There is deliberately no duration check between lookups;
   the active resource's bounded batch finishes and saves, so total loop duration
   can exceed the budget by that batch's remaining work and storage operations.
-- `MAX_WAY_MAPPINGS_PER_RESOURCE` (default `5` mappings per resource): at most five eligible incomplete mappings
+- `MAX_WAY_MAPPINGS_PER_RESOURCE` (default `6` mappings per resource): at most six eligible incomplete mappings
   are attempted per cache; HTTP errors also consume this limit. Entries never
   attempted precede older failed attempts. Known positive IDs are preserved.
 
