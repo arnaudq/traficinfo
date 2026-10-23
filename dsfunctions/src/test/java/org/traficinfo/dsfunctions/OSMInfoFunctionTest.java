@@ -115,7 +115,7 @@ public class OSMInfoFunctionTest {
     @Test
     public void checksTimeBetweenResourcesButFinishesTheCurrentBoundedBatch() throws Exception {
         for (Map<String, String> limits : List.of(Map.<String, String>of(),
-                Map.of("MAX_LOOP_DURATION_SECONDS", "1", "MAX_WAY_MAPPINGS_PER_RESOURCE", "2"))) {
+                Map.of("MAX_LOOP_DURATION_SECONDS", "1", "MAX_WAY_MAPPINGS_PER_RUN", "2"))) {
             Store store = new Store();
             String mappings = "{";
             for (int i = 0; i < 8; i++) {
@@ -136,7 +136,7 @@ public class OSMInfoFunctionTest {
             OSMInfoFunction function = new OSMInfoFunction(store, client, elapsed::get);
             function.configureLimits(context(limits));
             assertEquals("OK", function.handleRequest(""));
-            assertEquals(limits.isEmpty() ? 6 : 2, lookups.get());
+            assertEquals(limits.isEmpty() ? 6 : 1, lookups.get());
             assertEquals(5, store.read.size()); // Both caches plus the global review document.
             assertEquals(2, store.writes);
             JsonNode review = new ObjectMapper().readTree(store.objects.get(OSMWayMappingReviewStore.OBJECT_NAME));
@@ -253,8 +253,59 @@ public class OSMInfoFunctionTest {
     }
 
     @Test
+    public void sharesRunBudgetEvenlyAndRedistributesUnusedShares() {
+        Map<String, Integer> demand = new LinkedHashMap<>();
+        demand.put("MMM", 0);
+        demand.put("DPT30", 20);
+        demand.put("DPT34", 20);
+        assertEquals(Map.of("MMM", 0, "DPT30", 6, "DPT34", 6),
+                OSMInfoFunction.allocateReverseLookups(demand, 12));
+        demand.put("MMM", 2);
+        assertEquals(Map.of("MMM", 2, "DPT30", 5, "DPT34", 5),
+                OSMInfoFunction.allocateReverseLookups(demand, 12));
+        demand.put("MMM", 20);
+        assertEquals(Map.of("MMM", 4, "DPT30", 4, "DPT34", 3),
+                OSMInfoFunction.allocateReverseLookups(demand, 11));
+        assertEquals(Map.of("MMM", 1, "DPT30", 1, "DPT34", 0),
+                OSMInfoFunction.allocateReverseLookups(demand, 2));
+        assertEquals(Map.of("DPT34", 12),
+                OSMInfoFunction.allocateReverseLookups(Map.of("DPT34", 20), 12));
+        assertEquals(Map.of("DPT34", 3),
+                OSMInfoFunction.allocateReverseLookups(Map.of("DPT34", 3), 12));
+        assertEquals(Map.of("DPT34", 0),
+                OSMInfoFunction.allocateReverseLookups(Map.of("DPT34", 0), 12));
+        assertTrue(OSMInfoFunction.allocateReverseLookups(Map.of(), 12).isEmpty());
+    }
+
+    @Test
+    public void processesOnlyTheAllocatedLookupsAcrossSources() throws Exception {
+        for (boolean singleSource : List.of(false, true)) {
+            Store store = new Store();
+            ObjectMapper json = new ObjectMapper();
+            for (int source = 0; source < 3; source++) {
+                com.fasterxml.jackson.databind.node.ObjectNode mappings = json.createObjectNode();
+                int count = source == 2 ? 20 : source == 1 && !singleSource ? 2 : 0;
+                for (int i = 0; i < count; i++) {
+                    mappings.putObject("counter" + i).put("latitude", 43 + source).put("longitude", 3.0 + i / 100.0);
+                }
+                store.objects.put("source" + source + "_OSMWayMapping.json", json.writeValueAsString(mappings));
+            }
+            Map<Integer, Integer> requests = new LinkedHashMap<>();
+            OpenStreetMapClient client = new OpenStreetMapClient() {
+                @Override public JsonNode reverseLookup(double latitude, double longitude) {
+                    requests.merge((int) latitude - 43, 1, Integer::sum);
+                    return json.createObjectNode().put("error", "Unable to geocode");
+                }
+            };
+            assertEquals("OK", new OSMInfoFunction(store, client, () -> 0L).handleRequest(""));
+            assertEquals(12, requests.values().stream().mapToInt(Integer::intValue).sum());
+            assertEquals(singleSource ? Map.of(2, 12) : Map.of(1, 2, 2, 10), requests);
+        }
+    }
+
+    @Test
     public void rejectsInvalidLimitConfiguration() {
-        for (String key : List.of("MAX_LOOP_DURATION_SECONDS", "MAX_WAY_MAPPINGS_PER_RESOURCE")) {
+        for (String key : List.of("MAX_LOOP_DURATION_SECONDS", "MAX_WAY_MAPPINGS_PER_RUN")) {
             for (String value : List.of("", "abc", "0", "-1", "1.5", "2147483648")) {
                 try {
                     new OSMInfoFunction(new Store()).configureLimits(context(Map.of(key, value)));

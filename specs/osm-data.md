@@ -63,7 +63,9 @@ available to subsequent invocations. Failed requests preserve existing tags.
 
 A dedicated OCI function, **`OSMInfoFunction`**, runs **hourly**, at the start of
 each hour. It processes incomplete mapping caches in bounded batches, saves
-results, and fetches tags for newly resolved ways. At the end of the run it logs
+results, and fetches tags for newly resolved ways. A cache-only first pass counts
+eligible lookups per source, then shares a default budget of 12 lookups evenly
+among sources with work, redistributing unused shares. At the end of the run it logs
 counts per data source, identified by its cache prefix, for each status among
 processed records (including manual approvals) and then all records in its loaded
 cache. All caches are loaded before the bounded API loop, so sources skipped by

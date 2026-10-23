@@ -118,6 +118,14 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
         return (int) mappings.values().stream().filter(mapping -> mappedWayId(mapping) == null).count();
     }
 
+    /** Records eligible for a reverse request now, excluding cached outcomes and missing/invalid coordinates. */
+    public int getPendingReverseLookupCount() {
+        if (mappingObject == null) {
+            return 0;
+        }
+        return (int) mappings.values().stream().filter(OSMInfoProviderImpl::needsReverseLookup).count();
+    }
+
     /** Status counts across every loaded mapping, including records not attempted this run. */
     public Map<OSMWayMappingStatus, Integer> getWayMappingStatusCounts() {
         return statusCounts(mappings.values());
@@ -236,7 +244,7 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
         List<Map.Entry<String, OSMWayMapping>> incomplete = new ArrayList<>();
         for (Map.Entry<String, OSMWayMapping> entry : mappings.entrySet()) {
             OSMWayMapping mapping = entry.getValue();
-            if (mappedWayId(mapping) == null && hasCoordinates(mapping) && !hasCachedReverseResult(mapping)) {
+            if (needsReverseLookup(mapping)) {
                 incomplete.add(entry);
             }
         }
@@ -288,6 +296,10 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
         }
         LOG.info("OSM way mapping cache {}: {} attempted, {} resolved, {} failed, {} still unknown",
                 mappingObject, attempted, resolved, failed, getUnknownWayMappingCount());
+    }
+
+    private static boolean needsReverseLookup(OSMWayMapping mapping) {
+        return mappedWayId(mapping) == null && hasCoordinates(mapping) && !hasCachedReverseResult(mapping);
     }
 
     private static boolean hasCoordinates(OSMWayMapping mapping) {

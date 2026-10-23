@@ -320,6 +320,14 @@ links use `https://www.openstreetmap.org/?mlat={latitude}&mlon={longitude}#map=1
 to show a marker at the exact coordinates. Uploaded
 links are ignored and regenerated, including when a candidate ID is edited.
 
+Before the API loop, a cache-only first pass reports eligible reverse lookup
+counts per data source, the total number of eligible records, and the number of
+sources with pending lookups. Counts use the same eligibility rule as processing:
+no usable way ID, valid coordinates, and no reverse result cached for those
+coordinates. Cached review/negative outcomes and records without coordinates do
+not inflate demand; HTTP failures and changed coordinates remain eligible.
+These counts determine each source’s share of the run-wide lookup budget.
+
 Two optional positive integer configuration values bound the work. Private static
 integer constants in `OSMInfoFunction` provide defaults when the keys are absent:
 
@@ -328,9 +336,14 @@ integer constants in `OSMInfoFunction` provide defaults when the keys are absent
   budget is reached. There is deliberately no duration check between lookups;
   the active resource's bounded batch finishes and saves, so total loop duration
   can exceed the budget by that batch's remaining work and storage operations.
-- `MAX_WAY_MAPPINGS_PER_RESOURCE` (default `6` mappings per resource): at most six eligible incomplete mappings
-  are attempted per cache; HTTP errors also consume this limit. Entries never
-  attempted precede older failed attempts. Known positive IDs are preserved.
+- `MAX_WAY_MAPPINGS_PER_RUN` (default `12` mappings across all sources): the
+  budget is shared evenly among sources with eligible records. Shares are capped
+  by demand and any unused capacity is redistributed. Remainders follow the
+  shuffled resource order. For example, two busy sources receive six each; one
+  busy source can receive all twelve. HTTP errors also consume the allocated
+  budget. Entries never attempted precede older failed attempts. Known positive
+  IDs are preserved. The time budget can prevent later allocated batches from
+  starting; unused allocations are left for another run.
 
 All reverse interaction is initiated by `OSMInfoProviderImpl.refreshWayMappings()`.
 It uses valid cached coordinates and requests Nominatim with `format=jsonv2`,
@@ -361,7 +374,8 @@ matching `_OSMInfo.json` object. Candidates awaiting review are not queued.
 The existing limit of 100 way-tag requests per provider refresh still applies;
 failed requests count toward that limit and preserve previous cached tags.
 
-The shared reverse client spaces request starts by at least **15 seconds** across
+`OpenStreetMapClient` defines `REVERSE_INTERVAL_SECONDS` (`15`) and uses it in
+its default constructor. The shared reverse client spaces request starts by at least **15 seconds** across
 all resources, caches repeated coordinates within the process, identifies the
 application with its User-Agent, and makes no immediate retries. Each reverse lookup logs its full request URL and response at INFO level,
 including the HTTP status and complete body for unsuccessful responses; cached
@@ -374,7 +388,7 @@ Reverse results contain data © [OpenStreetMap contributors](https://www.openstr
 available under ODbL.
 
 Configure `NAMESPACE`, optionally `BUCKETNAME_OSM` (default `osminfo`),
-`USE_RESOURCE_PRINCIPAL` (default `true`), `MAX_LOOP_DURATION_SECONDS`, and `MAX_WAY_MAPPINGS_PER_RESOURCE`. Invalid,
+`USE_RESOURCE_PRINCIPAL` (default `true`), `MAX_LOOP_DURATION_SECONDS`, and `MAX_WAY_MAPPINGS_PER_RUN`. Invalid,
 nonpositive, or out-of-range limits fail configuration. The reverse API endpoint
 is fixed to `https://nominatim.openstreetmap.org/`. The function needs permission
 to list/read bucket objects and write mapping and way-info objects, plus outbound
@@ -387,7 +401,7 @@ paginated listings are supported. Count getters `getWayInfoCount()`,
 `TraficInfo.DataSourceSchedule=Hourly`. The `Hourly` schedule invokes it at
 **the start of every hour (UTC)**. After `source ./setup.sh`, run `./deploy-functions.sh` and
 `./setup-schedules.sh` to deploy and reconcile the schedule. Set environment
-variables `MAX_LOOP_DURATION_SECONDS` and `MAX_WAY_MAPPINGS_PER_RESOURCE` before deployment to override the defaults;
+variables `MAX_LOOP_DURATION_SECONDS` and `MAX_WAY_MAPPINGS_PER_RUN` before deployment to override the defaults;
 the script applies these values on creation and updates. Keep the function runtime
 timeout above the configured loop budget plus time for the last bounded batch.
 The scheduling tag namespace/key and scheduler invoke permissions must already
@@ -426,7 +440,7 @@ than queried again during each deployment. `3MOpenDataSource` and `DPT34OpenData
 receive `NAMESPACE` and `BUCKETNAME`; both GeoJSON functions receive `NAMESPACE`,
 `BUCKETNAME_IN`, `BUCKETNAME_OUT`, `BUCKETNAME_OSM`, `OSM_CACHE_OBJECT`, and
 `OSM_WAY_MAPPING_OBJECT`.
-`OSMInfoFunction` receives `NAMESPACE`, `BUCKETNAME_OSM`, `MAX_LOOP_DURATION_SECONDS`, and `MAX_WAY_MAPPINGS_PER_RESOURCE`.
+`OSMInfoFunction` receives `NAMESPACE`, `BUCKETNAME_OSM`, `MAX_LOOP_DURATION_SECONDS`, and `MAX_WAY_MAPPINGS_PER_RUN`.
 The script requires `jq` to prepare function configuration.
 Function names and input buckets are derived by `oci-common.sh` from each
 data source's `id`, `functionPrefix`, and `inputBucket` in `dsconfig.json`.

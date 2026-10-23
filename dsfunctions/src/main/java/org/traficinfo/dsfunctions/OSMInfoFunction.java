@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
@@ -18,9 +19,11 @@ public class OSMInfoFunction {
     private static final Logger LOG = LoggerFactory.getLogger(OSMInfoFunction.class);
     private static final String MAPPING_SUFFIX = "_OSMWayMapping.json";
     private static final int MAX_LOOP_DURATION_SECONDS = 180;
-    private static final int MAX_WAY_MAPPINGS_PER_RESOURCE = 6;
+    // At four reverse requests per minute (15-second spacing in OpenStreetMapClient),
+    // 12 lookups use about the default 180-second loop budget across all data sources.
+    private static final int MAX_WAY_MAPPINGS_PER_RUN = 12;
     private int maxLoopSeconds = MAX_LOOP_DURATION_SECONDS;
-    private int maxWayMappings = MAX_WAY_MAPPINGS_PER_RESOURCE;
+    private int maxWayMappings = MAX_WAY_MAPPINGS_PER_RUN;
     private ObjectStoreClient osmCacheOSClient;
     private OpenStreetMapClient osmClient;
     private final LongSupplier nanoTime;
@@ -51,7 +54,7 @@ public class OSMInfoFunction {
 
     void configureLimits(RuntimeContext ctx) {
         maxLoopSeconds = configuredLimit(ctx, "MAX_LOOP_DURATION_SECONDS", MAX_LOOP_DURATION_SECONDS);
-        maxWayMappings = configuredLimit(ctx, "MAX_WAY_MAPPINGS_PER_RESOURCE", MAX_WAY_MAPPINGS_PER_RESOURCE);
+        maxWayMappings = configuredLimit(ctx, "MAX_WAY_MAPPINGS_PER_RUN", MAX_WAY_MAPPINGS_PER_RUN);
     }
 
     private static int configuredLimit(RuntimeContext ctx, String key, int defaultValue) {
@@ -65,6 +68,33 @@ public class OSMInfoFunction {
             // Report the configuration key for both invalid numbers and out-of-range values.
         }
         throw new IllegalArgumentException(key + " must be a positive integer");
+    }
+
+    /** Share the run budget evenly, redistributing shares that exceed a source's demand. */
+    static Map<String, Integer> allocateReverseLookups(Map<String, Integer> demand, int budget) {
+        Map<String, Integer> allocations = new LinkedHashMap<>();
+        List<String> active = new ArrayList<>();
+        demand.forEach((datasourceName, count) -> {
+            allocations.put(datasourceName, 0);
+            if (count > 0) {
+                active.add(datasourceName);
+            }
+        });
+        int remaining = budget;
+        while (remaining > 0 && !active.isEmpty()) {
+            int share = Math.max(1, remaining / active.size());
+            for (String datasourceName : active) {
+                int allocated = allocations.get(datasourceName);
+                int additional = Math.min(remaining, Math.min(share, demand.get(datasourceName) - allocated));
+                allocations.put(datasourceName, allocated + additional);
+                remaining -= additional;
+                if (remaining == 0) {
+                    break;
+                }
+            }
+            active.removeIf(datasourceName -> allocations.get(datasourceName).equals(demand.get(datasourceName)));
+        }
+        return allocations;
     }
 
     public String handleRequest(String input) {
@@ -99,6 +129,23 @@ public class OSMInfoFunction {
                     LOG.warn("Could not load or apply reviews to OSM way mapping cache {}", osResourceName, failure);
                 }
             }
+            // Preserve shuffled resource order when sharing indivisible remainder requests.
+            Map<String, Integer> pendingReverseLookups = new LinkedHashMap<>();
+            for (String osResourceName : resources) {
+                if (osResourceName.endsWith(MAPPING_SUFFIX)) {
+                    String datasourceName = osResourceName.substring(0, osResourceName.length() - MAPPING_SUFFIX.length());
+                    OSMInfoProviderImpl osmProvider = osmProvidersMap.get(datasourceName);
+                    if (osmProvider != null) {
+                        pendingReverseLookups.put(datasourceName, osmProvider.getPendingReverseLookupCount());
+                    }
+                }
+            }
+            LOG.info("OSM reverse lookup demand by data source: {}", pendingReverseLookups);
+            LOG.info("OSM reverse lookup demand: {} records across {} data sources with pending lookups",
+                    pendingReverseLookups.values().stream().mapToInt(Integer::intValue).sum(),
+                    pendingReverseLookups.values().stream().filter(count -> count > 0).count());
+            Map<String, Integer> reverseLookupAllocations = allocateReverseLookups(pendingReverseLookups, maxWayMappings);
+            LOG.info("OSM reverse lookup allocation (run limit {}): {}", maxWayMappings, reverseLookupAllocations);
             completeReview = failures == 0;
             long started = nanoTime.getAsLong();
             for (String osResourceName : resources) {
@@ -119,7 +166,7 @@ public class OSMInfoFunction {
                     continue;
                 }
                 try {
-                    osmProvider.refreshWayMappings(maxWayMappings);
+                    osmProvider.refreshWayMappings(reverseLookupAllocations.getOrDefault(datasourceName, 0));
                     osmProvider.refreshWayInfo();
                     caches++;
                 } catch (InterruptedException interrupted) {

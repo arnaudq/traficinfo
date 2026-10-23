@@ -19,6 +19,8 @@ import java.util.concurrent.TimeUnit;
 
 /** OSM way-tag and rate-limited reverse requests, without redirects or retries. */
 public class OpenStreetMapClient {
+    // Public Nominatim scheduled jobs allow at most four requests per minute.
+    private static final int REVERSE_INTERVAL_SECONDS = 15;
     private static final Logger LOG = LoggerFactory.getLogger(OpenStreetMapClient.class);
     private final HttpClient client;
     private final URI apiBase;
@@ -31,10 +33,13 @@ public class OpenStreetMapClient {
     public OpenStreetMapClient() {
         this(HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build(),
                 URI.create("https://api.openstreetmap.org/api/0.6/"),
-                URI.create("https://nominatim.openstreetmap.org/"), 15_000);
+                URI.create("https://nominatim.openstreetmap.org/"), TimeUnit.SECONDS.toMillis(REVERSE_INTERVAL_SECONDS));
     }
 
     OpenStreetMapClient(HttpClient client, URI apiBase, URI reverseApiBase, long reverseIntervalMillis) {
+        if (reverseIntervalMillis < 0) {
+            throw new IllegalArgumentException("Reverse request interval must not be negative");
+        }
         this.client = client;
         this.apiBase = apiBase;
         this.reverseApiBase = reverseApiBase;

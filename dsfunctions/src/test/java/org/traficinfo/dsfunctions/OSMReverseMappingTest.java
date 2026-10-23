@@ -59,7 +59,10 @@ public class OSMReverseMappingTest {
         };
         OSMInfoProviderImpl provider = provider(store, client);
         provider.loadCache();
+        assertEquals(6, provider.getPendingReverseLookupCount());
+        assertTrue(requests.isEmpty()); // Counting is cache-only.
         provider.refreshWayMappings(5);
+        assertEquals(2, provider.getPendingReverseLookupCount()); // One new record and one HTTP failure.
         assertEquals(List.of(43.0, 44.0, 45.0, 46.0, 47.0), requests);
         JsonNode saved = JSON.readTree(store.objects.get("mappings.json"));
         assertEquals(123, saved.get("counter43").get("osmWayId").asLong());
@@ -76,13 +79,16 @@ public class OSMReverseMappingTest {
 
         OSMInfoProviderImpl next = provider(store, client);
         next.loadCache();
+        assertEquals(2, next.getPendingReverseLookupCount());
         next.refreshWayMappings(5);
+        assertEquals(1, next.getPendingReverseLookupCount());
         // Successful misses/review results are not queried again; new counters precede HTTP retries.
         assertEquals(List.of(43.0, 44.0, 45.0, 46.0, 47.0, 48.0, 46.0), requests);
         saved = JSON.readTree(store.objects.get("mappings.json"));
         ((com.fasterxml.jackson.databind.node.ObjectNode) saved.get("counter44")).put("latitude", 44.1);
         store.objects.put("mappings.json", JSON.writeValueAsBytes(saved));
         next.loadCache();
+        assertEquals(2, next.getPendingReverseLookupCount()); // Changed coordinates invalidate a cached rejection.
         next.refreshWayMappings(1);
         assertEquals(Double.valueOf(44.1), requests.get(requests.size() - 1));
     }
