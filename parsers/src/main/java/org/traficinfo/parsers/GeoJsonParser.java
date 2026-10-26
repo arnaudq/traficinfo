@@ -21,16 +21,22 @@ import java.util.stream.Collectors;
 public class GeoJsonParser {
 
     public enum DataSource {
-        M3MV2(new M3MComptageParser()),
-        DPT34(new DPT34ComptageParser()),
-        DPT30(new DPT30ComptageParser()),
-        MRN(new MRNComptageParser());
+        M3MV2("MMM", new M3MComptageParser()),
+        DPT34("DPT34", new DPT34ComptageParser()),
+        DPT30("DPT30", new DPT30ComptageParser()),
+        MRN("MRN", new MRNComptageParser());
 
-        private DataSource(ComptageParser parser) {
+        private DataSource(String id, ComptageParser parser) {
+            this.id = id;
             this.parser = parser;
         }
 
+        private final String id;
         private final ComptageParser parser;
+
+        public String getId() {
+            return id;
+        }
 
         public ComptageParser getParser() {
             return parser;
@@ -122,6 +128,8 @@ public class GeoJsonParser {
 
         for (EnumSet<Comptage.Type> types : COMPTAGE_TYPES_FILTERS) {
             FeatureCollection outCol = buildForType(geoJsonColl.getFeatures(), comptages, types);
+            outCol.getFeatures().forEach(feature ->
+                    feature.setProperty("data_source", dataSource.getId()));
             LOG.info("Nb filtered GeoJson: {}", outCol.getFeatures().size());
 
             StringBuilder typesStr = new StringBuilder();

@@ -40,6 +40,9 @@ public class GeoJsonParserTest extends ParserBaseTest {
             GeoJsonParser.parseAndMerge(GeoJsonParser.DataSource.M3MV2, csv, collection, collectionOutput);
         }
         assertEquals(readerOutput.toString(), collectionOutput.toString());
+        FeatureCollection result = GeoJsonParser.parseGeoJSON(new StringReader(readerOutput.toString()));
+        assertFalse(result.getFeatures().isEmpty());
+        result.getFeatures().forEach(feature -> assertEquals("MMM", feature.getProperty("data_source")));
     }
 
     @Test
@@ -54,6 +57,7 @@ public class GeoJsonParserTest extends ParserBaseTest {
         assertEquals(1, result.getFeatures().size());
         Feature feature = result.getFeatures().get(0);
         assertEquals("DPT34_Per.034.0001.00.3", feature.getProperty("code_centrale"));
+        assertEquals("DPT34", feature.getProperty("data_source"));
         Point point = (Point) feature.getGeometry();
         assertEquals(3.5, point.getCoordinates().getLongitude(), 0.0);
         assertEquals(43.5, point.getCoordinates().getLatitude(), 0.0);
