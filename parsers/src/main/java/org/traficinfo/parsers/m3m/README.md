@@ -46,6 +46,20 @@ The publisher documents the traffic measures. Interpretations of internal identi
 
 The hourly interpretation is supported by the data: the four all-vehicle hourly averages, weighted by their respective durations of 2, 7, 3 and 12 hours, approximately reconstruct `mja_johvs`. A peak value such as `313 (17h15 - 18h15)` represents a volume during that reported hour, which can differ from the fixed time bands.
 
+## GeoJSON aggregation rules
+
+These rules describe the application's output, rather than the publisher's statistics. The parser groups records by `code_centrale`. Eligible records cover the current year and the preceding ten years and have `mja_jo` strictly between 0 and 300,000.
+
+For each station, the latest eligible year supplies the GeoJSON properties. The row with the highest `mja_jo` supplies the traffic count and other main properties. Speeds are selected independently across all eligible channels in that year:
+
+- `v85_speed` is the maximum `v85ma_tcj`.
+- `mean_speed` is the maximum `vtma_tcj`.
+- Missing speeds do not replace positive values. Each speed property is omitted if no positive value is available in the selected year; older years provide no fallback.
+
+For example, station `472` in `2022` with channels `0`, `1` and `Z`, V85 values `53`, `52` and blank, and mean speeds `34`, `32` and blank produces `"v85_speed": "53"` and `"mean_speed": "34"`, regardless of which channel has the highest eligible traffic count. These are maxima across channels, not recalculated statistics for combined traffic; the two maxima can come from different rows.
+
+Regression coverage is in [`GeoJsonParserTest`](../../../../../test/java/org/traficinfo/parsers/GeoJsonParserTest.java), including the three-channel example and exclusion of older-year speeds.
+
 ## Updates between successive exports
 
 Between October 11 and October 12, data changed at **43 sites**. Updates include extended measurement periods ending on October 9, recalculated traffic averages and speed statistics, and corrections to historical heavy-vehicle measurements.

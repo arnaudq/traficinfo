@@ -161,6 +161,63 @@ public class GeoJsonParserTest extends ParserBaseTest {
     }
 
     @Test
+    public void testMmmChannelSpeedsUseMaximumV85AndMeanRegardlessOfHighestTrafficRow() throws Exception {
+        // Only mja_jo changes: Z, 0 and 1 respectively supply the main properties.
+        int[][] trafficCounts = {{500, 400, 900}, {900, 400, 500}, {400, 900, 500}};
+        for (int i = 0; i < trafficCounts.length; i++) {
+            int[] counts = trafficCounts[i];
+            String csv = "code_centrale,annee,type_compteur,code_canal,mja_jo,v85ma_tcj,vtma_tcj\n"
+                    + "472,2022,compteur permanent,0," + counts[0] + ",53,34\n"
+                    + "472,2022,compteur permanent,1," + counts[1] + ",52,32\n"
+                    + "472,2022,compteur permanent,Z," + counts[2] + ",,\n";
+            Feature input = new Feature();
+            input.setProperty("code_centrale", "472");
+            input.setGeometry(new Point(3.88, 43.60));
+            FeatureCollection source = new FeatureCollection();
+            source.add(input);
+            StringWriter writer = new StringWriter();
+
+            GeoJsonParser.parseAndMerge(GeoJsonParser.DataSource.M3MV2,
+                    new StringReader(csv), source, writer);
+
+            FeatureCollection result = GeoJsonParser.parseGeoJSON(new StringReader(writer.toString()));
+            assertEquals(1, result.getFeatures().size());
+            Feature feature = result.getFeatures().get(0);
+            assertEquals("472", feature.getProperty("code_centrale"));
+            assertEquals(2022, (int) feature.getProperty("annee"));
+            assertEquals(900, (int) feature.getProperty("moyenne_jour_annuelle"));
+            assertEquals("53", feature.getProperty("v85_speed"));
+            assertEquals("34", feature.getProperty("mean_speed"));
+            assertEquals(i == 0 ? "900 ⇄" : "900", feature.getProperty("name"));
+            assertEquals("900 (2022) ", feature.getProperty("moyenne_annuelle_history"));
+        }
+    }
+
+    @Test
+    public void testMaximumSpeedsIgnoreOlderYears() {
+        M3MComptage latest = new M3MComptage();
+        latest.setAnnee(2022);
+        latest.setMoyenneJourAnnuelle(900);
+        M3MComptage sameYear = new M3MComptage();
+        sameYear.setAnnee(2022);
+        sameYear.setMoyenneJourAnnuelle(500);
+        sameYear.setV85Speed(53);
+        sameYear.setMeanSpeed(34);
+        M3MComptage older = new M3MComptage();
+        older.setAnnee(2021);
+        older.setMoyenneJourAnnuelle(1000);
+        older.setV85Speed(80);
+        older.setMeanSpeed(60);
+
+        List<M3MComptage> comptages = new ArrayList<>(Arrays.asList(older, sameYear, latest));
+        GeoJsonParser.sortComptages(comptages);
+
+        assertEquals(latest, comptages.get(0));
+        assertEquals(53, latest.getV85Speed());
+        assertEquals(34, latest.getMeanSpeed());
+    }
+
+    @Test
     public void testMeanSpeedFromCsvToGeoJson() throws Exception {
         for (String value : Arrays.asList("35", "", "0", "-1")) {
             String csv = "code_centrale,annee,type_compteur,mja_jo,vtma_tcj,hp_johvs_matin,hp_johvs_soir\n"

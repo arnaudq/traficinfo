@@ -330,7 +330,7 @@ public class GeoJsonParser {
                 }
             }
         });
-        // use max value for vitesse
+        // Use maximum V85 and mean speeds across records for the latest year.
         Comptage top = comptages.get(0);
         for (int i = 1; i < comptages.size(); i++) {
             Comptage current = comptages.get(i);
@@ -339,6 +339,9 @@ public class GeoJsonParser {
             }
             if (current.getV85Speed() > top.getV85Speed()) {
                 top.setV85Speed(current.getV85Speed());
+            }
+            if (current.getMeanSpeed() > top.getMeanSpeed()) {
+                top.setMeanSpeed(current.getMeanSpeed());
             }
         }
     }
