@@ -15,22 +15,19 @@
         "counts": {
           "url": "https://example.invalid/mmm/counts.csv",
           "format": "CSV",
-          "acceptedSchema": {
-            "revision": 1,
-            "headers": [
-              "EXAMPLE_station_id",
-              "EXAMPLE_timestamp",
-              "EXAMPLE_vehicle_count"
-            ]
-          }
+          "headers": [
+            "EXAMPLE_station_id",
+            "EXAMPLE_timestamp",
+            "EXAMPLE_vehicle_count"
+          ]
         },
         "geometry": {
           "url": "https://example.invalid/mmm/geometry.json",
           "format": "GEOJSON",
-          "acceptedSchema": null
+          "headers": null
         }
       }
     }
   },
-  "acceptedYears": {}
+  "years": {}
 }

@@ -1,5 +1,10 @@
 # Repository instructions
 
+## Documentation
+
+- Keep project specifications and design documents in `specs/`; do not create a
+  parallel `docs/` directory. Keep module usage documentation in its README.
+
 ## OCI scripts
 
 - Assume `source ./setup.sh` has been run before any other script. Use the
