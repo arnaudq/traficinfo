@@ -511,3 +511,10 @@ traficinfo_apigw: all APIGW in traficinfo compartment
 
 Policies
 grant-fn-access-to-use-objects: "Allow dynamic-group traficinfo_fn to use objects in compartment TraficInfo"
+
+## Planned normalized storage
+
+The shared [datasource storage contract](../docs/datasource-storage-contract.md)
+defines versioned manifests, yearly count records, import provenance and reviews
+for all sources. It currently adds models and examples only; existing handlers
+and event rules continue to use their current CSV inputs.

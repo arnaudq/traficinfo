@@ -1,0 +1,33 @@
+{
+  "importVersion": 1,
+  "dataSourceId": "MMM",
+  "importId": "import-0003",
+  "resourceId": "mmm-current",
+  "retrievedAt": "2026-10-26T14:00:00Z",
+  "parserVersion": "mmm-v1",
+  "years": [
+    2024
+  ],
+  "inputs": {
+    "counts": {
+      "sourceUrl": "https://example.invalid/mmm/counts",
+      "object": "raw/import-0003/counts.csv",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "sourceValidator": null,
+      "sourceLastModified": null,
+      "observedHeaders": [
+        "EXAMPLE_station_id",
+        "EXAMPLE_timestamp",
+        "EXAMPLE_vehicle_count"
+      ]
+    },
+    "geometry": {
+      "sourceUrl": "https://example.invalid/mmm/geometry",
+      "object": "raw/import-0003/geometry.json",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "sourceValidator": null,
+      "sourceLastModified": null,
+      "observedHeaders": null
+    }
+  }
+}

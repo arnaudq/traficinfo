@@ -1,0 +1,36 @@
+{
+  "manifestVersion": 1,
+  "dataSourceId": "MMM",
+  "revision": "r0001",
+  "publishedAt": "2026-10-26T12:00:00Z",
+  "comptageSchemaVersion": 1,
+  "activeResourceId": "mmm-current",
+  "resources": {
+    "mmm-current": {
+      "datasetUrl": "https://example.invalid/mmm",
+      "years": [
+        2024
+      ],
+      "inputs": {
+        "counts": {
+          "url": "https://example.invalid/mmm/counts.csv",
+          "format": "CSV",
+          "acceptedSchema": {
+            "revision": 1,
+            "headers": [
+              "EXAMPLE_station_id",
+              "EXAMPLE_timestamp",
+              "EXAMPLE_vehicle_count"
+            ]
+          }
+        },
+        "geometry": {
+          "url": "https://example.invalid/mmm/geometry.json",
+          "format": "GEOJSON",
+          "acceptedSchema": null
+        }
+      }
+    }
+  },
+  "acceptedYears": {}
+}

@@ -1,0 +1,35 @@
+{
+  "reviewVersion": 1,
+  "reviewId": "review-initial",
+  "dataSourceId": "NIM",
+  "importId": "import-0003",
+  "createdAt": "2026-10-26T14:00:00Z",
+  "baseManifestRevision": null,
+  "reasons": [
+    "INITIAL_IMPORT"
+  ],
+  "changes": {
+    "2024": {
+      "baselineObject": null,
+      "candidateObject": "candidates/import-0003/NIM_Comptage_2024.json",
+      "candidateSha256": "f0aa347e48f630b461c9222bb2319eea3e98278d50d8ed4612b9ad96b034bc62",
+      "recordCount": 1,
+      "diffObject": "reviews/review-initial/diff.json",
+      "summary": {
+        "added": 1,
+        "modified": 0,
+        "removed": 0
+      }
+    }
+  },
+  "schemaChanges": {
+    "counts": {
+      "acceptedHeaders": null,
+      "observedHeaders": [
+        "EXAMPLE_station_id",
+        "EXAMPLE_timestamp",
+        "EXAMPLE_vehicle_count"
+      ]
+    }
+  }
+}

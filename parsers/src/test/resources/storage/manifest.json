@@ -1,0 +1,83 @@
+{
+  "manifestVersion": 1,
+  "dataSourceId": "NIM",
+  "revision": "r0002",
+  "publishedAt": "2026-10-26T12:00:00Z",
+  "comptageSchemaVersion": 1,
+  "activeResourceId": "nim-2023-2024",
+  "resources": {
+    "nim-2022": {
+      "datasetUrl": "https://example.invalid/nim/2022",
+      "years": [
+        2022
+      ],
+      "inputs": {
+        "counts": {
+          "url": "https://example.invalid/nim/2022/export.csv",
+          "format": "CSV",
+          "acceptedSchema": {
+            "revision": 1,
+            "headers": [
+              "EXAMPLE_station_id",
+              "EXAMPLE_timestamp",
+              "EXAMPLE_vehicle_count"
+            ]
+          }
+        }
+      }
+    },
+    "nim-2023-2024": {
+      "datasetUrl": "https://example.invalid/nim/2023-2024",
+      "years": [
+        2023,
+        2024
+      ],
+      "inputs": {
+        "counts": {
+          "url": "https://example.invalid/nim/2023-2024/export.csv",
+          "format": "CSV",
+          "acceptedSchema": {
+            "revision": 1,
+            "headers": [
+              "EXAMPLE_station_id",
+              "EXAMPLE_timestamp",
+              "EXAMPLE_vehicle_count"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "acceptedYears": {
+    "2022": {
+      "object": "accepted/r0001/NIM_Comptage_2022.json",
+      "sha256": "054aecf1aeda0ab4583ff10e38ab0df1a6357bc4a042bde36836e60cef7ca77f",
+      "recordCount": 1,
+      "resourceId": "nim-2022",
+      "parserVersion": "nim-v1",
+      "importId": "import-0001",
+      "reviewId": "review-0001",
+      "decisionObject": "reviews/review-0001/decision.json"
+    },
+    "2023": {
+      "object": "accepted/r0002/NIM_Comptage_2023.json",
+      "sha256": "fd4b5853b52dffa4d3e8bff535d755556a60dea6234d58b67e33490430d701ab",
+      "recordCount": 1,
+      "resourceId": "nim-2023-2024",
+      "parserVersion": "nim-v1",
+      "importId": "import-0002",
+      "reviewId": "review-0002",
+      "decisionObject": "reviews/review-0002/decision.json"
+    },
+    "2024": {
+      "object": "accepted/r0002/NIM_Comptage_2024.json",
+      "sha256": "cf98b8a57e0c606d7cea34a6e7ef934d3bccaee199683a4f282544f2c70a6676",
+      "recordCount": 1,
+      "resourceId": "nim-2023-2024",
+      "parserVersion": "nim-v1",
+      "importId": "import-0002",
+      "reviewId": "review-0002",
+      "decisionObject": "reviews/review-0002/decision.json"
+    }
+  }
+}

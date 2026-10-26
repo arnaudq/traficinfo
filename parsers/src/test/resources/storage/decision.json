@@ -1,0 +1,10 @@
+{
+  "decisionVersion": 1,
+  "reviewId": "review-0003",
+  "outcome": "APPROVED",
+  "decidedAt": "2026-10-27T09:00:00Z",
+  "decidedBy": "example-reviewer",
+  "comment": "Illustrative approval; publication has not happened.",
+  "baseManifestRevision": "r0002",
+  "proposalSha256": "9369aa90a70188eceac0e210ec90fa616e69d4a41e991df05430a352bd2e3bbf"
+}

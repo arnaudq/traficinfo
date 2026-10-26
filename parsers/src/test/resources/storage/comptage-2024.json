@@ -1,0 +1,24 @@
+[
+  {
+    "codeCentrale": "NIM-001",
+    "discriminator": "BIDIRECTIONAL",
+    "annee": 2024,
+    "directionType": "BIDIRECTIONAL",
+    "type": "VEHICULES",
+    "displayName": "Rue exemple",
+    "cityName": "Nîmes",
+    "roadReference": null,
+    "geometry": {
+      "type": "Point",
+      "coordinates": [
+        4.35,
+        43.84
+      ]
+    },
+    "moyenneJourAnnuelle": 1000,
+    "moyenneHeureDePointeMatin": null,
+    "moyenneHeureDePointeSoir": null,
+    "v85Speed": null,
+    "meanSpeed": null
+  }
+]
