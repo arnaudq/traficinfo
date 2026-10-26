@@ -118,6 +118,9 @@ public class GeoJsonParser {
 
         ComptageParser comptageParser = dataSource.getParser();
         List<? extends Comptage> comptages = comptageParser.parseComptages(csvReader, idToVoiesProps);
+        logSpeedCoverage(dataSource, "input records", comptages.size(),
+                comptages.stream().filter(comptage -> comptage.getV85Speed() > 0).count(),
+                comptages.stream().filter(comptage -> comptage.getMeanSpeed() > 0).count());
         applyOsmInfo(comptages, osmInfoProvider);
 //        writeComptagesIdAndVoie(comptages, new File(OUTDIR,
 //          String.format("idToVoies-%s.properties", TIMESTAMP)));
@@ -131,12 +134,25 @@ public class GeoJsonParser {
             outCol.getFeatures().forEach(feature ->
                     feature.setProperty("data_source", dataSource.getId()));
             LOG.info("Nb filtered GeoJson: {}", outCol.getFeatures().size());
+            logSpeedCoverage(dataSource, "GeoJSON features " + types, outCol.getFeatures().size(),
+                    outCol.getFeatures().stream()
+                            .filter(feature -> feature.getProperties().containsKey("v85_speed")).count(),
+                    outCol.getFeatures().stream()
+                            .filter(feature -> feature.getProperties().containsKey("mean_speed")).count());
 
             StringBuilder typesStr = new StringBuilder();
             types.forEach(type -> typesStr.append(type.name()).append('_'));
             typesStr.deleteCharAt(typesStr.length() -1);
             new ObjectMapper().writeValue(geojsonMergedWriter, outCol);
         }
+    }
+
+    private static void logSpeedCoverage(DataSource dataSource, String stage, int total,
+                                         long v85Count, long meanCount) {
+        LOG.info("{} speed coverage ({}): total={}, v85={} ({}%), mean={} ({}%)",
+                dataSource.getId(), stage, total,
+                v85Count, String.format(Locale.ROOT, "%.1f", total == 0 ? 0.0 : 100.0 * v85Count / total),
+                meanCount, String.format(Locale.ROOT, "%.1f", total == 0 ? 0.0 : 100.0 * meanCount / total));
     }
 
     static void applyOsmInfo(List<? extends Comptage> comptages, OSMInfoProvider osmInfoProvider) {

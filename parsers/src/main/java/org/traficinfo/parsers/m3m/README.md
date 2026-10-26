@@ -60,6 +60,8 @@ For example, station `472` in `2022` with channels `0`, `1` and `Z`, V85 values 
 
 Regression coverage is in [`GeoJsonParserTest`](../../../../../test/java/org/traficinfo/parsers/GeoJsonParserTest.java), including the three-channel example and exclusion of older-year speeds.
 
+The shared GeoJSON pipeline logs V85 and mean-speed coverage separately for the input records and resulting GeoJSON features. Each log includes the total, the count with a positive speed, and its percentage (one decimal place; `0.0%` for an empty collection). Input coverage counts every parsed row before filtering or aggregation; output coverage counts features containing each speed property after filtering and aggregation.
+
 ## Updates between successive exports
 
 Between October 11 and October 12, data changed at **43 sites**. Updates include extended measurement periods ending on October 9, recalculated traffic averages and speed statistics, and corrections to historical heavy-vehicle measurements.
