@@ -15,6 +15,22 @@ import static org.junit.Assert.assertNull;
 public class M3MComptageParserTest extends ParserBaseTest {
 
   @Test
+  public void mapsIgnoredAndUnmappedCounterTypesToUnknown() throws Exception {
+    String csv = "code_centrale,type_compteur\n"
+        + "1,ne pas tenir compte\n"
+        + "2,unmapped counter\n"
+        + "3,\n"
+        + "4,compteur permanent\n"
+        + "5,compteur permanent vélo\n";
+
+    List<M3MComptage> counts = new M3MComptageParser().parseComptages(new StringReader(csv));
+
+    assertEquals(List.of(Comptage.Type.UNKNOWN, Comptage.Type.UNKNOWN, Comptage.Type.UNKNOWN,
+        Comptage.Type.VEHICULES, Comptage.Type.BICYCLES),
+        counts.stream().map(Comptage::getType).toList());
+  }
+
+  @Test
   public void testEmptyCsvValuesUseBeanDefaults() throws Exception {
     String csv = "code_centrale,type_compteur,vtma_tcj,v85ma_tcj,hp_johvs_matin,hp_johvs_soir\n"
         + "100457,compteur feux,,,,\n";

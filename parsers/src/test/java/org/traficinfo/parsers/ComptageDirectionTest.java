@@ -75,7 +75,7 @@ public class ComptageDirectionTest extends ParserBaseTest {
     assertParsedDirections(new DPT34ComptageParser(), "DPT34Sample.csv",
         BIDIRECTIONAL, BIDIRECTIONAL, BIDIRECTIONAL, BIDIRECTIONAL, BIDIRECTIONAL);
     assertParsedDirections(new MRNComptageParser(), "MRNSample.csv",
-        BIDIRECTIONAL, BIDIRECTIONAL, UNIDIRECTIONAL, UNIDIRECTIONAL, UNKNOWN);
+        BIDIRECTIONAL, BIDIRECTIONAL, UNIDIRECTIONAL, UNIDIRECTIONAL, UNKNOWN, UNKNOWN, UNKNOWN);
   }
 
   private void assertParsedDirections(ComptageParser parser, String resource,

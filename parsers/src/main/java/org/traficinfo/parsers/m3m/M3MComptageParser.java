@@ -26,7 +26,7 @@ public final class M3MComptageParser implements ComptageParser {
     TYPE_MAP.put("compteur permanent", Comptage.Type.VEHICULES);
     TYPE_MAP.put("compteur tournant", Comptage.Type.VEHICULES);
     TYPE_MAP.put("compteur ponctuel", Comptage.Type.VEHICULES);
-    TYPE_MAP.put("ne pas tenir compte", Comptage.Type.VEHICULES);
+    TYPE_MAP.put("ne pas tenir compte", Comptage.Type.UNKNOWN);
 
     TYPE_MAP.put("compteur permanent vélo", Comptage.Type.BICYCLES);
     TYPE_MAP.put("compteur ponctuel vélo", Comptage.Type.BICYCLES);
@@ -79,7 +79,7 @@ public final class M3MComptageParser implements ComptageParser {
       Comptage.Type type = TYPE_MAP.get(mmmComptage.getTypeCompteur());
       if (type == null) {
         LOG.warn("UNKNOWN TYPE FOR {}\n", mmmComptage);
-        type = Comptage.Type.VEHICULES;
+        type = Comptage.Type.UNKNOWN;
       }
       mmmComptage.setType(type);
     });

@@ -15,11 +15,24 @@ import java.nio.file.Files;
 import java.time.Year;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 
 public final class MRNComptageParser implements ComptageParser {
   public static final String COUNTER_PREFIX = "MRN_";
   private static final Logger LOG = LoggerFactory.getLogger(MRNComptageParser.class);
+
+  private static final Map<String, Comptage.Type> TYPE_MAP = Map.of(
+      "Comptage permanent en section", Comptage.Type.VEHICULES,
+      "Comptage ponctuel en section", Comptage.Type.VEHICULES,
+      "Comptage ponctuel directionnel sur carrefour", Comptage.Type.UNKNOWN,
+      "Autre type de campagne ponctuelle", Comptage.Type.UNKNOWN,
+      "Comptage permanent de vélos", Comptage.Type.BICYCLES,
+      "Comptage ponctuel de modes doux", Comptage.Type.UNKNOWN);
+
+  private static final Map<String, Comptage.Type> SOFT_MODE_TYPE_MAP = Map.of(
+      "Vélos", Comptage.Type.BICYCLES,
+      "Piétons / Vélos", Comptage.Type.PIETONS_VELOS);
 
   @Override
   public List<MRNComptage> parseComptages(Reader reader) throws IOException {
@@ -44,11 +57,6 @@ public final class MRNComptageParser implements ComptageParser {
     List<MRNComptage> counts = new ArrayList<>();
     int skipped = 0;
     for (MRNComptage count : sourceRows) {
-      Comptage.Type type = typeFor(count.getCampaignType(), count.getCampaignDetails());
-      if (type == null) {
-        skipped++;
-        continue;
-      }
       String id = trim(count.getSiteId());
       if (id == null) {
         throw new IOException("Missing Id_SIG in MRN CSV");
@@ -58,7 +66,7 @@ public final class MRNComptageParser implements ComptageParser {
       }
       count.setSiteId(id);
       count.setCodeCentrale(COUNTER_PREFIX + id);
-      count.setType(type);
+      count.setType(typeFor(count));
       count.setStreetName(trim(count.getStreetName()));
       count.setCityName(trim(count.getCityName()));
       String direction = trim(count.getDirectionCount());
@@ -78,26 +86,24 @@ public final class MRNComptageParser implements ComptageParser {
       count.setMoyenneHeureDePointeSoir(peak(count.getTvHps(), count.getTvHpsHour()));
       counts.add(count);
     }
-    LOG.info("Nb MRN comptages: {}; skipped unsupported records: {}", counts.size(), skipped);
+    LOG.info("Nb MRN comptages: {}; skipped records with unsupported directions: {}", counts.size(), skipped);
     return counts;
   }
 
-  private static Comptage.Type typeFor(String campaign, String details) {
-    campaign = trim(campaign);
-    if (campaign == null) {
-      return null;
+  private static Comptage.Type typeFor(MRNComptage count) {
+    String campaign = trim(count.getCampaignType());
+    Comptage.Type type = campaign == null ? null : TYPE_MAP.get(campaign);
+    // Soft-mode campaigns need their population details to avoid classifying EDP as bicycles.
+    if ("Comptage ponctuel de modes doux".equals(campaign)) {
+      String details = trim(count.getCampaignDetails());
+      type = details == null ? null : SOFT_MODE_TYPE_MAP.get(details);
     }
-    return switch (campaign) {
-      case "Comptage permanent en section", "Comptage ponctuel en section",
-          "Comptage ponctuel directionnel sur carrefour" -> Comptage.Type.VEHICULES;
-      case "Comptage permanent de vélos" -> Comptage.Type.BICYCLES;
-      case "Comptage ponctuel de modes doux" -> {
-        String population = trim(details);
-        yield "Vélos".equals(population) ? Comptage.Type.BICYCLES
-            : "Piétons / Vélos".equals(population) ? Comptage.Type.PIETONS_VELOS : null;
-      }
-      default -> null;
-    };
+    if (type == null) {
+      LOG.warn("Unknown MRN population for counter {}: campaign={}, details={}",
+          count.getCodeCentrale(), count.getCampaignType(), count.getCampaignDetails());
+      return Comptage.Type.UNKNOWN;
+    }
+    return type;
   }
 
   private static String peak(Integer volume, String hour) {

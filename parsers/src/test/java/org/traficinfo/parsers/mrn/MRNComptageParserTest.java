@@ -40,7 +40,7 @@ public class MRNComptageParserTest extends ParserBaseTest {
     try (Reader reader = getReaderFromResource("MRNSample.csv")) {
       counts = parser.parseComptages(reader);
     }
-    assertEquals(5, counts.size());
+    assertEquals(7, counts.size());
     MRNComptage first = counts.get(0);
     assertEquals("CA_000000064_3", first.getSiteId());
     assertEquals("MRN_CA_000000064_3", first.getCodeCentrale());
@@ -67,6 +67,9 @@ public class MRNComptageParserTest extends ParserBaseTest {
     assertEquals(Comptage.Type.BICYCLES, counts.get(3).getType());
     assertEquals(Comptage.DirectionType.UNIDIRECTIONAL, counts.get(3).getDirectionType()); // "Sens unique"
     assertEquals("Piste Cyclable Unidirectionnelle", counts.get(3).getCampaignDetails());
+    for (int i = 4; i < counts.size(); i++) {
+      assertEquals(Comptage.Type.UNKNOWN, counts.get(i).getType());
+    }
     assertNull(counts.get(4).getTvTmja());
     assertEquals(0, counts.get(4).getMoyenneJourAnnuelle());
     for (MRNComptage count : counts) {
@@ -117,7 +120,7 @@ public class MRNComptageParserTest extends ParserBaseTest {
   }
 
   @Test
-  public void mapsOnlyExplicitlySupportedPopulations() throws Exception {
+  public void retainsUnmappedPopulationsAsUnknown() throws Exception {
     String rows = "";
     for (String details : List.of("Vélos", "Piétons / Vélos", "Piétons", "Vélos / EDP",
         "Piétons / Vélos / EDP")) {
@@ -126,9 +129,26 @@ public class MRNComptageParserTest extends ParserBaseTest {
     }
     rows += "Unknown campaign;;B;2025;;;;;;;;;;;\n";
     List<MRNComptage> counts = parser.parseComptages(new StringReader(HEADER + rows));
-    assertEquals(2, counts.size());
+    assertEquals(6, counts.size());
+    for (int i = 2; i < counts.size(); i++) {
+      assertEquals(Comptage.Type.UNKNOWN, counts.get(i).getType());
+    }
     assertEquals(Comptage.Type.BICYCLES, counts.get(0).getType());
     assertEquals(Comptage.Type.PIETONS_VELOS, counts.get(1).getType());
+  }
+
+  @Test
+  public void mapsCampaignLabelsAndDefaultsMissingOrUnmappedLabelsToUnknown() throws Exception {
+    for (String campaign : List.of("Comptage permanent en section", "Comptage ponctuel en section",
+        "Comptage permanent de vélos", "Comptage ponctuel directionnel sur carrefour",
+        "Unknown campaign", "", "   ")) {
+      MRNComptage count = parser.parseComptages(new StringReader(csv(
+          campaign + ";;A;YEAR;;;2 sens;120;;;;;1.1;49.2;"))).get(0);
+      Comptage.Type expected = campaign.endsWith("en section") ? Comptage.Type.VEHICULES
+          : campaign.equals("Comptage permanent de vélos") ? Comptage.Type.BICYCLES
+          : Comptage.Type.UNKNOWN;
+      assertEquals(campaign, expected, count.getType());
+    }
   }
 
   @Test
@@ -142,7 +162,7 @@ public class MRNComptageParserTest extends ParserBaseTest {
         + "Comptage permanent de vélos;;B;" + year
         + ";Piste;Rouen;Sens unique;30;;;;;1.2;49.3;\n"
         + "Comptage ponctuel directionnel sur carrefour;;C;" + year
-        + ";Carrefour;Rouen;;;;;;;1.3;49.4;\n";
+        + ";Carrefour;Rouen;;120;;;;;1.3;49.4;\n";
     OSMInfoProvider osm = new OSMInfoProvider() {
       public Long getWayId(String id, Point point, String road) {
         assertNotNull(point);

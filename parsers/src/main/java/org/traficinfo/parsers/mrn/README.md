@@ -52,15 +52,19 @@ GeoJSON output. Blank numeric measures remain null, distinct from real zero.
 | Campaign | Shared type |
 | --- | --- |
 | Permanent or temporary road section | `VEHICULES` |
-| Temporary directional junction | `VEHICULES` |
+| Temporary directional junction | `UNKNOWN` |
 | Permanent bicycle count | `BICYCLES` |
 | Temporary soft-mode survey with details exactly `Vélos` | `BICYCLES` |
 | Temporary soft-mode survey with details exactly `Piétons / Vélos` | `PIETONS_VELOS` |
-| Other populations, including EDP, other surveys and unknown categories | Skipped; total skipped count logged. |
+| Other populations, including EDP, other surveys and unknown or blank categories | `UNKNOWN`; warning logged with counter ID, campaign and details. |
 
-Known populations with missing counts are retained by the parser. The shared
+The parser uses an explicit `TYPE_MAP` keyed by `Type de Campagne`, with a
+population-details map for soft-mode campaigns. Missing mappings default to
+`UNKNOWN`, never vehicles. Unknown populations and missing counts are retained
+by the parser. The shared
 GeoJSON filters exclude missing/zero averages and currently include only
-vehicles and bicycles. Location-only junction and soft-mode surveys therefore
+vehicles and bicycles. Unknown populations are excluded even if they contain
+counts. Location-only junction and soft-mode surveys therefore
 do not generate traffic features. Pedestrian-only and EDP populations must not
 be silently reclassified as bicycles or combined pedestrian/bicycle counts.
 
@@ -71,8 +75,10 @@ or schedules are added by this parser implementation.
 ## Snapshot validation and tests
 
 The complete export downloaded on October 22, 2026 contained 8,301 records
-and 29 fields. The parser retained 8,017 records and skipped 284 unsupported
-population/survey records. Shared GeoJSON rendering produced 2,524 features.
+and 29 fields. Before unknown populations were retained, the parser retained
+8,017 records and skipped 284 unsupported population/survey records. Shared
+GeoJSON rendering produced 2,524 features. These are historical snapshot figures,
+not validation totals for the current mapping.
 All source records had coordinates. Road-section and permanent bicycle records
 were unique by `(Id_SIG, Année)`; duplicate pairs occurred in location-only
 surveys. Future identifier stability is not guaranteed, and no aggregation or

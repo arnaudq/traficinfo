@@ -89,6 +89,7 @@ public interface Comptage {
   public enum Type {
     VEHICULES,
     BICYCLES,
-    PIETONS_VELOS;
+    PIETONS_VELOS,
+    UNKNOWN;
   }
 }
