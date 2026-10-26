@@ -33,11 +33,11 @@ public final class M3MComptageParser implements ComptageParser {
   }
 
   @Override
-  public List<? extends Comptage> parseComptages(Reader csvReader) throws IOException {
+  public List<M3MComptage> parseComptages(Reader csvReader) throws IOException {
     return parseComptages(csvReader, new Properties());
   }
   @Override
-  public List<? extends Comptage> parseComptages(Reader csvReader, Properties idToDisplayNames)
+  public List<M3MComptage> parseComptages(Reader csvReader, Properties idToDisplayNames)
           throws IOException {
     final List<M3MComptage> comptages =
             new CsvToBeanBuilder<M3MComptage>(csvReader).withType(M3MComptage.class).build().parse();
@@ -49,7 +49,7 @@ public final class M3MComptageParser implements ComptageParser {
   }
 
   @Override
-  public List<? extends Comptage> parseComptages(File csvFile, Properties idToDisplayNames)
+  public List<M3MComptage> parseComptages(File csvFile, Properties idToDisplayNames)
     throws IOException {
 
     try (Reader reader = new FileReader(csvFile)) {
@@ -76,7 +76,6 @@ public final class M3MComptageParser implements ComptageParser {
         normalizedDisplayName = displayName;
       }
       mmmComptage.setDisplayName(normalizedDisplayName);
-      mmmComptage.setBidirectionnelle("Z".equals(mmmComptage.getCodeCanal()));
       Comptage.Type type = TYPE_MAP.get(mmmComptage.getTypeCompteur());
       if (type == null) {
         LOG.warn("UNKNOWN TYPE FOR {}\n", mmmComptage);

@@ -56,7 +56,7 @@ public class DPT30ComptageParserTest extends ParserBaseTest {
     assertNull(rows.get(2).getPourcentageTmjaPoidsLourds());
     for (DPT30Comptage row : rows) {
       assertEquals(Comptage.Type.VEHICULES, row.getType());
-      assertTrue(row.isBidirectionnelle());
+      assertEquals(Comptage.DirectionType.BIDIRECTIONAL, row.getDirectionType());
       assertNull(row.getOsmWayId());
       assertNull(row.getMoyenneHeureDePointeMatin());
       assertNull(row.getMoyenneHeureDePointeSoir());

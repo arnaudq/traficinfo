@@ -54,8 +54,6 @@ public final class DPT30ComptageParser implements ComptageParser {
       comptage.setSiteId(siteId);
       comptage.setCodeCentrale(COUNTER_PREFIX + siteId);
       comptage.setCityName(StringUtils.toCamelCase(comptage.getCityName()));
-      // Gard has no direction column; treat these counts as combined directions.
-      comptage.setBidirectionnelle(true);
 
       String displayName = comptage.getRouteId();
       if (displayName == null || displayName.isBlank()) {

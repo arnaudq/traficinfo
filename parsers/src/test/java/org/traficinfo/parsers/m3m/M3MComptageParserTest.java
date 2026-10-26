@@ -57,6 +57,6 @@ public class M3MComptageParserTest extends ParserBaseTest {
     assertEquals("72 (8h00 - 9h00)", c.getMoyenneHeureDePointeMatin());
     assertEquals("43 (17h00 - 18h00)", c.getMoyenneHeureDePointeSoir());
     assertEquals(Comptage.Type.VEHICULES, c.getType());
-    assertEquals(false, c.isBidirectionnelle());
+    assertEquals(Comptage.DirectionType.UNIDIRECTIONAL, c.getDirectionType());
   }
 }

@@ -58,8 +58,6 @@ public class DPT30Comptage implements Comptage {
 
   private String displayName;
 
-  private boolean bidirectionnelle;
-
   private Type type = Type.VEHICULES;
 
   @Override
@@ -244,14 +242,10 @@ public class DPT30Comptage implements Comptage {
     this.displayName = displayName;
   }
 
+  /** Gard has no direction column; counts are assumed to combine both directions. */
   @Override
-  public boolean isBidirectionnelle() {
-    return bidirectionnelle;
-  }
-
-  @Override
-  public void setBidirectionnelle(boolean bidirectionnelle) {
-    this.bidirectionnelle = bidirectionnelle;
+  public DirectionType getDirectionType() {
+    return DirectionType.BIDIRECTIONAL;
   }
 
   @Override
@@ -299,13 +293,12 @@ public class DPT30Comptage implements Comptage {
         && meanSpeed == that.meanSpeed
         && maximumSpeed == that.maximumSpeed
         && Objects.equals(displayName, that.displayName)
-        && bidirectionnelle == that.bidirectionnelle
         && Objects.equals(type, that.type);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(osmWayId, siteId, codeCentrale, cityName, routeId, annee, typeCompteur, idTmja, tmjaPoidsLourds, pourcentageTmjaPoidsLourds, latitude, longitude, mjaTvTcj, moyenneHeureDePointeMatin, moyenneHeureDePointeSoir, v85Speed, meanSpeed, maximumSpeed, displayName, bidirectionnelle, type);
+    return Objects.hash(osmWayId, siteId, codeCentrale, cityName, routeId, annee, typeCompteur, idTmja, tmjaPoidsLourds, pourcentageTmjaPoidsLourds, latitude, longitude, mjaTvTcj, moyenneHeureDePointeMatin, moyenneHeureDePointeSoir, v85Speed, meanSpeed, maximumSpeed, displayName, type);
   }
 
   @Override

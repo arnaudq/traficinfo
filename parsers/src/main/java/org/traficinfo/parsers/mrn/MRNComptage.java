@@ -113,8 +113,6 @@ public class MRNComptage implements Comptage {
 
   private Type type;
 
-  private boolean bidirectionnelle;
-
   public String getCampaignType() {
     return campaignType;
   }
@@ -419,13 +417,18 @@ public class MRNComptage implements Comptage {
     this.type = type;
   }
 
-  public boolean isBidirectionnelle() {
-    return bidirectionnelle;
+  @Override
+  public DirectionType getDirectionType() {
+    if (directionCount == null) {
+      return DirectionType.UNKNOWN;
+    }
+    return switch (directionCount.trim()) {
+      case "2 sens" -> DirectionType.BIDIRECTIONAL;
+      case "1 sens", "Sens unique" -> DirectionType.UNIDIRECTIONAL;
+      default -> DirectionType.UNKNOWN;
+    };
   }
 
-  public void setBidirectionnelle(boolean bidirectionnelle) {
-    this.bidirectionnelle = bidirectionnelle;
-  }
 
   @Override
   public Point getGeometry() {

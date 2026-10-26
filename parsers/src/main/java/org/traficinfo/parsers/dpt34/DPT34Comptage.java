@@ -59,8 +59,6 @@ public class DPT34Comptage implements Comptage {
 
   private String displayName;
 
-  private boolean bidirectionnelle;
-
   private Type type = Type.VEHICULES;
 
   @Override
@@ -246,13 +244,12 @@ public class DPT34Comptage implements Comptage {
   }
 
   @Override
-  public boolean isBidirectionnelle() {
-    return bidirectionnelle;
-  }
-
-  @Override
-  public void setBidirectionnelle(boolean bidirectionnelle) {
-    this.bidirectionnelle = bidirectionnelle;
+  public DirectionType getDirectionType() {
+    return switch (sensRoute) {
+      case 1, 2 -> DirectionType.UNIDIRECTIONAL;
+      case 3 -> DirectionType.BIDIRECTIONAL;
+      default -> DirectionType.UNKNOWN;
+    };
   }
 
   @Override
@@ -300,13 +297,12 @@ public class DPT34Comptage implements Comptage {
         && meanSpeed == that.meanSpeed
         && maximumSpeed == that.maximumSpeed
         && Objects.equals(displayName, that.displayName)
-        && bidirectionnelle == that.bidirectionnelle
         && Objects.equals(type, that.type);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(osmWayId, siteId, codeCentrale, streetName, altStreetName, cityName, routeId, annee, typeCompteur, sensRoute, latitude, longitude, mjaTvTcj, moyenneHeureDePointeMatin, moyenneHeureDePointeSoir, v85Speed, meanSpeed, maximumSpeed, displayName, bidirectionnelle, type);
+    return Objects.hash(osmWayId, siteId, codeCentrale, streetName, altStreetName, cityName, routeId, annee, typeCompteur, sensRoute, latitude, longitude, mjaTvTcj, moyenneHeureDePointeMatin, moyenneHeureDePointeSoir, v85Speed, meanSpeed, maximumSpeed, displayName, type);
   }
 
   @Override

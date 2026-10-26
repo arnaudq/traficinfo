@@ -57,15 +57,15 @@ public class MRNComptageParserTest extends ParserBaseTest {
     assertEquals("923 (08h-09h)", first.getMoyenneHeureDePointeMatin());
     assertEquals("1160 (17h-18h)", first.getMoyenneHeureDePointeSoir());
     assertEquals("[08h-09h]", first.getTvHpmHour());
-    assertTrue(first.isBidirectionnelle());
+    assertEquals(Comptage.DirectionType.BIDIRECTIONAL, first.getDirectionType());
     Point point = first.getGeometry();
     assertEquals(1.05133534, point.getCoordinates().getLongitude(), 0);
     assertEquals(49.29198122, point.getCoordinates().getLatitude(), 0);
     assertEquals(Comptage.Type.VEHICULES, counts.get(2).getType());
-    assertFalse(counts.get(2).isBidirectionnelle()); // "1 sens"
+    assertEquals(Comptage.DirectionType.UNIDIRECTIONAL, counts.get(2).getDirectionType()); // "1 sens"
     assertEquals("585 (08H00-09H00)", counts.get(2).getMoyenneHeureDePointeMatin());
     assertEquals(Comptage.Type.BICYCLES, counts.get(3).getType());
-    assertFalse(counts.get(3).isBidirectionnelle()); // "Sens unique"
+    assertEquals(Comptage.DirectionType.UNIDIRECTIONAL, counts.get(3).getDirectionType()); // "Sens unique"
     assertEquals("Piste Cyclable Unidirectionnelle", counts.get(3).getCampaignDetails());
     assertNull(counts.get(4).getTvTmja());
     assertEquals(0, counts.get(4).getMoyenneJourAnnuelle());

@@ -60,7 +60,6 @@ public final class DPT34ComptageParser implements ComptageParser {
       }
       comptage.setDisplayName(idToDisplayNames.getProperty(
           comptage.getCodeCentrale(), displayName));
-      comptage.setBidirectionnelle(comptage.getSensRoute() == 3);
     }
     LOG.info("Nb comptages: {}", comptages.size());
     return comptages;

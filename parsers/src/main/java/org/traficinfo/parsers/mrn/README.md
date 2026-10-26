@@ -30,7 +30,7 @@ values labelled as annual averages.
 | `TV_TMJA` | Nullable `tvTmja`; shared daily average returns 0 when absent. No substitution with TMJO or UVP. |
 | `TV_HPM`, `TV_HPM (heure)` | Morning peak, e.g. `923 (08h-09h)`. Brackets become parentheses; the source interval's capitalization is preserved. |
 | `TV_HPS`, `TV_HPS (heure)` | Same formatting for evening peak. Missing/nonpositive volumes produce null; a missing interval leaves just the volume. |
-| `Nombre de Sens` | `2 sens` means bidirectional; `1 sens` and `Sens unique` mean unidirectional. Blank remains null in `directionCount`, with false in the shared boolean. Unknown nonblank labels skip the record with a warning. |
+| `Nombre de Sens` | `2 sens` means bidirectional; `1 sens` and `Sens unique` mean unidirectional. `getDirectionType()` returns `BIDIRECTIONAL` or `UNIDIRECTIONAL` accordingly. Blank remains null in `directionCount` and yields `UNKNOWN`. Unknown nonblank labels skip the record with a warning. |
 | `X_84`, `Y_84` | Nullable longitude/latitude, supplying `Point(longitude, latitude)` without rounding. |
 | `geopoint` | Fallback coordinate pair if either explicit coordinate is missing. No complete pair means null geometry. Invalid/nonfinite or out-of-range coordinates fail parsing. |
 | `Type de Campagne`, `Détails de la campagne` | Population mapping below; original text retained. |

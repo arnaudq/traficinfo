@@ -76,7 +76,7 @@ way IDs, hourly peaks, V85, mean speed or speed limits. OSM IDs and peaks defaul
 to null, speeds to 0 and speed limits to -1, matching the existing conventions.
 
 The CSV has no explicit direction field. By project choice, the parser assumes
-counts combine both directions and sets `bidirectionnelle` to true, displaying
+counts combine both directions and returns `DirectionType.BIDIRECTIONAL`, displaying
 the ⇄ marker. This is an assumption, not a documented source-field mapping.
 
 The parser is registered as `GeoJsonParser.DataSource.DPT30`. The shared

@@ -55,8 +55,6 @@ public class M3MComptage implements Comptage {
 
   private String displayName;
 
-  private boolean bidirectionnelle;
-
   private Type type = Type.VEHICULES;
 
   @Override
@@ -109,6 +107,14 @@ public class M3MComptage implements Comptage {
 
   public void setCodeCanal(String codeCanal) {
     this.codeCanal = codeCanal;
+  }
+
+  @Override
+  public DirectionType getDirectionType() {
+    if (codeCanal == null || codeCanal.isBlank()) {
+      return DirectionType.UNKNOWN;
+    }
+    return "Z".equals(codeCanal.trim()) ? DirectionType.BIDIRECTIONAL : DirectionType.UNIDIRECTIONAL;
   }
 
   @Override
@@ -218,26 +224,16 @@ public class M3MComptage implements Comptage {
   }
 
   @Override
-  public boolean isBidirectionnelle() {
-    return bidirectionnelle;
-  }
-
-  @Override
-  public void setBidirectionnelle(boolean bidirectionnelle) {
-    this.bidirectionnelle = bidirectionnelle;
-  }
-
-  @Override
   public boolean equals(Object o) {
     if (this == o) return true;
     if (o == null || getClass() != o.getClass()) return false;
     M3MComptage that = (M3MComptage) o;
-    return annee == that.annee && moyenneJourAnnuelle == that.moyenneJourAnnuelle && v85Speed == that.v85Speed && meanSpeed == that.meanSpeed && maximumSpeed == that.maximumSpeed && bidirectionnelle == that.bidirectionnelle && Objects.equals(osmWayId, that.osmWayId) && Objects.equals(codeCentrale, that.codeCentrale) && Objects.equals(streetName, that.streetName) && Objects.equals(altStreetName, that.altStreetName) && Objects.equals(cityName, that.cityName) && Objects.equals(typeCompteur, that.typeCompteur) && Objects.equals(typeComptage, that.typeComptage) && Objects.equals(codeCanal, that.codeCanal) && Objects.equals(moyenneHeureDePointeMatin, that.moyenneHeureDePointeMatin) && Objects.equals(moyenneHeureDePointeSoir, that.moyenneHeureDePointeSoir) && Objects.equals(displayName, that.displayName) && type == that.type;
+    return annee == that.annee && moyenneJourAnnuelle == that.moyenneJourAnnuelle && v85Speed == that.v85Speed && meanSpeed == that.meanSpeed && maximumSpeed == that.maximumSpeed && Objects.equals(osmWayId, that.osmWayId) && Objects.equals(codeCentrale, that.codeCentrale) && Objects.equals(streetName, that.streetName) && Objects.equals(altStreetName, that.altStreetName) && Objects.equals(cityName, that.cityName) && Objects.equals(typeCompteur, that.typeCompteur) && Objects.equals(typeComptage, that.typeComptage) && Objects.equals(codeCanal, that.codeCanal) && Objects.equals(moyenneHeureDePointeMatin, that.moyenneHeureDePointeMatin) && Objects.equals(moyenneHeureDePointeSoir, that.moyenneHeureDePointeSoir) && Objects.equals(displayName, that.displayName) && type == that.type;
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(osmWayId, codeCentrale, streetName, altStreetName, cityName, annee, typeCompteur, typeComptage, codeCanal, moyenneJourAnnuelle, moyenneHeureDePointeMatin, moyenneHeureDePointeSoir, v85Speed, meanSpeed, maximumSpeed, displayName, bidirectionnelle, type);
+    return Objects.hash(osmWayId, codeCentrale, streetName, altStreetName, cityName, annee, typeCompteur, typeComptage, codeCanal, moyenneJourAnnuelle, moyenneHeureDePointeMatin, moyenneHeureDePointeSoir, v85Speed, meanSpeed, maximumSpeed, displayName, type);
   }
 
   @Override
@@ -259,7 +255,6 @@ public class M3MComptage implements Comptage {
       ", meanSpeed=" + meanSpeed +
       ", maximumSpeed=" + maximumSpeed +
       ", displayName='" + displayName + '\'' +
-      ", bidirectionnelle=" + bidirectionnelle +
       ", type=" + type +
       '}';
   }

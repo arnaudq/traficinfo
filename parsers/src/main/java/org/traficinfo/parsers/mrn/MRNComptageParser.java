@@ -68,8 +68,6 @@ public final class MRNComptageParser implements ComptageParser {
         skipped++;
         continue;
       }
-      // A blank direction remains available through getDirectionCount(); the shared flag is boolean.
-      count.setBidirectionnelle("2 sens".equals(direction));
       applyCoordinates(count);
       String street = count.getStreetName();
       String city = count.getCityName();

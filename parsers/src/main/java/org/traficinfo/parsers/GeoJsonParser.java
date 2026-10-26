@@ -303,7 +303,7 @@ public class GeoJsonParser {
         // Set name as moyenne
         // Right arrow over left arrow https://www.fileformat.info/info/unicode/char/21c4/index.htm
         feature.setProperty("name", comptage.getMoyenneJourAnnuelle()
-          + (comptage.isBidirectionnelle() ? " \u21C4" : ""));
+          + (comptage.getDirectionType() == Comptage.DirectionType.BIDIRECTIONAL ? " \u21C4" : ""));
 
         // Set description as name from displayname or feature if not available
         String description;

@@ -53,7 +53,7 @@ public class DPT34ComptageParserTest extends ParserBaseTest {
     assertEquals("CuP", rows.get(3).getTypeCompteur());
     for (DPT34Comptage row : rows) {
       assertEquals(Comptage.Type.VEHICULES, row.getType());
-      assertTrue(row.isBidirectionnelle());
+      assertEquals(Comptage.DirectionType.BIDIRECTIONAL, row.getDirectionType());
       assertNull(row.getOsmWayId());
       assertNull(row.getMoyenneHeureDePointeMatin());
       assertNull(row.getMoyenneHeureDePointeSoir());
@@ -86,14 +86,14 @@ public class DPT34ComptageParserTest extends ParserBaseTest {
     List<DPT34Comptage> rows = parser.parseComptages(new StringReader(csv));
     DPT34Comptage missing = rows.get(0);
     assertEquals("Section - Commune", missing.getDisplayName());
-    assertFalse(missing.isBidirectionnelle());
+    assertEquals(Comptage.DirectionType.UNIDIRECTIONAL, missing.getDirectionType());
     assertNull(missing.getLatitude());
     assertNull(missing.getLongitude());
     assertNull(missing.getGeometry());
     assertNull(missing.getMjaTvTcj());
     DPT34Comptage zero = rows.get(1);
     assertEquals("Other section", zero.getDisplayName());
-    assertFalse(zero.isBidirectionnelle());
+    assertEquals(Comptage.DirectionType.UNIDIRECTIONAL, zero.getDirectionType());
     assertEquals(Integer.valueOf(0), zero.getMjaTvTcj());
   }
 

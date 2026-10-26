@@ -44,6 +44,9 @@ public interface Comptage {
 
   void setCodeCentrale(String codeCentrale);
 
+  /** Directional coverage derived from the data source's schema. */
+  DirectionType getDirectionType();
+
   int getAnnee();
 
   void setAnnee(int annee);
@@ -76,9 +79,12 @@ public interface Comptage {
 
   void setType(Type type);
 
-  boolean isBidirectionnelle();
-
-  void setBidirectionnelle(boolean bidirectionnelle);
+  /** Coverage of the count, rather than geographic orientation or channel identity. */
+  enum DirectionType {
+    UNIDIRECTIONAL,
+    BIDIRECTIONAL,
+    UNKNOWN
+  }
 
   public enum Type {
     VEHICULES,
