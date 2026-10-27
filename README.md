@@ -40,7 +40,7 @@ the compartment selected by `source ./setup.sh`. It uses the exported
 `OCI_COMPARTMENT_ID`, `OCI_OBJECT_STORAGE_NAMESPACE`, and OCI credentials.
 
 Input buckets are read from `dsconfig.json`, using the shared naming defaults
-and overrides. Currently these are `ds3mbucket`, `dsdpt30`, `dsdpt34` and `dsmrn`. All have object
+and overrides. Currently these are `ds3mbucket`, `dsdpt30`, `dsdpt34`, `dsmrn` and `dsnim`. All have object
 events enabled and are private on creation. `osminfo` is private. `traficinfo`
 uses `ObjectReadWithoutList`: anyone can download an object using its URL,
 while listing objects requires authentication. All buckets use Standard
@@ -55,8 +55,8 @@ does not create the rule that invokes the GeoJSON function.
 ## CSV events and GeoJSON generation
 
 After running `./setup-buckets.sh` and deploying with `./deploy-functions.sh`,
-run `./setup-events.sh` to create or update one Events rule for every entry in
-`dsconfig.json`, targeting GeoJSON functions in `3MOpenDataProcessor`:
+run `./setup-events.sh` to create or update one Events rule for every entry with
+GeoJSON enabled in `dsconfig.json`, targeting GeoJSON functions in `3MOpenDataProcessor`:
 
 | Source ID | Events rule | CSV object | GeoJSON function |
 | --- | --- | --- | --- |
@@ -70,6 +70,13 @@ bucket `ds${lowercase(id)}`, and CSV `${id}_Comptage.csv`. Optional per-source
 `functionPrefix`, `inputBucket`, and `csvObject` fields override these defaults.
 MMM supplies all three overrides to retain its existing resource names; DPT34
 uses the defaults. `functionPrefix` affects both the rule and function name.
+
+NIM currently downloads the 2022 resource only. Its `geoJsonEnabled: false`
+setting excludes it from event setup; no NIM GeoJSON function is deployed.
+Use `./deploy-functions.sh ds NIM` and, when ready to download its large export,
+`./invoke.sh ds NIM`. The source uses bucket `dsnim`, Object `NIM_Comptage.csv`,
+a 300-second runtime timeout and the Monthly schedule tag. The downloader does
+not perform yearly preprocessing or publish a manifest yet.
 
 Each rule matches create and update events for exactly its configured CSV in
 its bucket, compartment, and Object Storage namespace. Archive objects,

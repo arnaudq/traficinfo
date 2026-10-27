@@ -149,6 +149,39 @@ public class DataSourceSettingsTest {
         }
     }
 
+    @Test
+    public void retrievalSettingsAndBucketAreRequiredBeforeClientsAreConfigured() throws Exception {
+        for (Map<String, String> config : List.of(
+                Map.<String, String>of(),
+                Map.of("BUCKETNAME", "bucket"),
+                Map.of(DataSourceSettings.CONFIG_KEY,
+                        new ObjectMapper().writeValueAsString(settings("current", CSV))))) {
+            Probe probe = new Probe();
+            FunctionRuntimeContext runtime = new FunctionRuntimeContext(
+                    new FunctionLoader().loadClass(Probe.class.getName(), "handleRequest"), config);
+            try {
+                probe.config(runtime);
+                fail("Expected missing configuration failure");
+            } catch (IllegalArgumentException expected) {
+                assertTrue(expected.getMessage().startsWith("Missing "));
+                assertNull(probe.bucket);
+                assertTrue(probe.stub.requests.isEmpty());
+            }
+        }
+    }
+
+    @Test
+    public void unconfiguredHandlerCannotDownloadWithFallbackSettings() {
+        Probe probe = new Probe();
+        try {
+            probe.handleRequest("");
+            fail("Expected missing configuration failure");
+        } catch (IllegalStateException expected) {
+            assertTrue(probe.stub.requests.isEmpty());
+            assertTrue(probe.stub.writes.isEmpty());
+        }
+    }
+
     private static DataSourceSettings settings(String resourceId, DataSourceSettings.Input... inputs) {
         return new DataSourceSettings("MRN", resourceId, List.of(inputs));
     }

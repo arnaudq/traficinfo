@@ -79,8 +79,18 @@ Successful retrieval stores the datasource ID, resource ID, source URL and UTC
 download time in Object metadata. Conditional downloads reuse validators only
 for the same source URL, resource and datasource. Older Objects without these
 fields are refreshed once. Switching resources therefore cannot reuse the old
-resource's validator. Existing handlers retain their legacy defaults when the
-function configuration is absent.
+resource's validator. All datasource handlers require `DATA_SOURCE_SETTINGS`
+and `BUCKETNAME`; missing settings fail before any clients are created. Retrieval
+URLs and resource IDs are configured only in `dsconfig.json`, with no Java
+fallbacks. Each handler supplies only its datasource ID to the shared retrieval
+superclass. `CsvDataSource` retains only GeoJSON parser selection and naming.
+
+The optional `source.timeoutSeconds` sets the download function's synchronous
+runtime timeout (1–300 seconds). Deployment applies it on creation and updates;
+invocation allows an additional 60 seconds when it exceeds the default 30. NIM
+uses 300 seconds for its 2022 export. `geoJsonEnabled: false` marks a datasource
+as download-only: event setup skips it and GeoJSON invocation/deployment is
+disabled until processing is implemented. Other sources remain enabled by default.
 
 ## Processing sequence
 

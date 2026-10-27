@@ -2,6 +2,8 @@ package org.traficinfo.dsfunctions.dpt30;
 
 import org.junit.Test;
 import org.traficinfo.dsfunctions.OOSResourceMetadata;
+import org.traficinfo.dsfunctions.DataSourceSettings;
+import org.traficinfo.dsfunctions.DataSourceTestSettings;
 import org.traficinfo.dsfunctions.ObjectStoreClient;
 
 import java.io.ByteArrayInputStream;
@@ -24,7 +26,9 @@ import static org.junit.Assert.*;
 public class DataSourceFunctionTest {
 
     private static final String ETAG = "6e9bba51e2a5c0dd8d103b97d5d0a336";
-    private static final String OBJECT = DataSourceFunction.CSV_OBJECT_NAME;
+    private static final DataSourceSettings SETTINGS = DataSourceTestSettings.settings("DPT30");
+    private static final DataSourceSettings.Input CSV_INPUT = SETTINGS.inputs().get(0);
+    private static final String OBJECT = CSV_INPUT.objectName();
     private static final byte[] CSV = "id_tmja,annee,tmja_tous_vehicules\n1_0_3_0_2025,2025,6075\n"
             .getBytes(StandardCharsets.UTF_8);
 
@@ -107,8 +111,7 @@ public class DataSourceFunctionTest {
         stub.downloadBytes = new byte[]{4, 5, 6};
         stub.failCurrentUpload = true;
         assertFailure(stub);
-        assertEquals(List.of(String.format(DataSourceFunction.CSV_OBJECT_ARCHIVE_NAME,
-                stub.metadata.get(OBJECT).getLastModified())), stub.uploads);
+        assertEquals(List.of(CSV_INPUT.archiveName(stub.metadata.get(OBJECT).getLastModified())), stub.uploads);
         assertArrayEquals(CSV, stub.contents.get(OBJECT));
     }
 
@@ -170,7 +173,7 @@ public class DataSourceFunctionTest {
             HttpClient http = new HttpClient() {
                 @Override
                 public EntityBody get(URI uri, String etag) throws IOException {
-                    assertEquals(DataSourceFunction.CSV_URI, uri);
+                    assertEquals(URI.create(CSV_INPUT.url()), uri);
                     OOSResourceMetadata previous = metadata.get(OBJECT);
                     assertEquals(previous == null ? null : previous.getETag(), etag);
                     downloads++;
@@ -189,7 +192,7 @@ public class DataSourceFunctionTest {
                     });
                 }
             };
-            return new DataSourceFunction(http, storage);
+            return new DataSourceFunction(SETTINGS, http, storage);
         }
     }
 }

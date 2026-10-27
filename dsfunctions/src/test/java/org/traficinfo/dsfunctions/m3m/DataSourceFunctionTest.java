@@ -3,6 +3,7 @@ package org.traficinfo.dsfunctions.m3m;
 import org.traficinfo.dsfunctions.HttpClient;
 import org.traficinfo.dsfunctions.ObjectStoreClient;
 import org.traficinfo.dsfunctions.OOSResourceMetadata;
+import org.traficinfo.dsfunctions.DataSourceTestSettings;
 
 import org.junit.Test;
 
@@ -110,7 +111,7 @@ public class DataSourceFunctionTest {
                     uploads.add(name);
                 }
             };
-            return new DataSourceFunction(http, storage);
+            return new DataSourceFunction(DataSourceTestSettings.settings("MMM"), http, storage);
         }
     }
 }

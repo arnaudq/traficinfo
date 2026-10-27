@@ -130,7 +130,7 @@ class OciScriptsTest(unittest.TestCase):
                         OCI_OBJECT_STORAGE_NAMESPACE='testnamespace',
                         OCI_FN_APPLICATION_NAME='3MOpenDataProcessor')
         for key in ['OCI_FN_APPLICATION_ID', 'BUCKETNAME_IN', 'BUCKETNAME_DPT34', 'BUCKETNAME_MRN',
-                    'BUCKETNAME_OUT', 'BUCKETNAME_OSM', 'OSM_CACHE_OBJECT', 'OSM_WAY_MAPPING_OBJECT', 'MAX_LOOP_DURATION_SECONDS', 'MAX_WAY_MAPPINGS_PER_RESOURCE']:
+                    'BUCKETNAME_NIM', 'BUCKETNAME_OUT', 'BUCKETNAME_OSM', 'OSM_CACHE_OBJECT', 'OSM_WAY_MAPPING_OBJECT', 'MAX_LOOP_DURATION_SECONDS', 'MAX_WAY_MAPPINGS_PER_RESOURCE']:
             self.env.pop(key, None)
         self.state = {
             'applications': [{'id': 'ocid1.fnapp.test', 'display-name': '3MOpenDataProcessor',
@@ -139,11 +139,11 @@ class OciScriptsTest(unittest.TestCase):
                            'lifecycle-state': 'ACTIVE', 'defined-tags': {'Old': {'Tag': 'value'}}}
                           for name in ['3MOpenDataSource', 'DPT34OpenDataSource', 'DPT30OpenDataSource',
                                        '3MGeoJsonOut', 'DPT34GeoJsonOut', 'DPT30GeoJsonOut',
-                                       'MRNOpenDataSource', 'MRNGeoJsonOut', 'OSMInfoFunction']],
+                                       'MRNOpenDataSource', 'MRNGeoJsonOut', 'NIMOpenDataSource', 'OSMInfoFunction']],
             'buckets': [{'name': name, 'compartment-id': 'ocid1.compartment.test',
                          'storage-tier': 'Standard', 'object-events-enabled': True,
                          'public-access-type': 'NoPublicAccess'}
-                        for name in ['ds3mbucket', 'dsdpt34', 'dsdpt30', 'dsmrn', 'traficinfo', 'osminfo']],
+                        for name in ['ds3mbucket', 'dsdpt34', 'dsdpt30', 'dsmrn', 'dsnim', 'traficinfo', 'osminfo']],
             'rules': [], 'schedules': []}
         self.save()
 
@@ -289,6 +289,74 @@ class OciScriptsTest(unittest.TestCase):
             self.deploy(success=False)
             self.assertNotIn('calls', self.state)
 
+    def test_nim_defaults_and_download_only_routing(self):
+        source = json.loads(self.common('get_data_source NIM').stdout)
+        settings = json.loads(self.common('data_source_settings "$(get_data_source NIM)"').stdout)
+        self.assertEqual(source['inputBucket'], 'dsnim')
+        self.assertEqual(source['dataSourceFunction'], 'NIMOpenDataSource')
+        self.assertEqual(source['csvObject'], 'NIM_Comptage.csv')
+        self.assertFalse(source['geoJsonEnabled'])
+        self.assertEqual(settings['resourceId'], 'nim-2022')
+        self.assertIn('lagglomeration-2022/exports/csv?', settings['inputs'][0]['url'])
+        self.assertEqual(settings['inputs'][0]['objectName'], 'NIM_Comptage.csv')
+        result = self.script('invoke.sh', 'geojson', 'NIM', success=False)
+        self.assertIn('GeoJSON is not enabled for NIM', result.stderr)
+        self.assertNotIn('calls', self.state)
+
+    def test_nim_deployment_has_long_timeout_and_stays_within_configuration_budget(self):
+        for existing in [True, False]:
+            with self.subTest(existing=existing):
+                if not existing:
+                    self.state['functions'] = [item for item in self.state['functions']
+                                               if item['display-name'] != 'NIMOpenDataSource']
+                    self.save()
+                self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main ds NIM')
+                function = next(item for item in self.state['functions']
+                                if item['display-name'] == 'NIMOpenDataSource')
+                self.assertEqual(function['timeout-in-seconds'], 300)
+                self.assertEqual(function['defined-tags'], {'TraficInfo': {'DataSourceSchedule': 'Monthly'}})
+                self.assertEqual(function['config']['BUCKETNAME'], 'dsnim')
+                settings = json.loads(function['config']['DATA_SOURCE_SETTINGS'])
+                self.assertEqual(settings['resourceId'], 'nim-2022')
+                size = sum(len(k.encode()) + len(v.encode()) for k, v in function['config'].items())
+                self.assertLessEqual(size, 4096)
+                handler = [call for call in self.state['calls'] if '--handler' in call][-1]
+                self.assertEqual(handler[handler.index('--handler') + 1],
+                                 'org.traficinfo.dsfunctions.nim.DataSourceFunction::handleRequest')
+
+    def test_nim_invocation_has_matching_client_timeout(self):
+        self.script('invoke.sh', 'ds', 'NIM')
+        call = self.state['calls'][-1]
+        self.assertEqual(call[call.index('--function-id') + 1], 'ocid1.fnfunc.NIMOpenDataSource')
+        self.assertEqual(call[call.index('--read-timeout') + 1], '360')
+
+    def test_nim_has_no_geojson_deployment_or_event_rule(self):
+        self.deployment_common('main geojson NIM', success=False)
+        self.assertNotIn('calls', self.state)
+        self.script('setup-events.sh')
+        self.assertEqual(len(self.state['rules']), 4)
+        self.assertFalse(any('NIM' in item['display-name'] for item in self.state['rules']))
+        self.assertFalse(any('NIMGeoJsonOut' in ' '.join(call) for call in self.state['calls']))
+
+    def test_download_only_sources_need_no_events_application_lookup(self):
+        config = json.loads(self.config_file.read_text())
+        self.config_file.write_text(json.dumps({'NIM': config['NIM']}))
+        result = self.script('setup-events.sh')
+        self.assertIn('No data sources have GeoJSON processing enabled', result.stderr)
+        self.assertNotIn('calls', self.state)
+
+    def test_invalid_geojson_flags_and_source_timeouts_are_rejected(self):
+        original = json.loads(self.config_file.read_text())
+        for field, values in [('geoJsonEnabled', ['false', 0]),
+                              ('timeoutSeconds', [0, -1, 301, 1.5, '300'])]:
+            for value in values:
+                config = json.loads(json.dumps(original))
+                if field == 'geoJsonEnabled': config['NIM'][field] = value
+                else: config['NIM']['source'][field] = value
+                self.config_file.write_text(json.dumps(config))
+                self.common('load_data_sources', success=False)
+        self.assertNotIn('calls', self.state)
+
     def test_invalid_source_config(self):
         for value in [{'MMM': {'id': 'WRONG'}}, {'MMM': {'id': 'MMM', 'inputBucket': ''}},
                       {'MMM': {'id': 'MMM', 'functionPrefix': 'X'},
@@ -385,7 +453,7 @@ class OciScriptsTest(unittest.TestCase):
                     self.state['writes'] = []
                     self.save()
                 self.deploy()
-                self.assertEqual(len(self.state['writes']), 9)
+                self.assertEqual(len(self.state['writes']), 10)
                 functions = {f['display-name']: f for f in self.state['functions']}
                 self.assertEqual(functions['OSMInfoFunction']['config'],
                                  {'NAMESPACE': 'testnamespace', 'BUCKETNAME_OSM': 'osminfo',

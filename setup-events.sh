@@ -166,8 +166,12 @@ main() {
   local rule_name function_name bucket_name object_name data_source_id
   dry_run="$(parse_dry_run_arguments "$@")"
   step 'Reading data sources and naming overrides from dsconfig.json...'
-  sources="$(load_data_sources)"
+  sources="$(load_data_sources | jq -c 'map(select(.geoJsonEnabled != false))')"
   source_count="$(jq 'length' <<< "$sources")"
+  if [ "$source_count" -eq 0 ]; then
+    log 'No data sources have GeoJSON processing enabled.'
+    return 0
+  fi
   if [ "$dry_run" = true ]; then
     log 'Dry run: OCI resources will be read; no changes will be submitted.'
   fi

@@ -71,5 +71,23 @@
         }
       ]
     }
+  },
+  "NIM": {
+    "id": "NIM",
+    "name": "Comptages véhicules - Nîmes Métropole",
+    "schedule": "Monthly",
+    "geoJsonEnabled": false,
+    "datasetInfoUrl": "https://data.nimes-metropole.fr/explore/dataset/comptages-routiers-sur-la-voirie-de-lagglomeration-2022/",
+    "datasetLogoUrl": "https://data.nimes-metropole.fr/assets/logo?tstamp=161855394019",
+    "source": {
+      "resourceId": "nim-2022",
+      "timeoutSeconds": 300,
+      "inputs": [
+        {
+          "url": "https://data.nimes-metropole.fr/api/explore/v2.1/catalog/datasets/comptages-routiers-sur-la-voirie-de-lagglomeration-2022/exports/csv?use_labels=true&delimiter=%3B",
+          "contentType": "text/csv"
+        }
+      ]
+    }
   }
 }

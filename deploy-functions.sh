@@ -18,6 +18,7 @@ functions=(
   'DPT34|ds|org.traficinfo.dsfunctions.dpt34.DataSourceFunction::handleRequest'
   'DPT30|ds|org.traficinfo.dsfunctions.dpt30.DataSourceFunction::handleRequest'
   'MRN|ds|org.traficinfo.dsfunctions.mrn.DataSourceFunction::handleRequest'
+  'NIM|ds|org.traficinfo.dsfunctions.nim.DataSourceFunction::handleRequest'
   'MMM|geojson|org.traficinfo.dsfunctions.m3m.GeoJsonOutFunction::handleRequest'
   'DPT34|geojson|org.traficinfo.dsfunctions.dpt34.GeoJsonOutFunction::handleRequest'
   'DPT30|geojson|org.traficinfo.dsfunctions.dpt30.GeoJsonOutFunction::handleRequest'
@@ -35,7 +36,9 @@ select_functions() {
   case "$selected_type" in
     ds|geojson)
       if [ "$#" -ne 2 ]; then usage; return 1; fi
-      get_data_source "$2" >/dev/null || return
+      local selected_config
+      selected_config="$(get_data_source "$2")" || return
+      data_source_function_name "$selected_config" "$selected_type" >/dev/null || return
       selected_source="$2"
       ;;
     osm)
@@ -93,6 +96,7 @@ input_bucket_for_source() {
     DPT34) bucket="${BUCKETNAME_DPT34:-$bucket}" ;;
     DPT30) bucket="${BUCKETNAME_DPT30:-$bucket}" ;;
     MRN) bucket="${BUCKETNAME_MRN:-$bucket}" ;;
+    NIM) bucket="${BUCKETNAME_NIM:-$bucket}" ;;
   esac
   validate_bucket_name "$bucket" "$id" || return
   printf '%s\n' "$bucket"
@@ -170,7 +174,7 @@ create_archive_function() {
   function_name="$2"
   handler="$3"
   config="$4"
-  local timeout=30
+  local timeout="${6:-30}"
   if [ "$function_name" = OSMInfoFunction ]; then timeout=300; fi
   local options=(--query '"opc-work-request-id"' --raw-output)
   if [ -n "$5" ]; then options+=(--defined-tags "$5"); fi
@@ -189,7 +193,11 @@ update_archive_function() {
   handler="$3"
   config="$4"
   local options=(--force --query '"opc-work-request-id"' --raw-output)
-  if [ "$function_name" = OSMInfoFunction ]; then options+=(--timeout-in-seconds 300); fi
+  if [ "$function_name" = OSMInfoFunction ]; then
+    options+=(--timeout-in-seconds 300)
+  elif [ -n "${6:-}" ]; then
+    options+=(--timeout-in-seconds "$6")
+  fi
   if [ -n "$5" ]; then options+=(--defined-tags "$5"); fi
   printf 'Updating archive function %s (%s)\n' "$function_name" "$function_id" >&2
   oci fn function update archive-function --function-id "$function_id" \
@@ -230,8 +238,8 @@ wait_for_work_request() {
 
 main() {
   local application_id function_id work_request_id definition function_name handler namespace config
-  local data_source_id type tags sources source application_config check_index index=0
-  local function_ids=() function_names=() configs=() defined_tags=()
+  local data_source_id type tags sources source application_config check_index timeout index=0
+  local function_ids=() function_names=() configs=() defined_tags=() timeouts=()
   select_functions "$@"
   sources="$(load_data_sources)"
   # Prepare all configs and tags before any build or OCI mutation.
@@ -252,6 +260,9 @@ main() {
     function_names+=("$function_name")
     configs+=("$config")
     defined_tags+=("$tags")
+    timeout=''
+    if [ "$type" = ds ]; then timeout="$(jq -r '.source.timeoutSeconds // empty' <<< "$source")"; fi
+    timeouts+=("$timeout")
   done
   application_id="$(resolve_application_id)"
   application_config="$(oci fn application get --application-id "$application_id" \
@@ -270,9 +281,9 @@ main() {
     function_name="${function_names[$index]}"
     function_id="${function_ids[$index]}"
     if [ -n "$function_id" ]; then
-      work_request_id="$(update_archive_function "$function_id" "$function_name" "$handler" "${configs[$index]}" "${defined_tags[$index]}")"
+      work_request_id="$(update_archive_function "$function_id" "$function_name" "$handler" "${configs[$index]}" "${defined_tags[$index]}" "${timeouts[$index]}")"
     else
-      work_request_id="$(create_archive_function "$application_id" "$function_name" "$handler" "${configs[$index]}" "${defined_tags[$index]}")"
+      work_request_id="$(create_archive_function "$application_id" "$function_name" "$handler" "${configs[$index]}" "${defined_tags[$index]}" "${timeouts[$index]}")"
     fi
     wait_for_work_request "$work_request_id"
     index=$((index + 1))

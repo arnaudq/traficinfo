@@ -95,6 +95,13 @@ load_data_sources() {
       | if all([.functionPrefix, .inputBucket, .csvObject][];
           . == null or nonempty_string) then . else
           error("Overrides must be nonempty strings for \($key)") end
+      | if .geoJsonEnabled != null and (.geoJsonEnabled | type) != "boolean" then
+          error("geoJsonEnabled must be a boolean for \($key)") else . end
+      | if .source.timeoutSeconds != null and
+          ((.source.timeoutSeconds | type) != "number" or
+           .source.timeoutSeconds != (.source.timeoutSeconds | floor) or
+           .source.timeoutSeconds < 1 or .source.timeoutSeconds > 300) then
+          error("source.timeoutSeconds must be an integer from 1 to 300 for \($key)") else . end
       | (.functionPrefix // .id) as $prefix
       | . + {functionPrefix: $prefix,
           dataSourceFunction: ($prefix + "OpenDataSource"),
@@ -120,7 +127,8 @@ get_data_source() {
 data_source_function_name() {
   case "$2" in
     ds) jq -er '.dataSourceFunction' <<< "$1" ;;
-    geojson) jq -er '.geoJsonFunction' <<< "$1" ;;
+    geojson) jq -er 'if .geoJsonEnabled == false then
+      error("GeoJSON is not enabled for \(.id)") else .geoJsonFunction end' <<< "$1" ;;
     *) printf 'Expected ds or geojson.\n' >&2; return 1 ;;
   esac
 }

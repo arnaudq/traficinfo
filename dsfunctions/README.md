@@ -23,8 +23,9 @@ convention; MMM's companion JSON keeps its explicit legacy name.
 
 Deployment passes these settings as a JSON string in `DATA_SOURCE_SETTINGS`,
 alongside `NAMESPACE` and `BUCKETNAME`. Functions read configuration through the
-Fn runtime; they do not read `dsconfig.json` at runtime. The existing source
-URLs remain compatibility defaults when this configuration is absent.
+Fn runtime; they do not read `dsconfig.json` at runtime. `DATA_SOURCE_SETTINGS`
+and `BUCKETNAME` are mandatory. Missing or invalid settings fail configuration
+before clients are created; there are no hardcoded retrieval URL fallbacks.
 
 Only the selected datasource's active retrieval settings are passed to the
 function. Headers and manifest history stay in Object Storage. Deployment checks
@@ -48,12 +49,12 @@ Archive dates use the previous download date, including for MMM.
 The datasource function does not use the manifest. Event routing remains the
 existing CSV-to-GeoJSON flow until preprocessing is implemented. Changing current
 Object names also requires matching consumers/event configuration; use existing
-names during this step. No NIM files are downloaded or deployed by this change.
+names during this step. NIM is registered for retrieval only; its CSV does not trigger GeoJSON processing.
 
 ## Shared infrastructure
 
 `org.traficinfo.dsfunctions.HttpClient`, `ObjectStoreClient` and
-`OOSResourceMetadata` are shared by the M3M, DPT30, DPT34 and MRN source functions.
+`OOSResourceMetadata` are shared by the M3M, DPT30, DPT34, MRN and NIM source functions.
 The HTTP client sends `If-None-Match` for real server ETags and returns no body
 for HTTP 304. When the server supplies no ETag, it stages the complete response
 in a temporary file and exposes `sha256:<hex-digest>` through `getEtag()`.
@@ -65,30 +66,61 @@ metadata. Last-Modified remains optional and is not inferred by the HTTP client.
 Responses, body streams and temporary files are released when `EntityBody` is
 closed. Unchanged downloads and failed downloads also delete temporary files.
 
-### CSV function superclasses
+### Shared function superclasses
 
-DPT30, DPT34 and MRN use `AbstractCsvDataSourceFunction` and
-`AbstractCsvGeoJsonOutFunction`. Their concrete handlers provide a `CsvDataSource`
-enum value to the superclass constructor. The enum exposes `getDataSourceId()`
-and `getCsvUri()`, selects the parser, and derives default bucket and object
-names. Existing public handler names, configuration keys, constants and return
-behavior are preserved. MMM keeps its separate handler for its companion input
-sequence. All source handlers now use `SourceObjectPublisher` for retrieval, archival and publication.
+All five datasource handlers extend `AbstractDataSourceFunction`. Each handler
+supplies only its datasource ID; the superclass reads retrieval settings and the
+bucket from function configuration and delegates to `SourceObjectPublisher`.
+MMM's companion inputs use the same lifecycle as single-CSV sources.
 
-Both `config(RuntimeContext)` (annotated `@FnConfiguration`) and
-`handleRequest(String)` are public final methods on the superclasses. Fn runtime
-1.0.185 discovers them through inherited public methods. Tests use Fn's actual
-loader, configurer and runtime context to verify configuration and invocation,
-with fake clients replacing external services. Protected client constructors
-and factories allow testing without OCI credentials or network requests.
+DPT30, DPT34 and MRN GeoJSON handlers use `AbstractCsvGeoJsonOutFunction` and
+`CsvDataSource`. That enum contains only parser selection and the naming
+conventions needed by GeoJSON generation. Download URLs and archive naming are
+not part of it. NIM does not need a GeoJSON parser entry to retrieve data.
+
+The superclasses expose public final `config(RuntimeContext)` methods annotated
+with `@FnConfiguration`, and public final `handleRequest(String)` methods. Fn
+runtime 1.0.185 discovers these inherited methods. Tests use Fn's actual loader,
+configurer and runtime context with fake clients, checking mandatory settings,
+handler identity and client creation order. Package-private constructors accept
+explicit test settings and clients without introducing runtime fallbacks.
+
+## NIM datasource (2022)
+
+`org.traficinfo.dsfunctions.nim.DataSourceFunction::handleRequest` downloads the
+CSV export for [Nîmes Métropole's 2022 hourly counts](https://data.nimes-metropole.fr/explore/dataset/comptages-routiers-sur-la-voirie-de-lagglomeration-2022/).
+The active resource ID is `nim-2022`. Default bucket `dsnim` contains the gzip
+Object `NIM_Comptage.csv`; changed downloads archive the previous content as
+`NIM_Comptage_YYYYMMDD.csv`. Retrieval, source identity checks and metadata use
+the shared publisher. The export uses French column labels and semicolons.
+
+`dsconfig.json` selects Monthly retrieval, `geoJsonEnabled: false`, and
+`source.timeoutSeconds: 300`. Deployment registers `NIMOpenDataSource` with a
+300-second runtime timeout on creation and updates. `invoke.sh ds NIM` allows
+360 seconds for the synchronous response. `BUCKETNAME_NIM` overrides the
+deployment bucket. The existing 4096-byte configuration guard applies.
+
+After `source ./setup.sh`, create/reconcile its bucket with `./setup-buckets.sh`
+and deploy only its downloader with `./deploy-functions.sh ds NIM`. Invoke with
+`./invoke.sh ds NIM` when ready to fetch the large CSV. No full export has been
+downloaded during development; tests use synthetic bytes. Actual transfer time
+and temporary-storage requirements remain unverified. Deployment applies the
+Monthly schedule tag; the shared scheduler must be configured to run it.
+
+NIM has no GeoJSON handler or parser at this stage. Event setup skips entries
+with `geoJsonEnabled: false`, and GeoJSON deployment/invocation rejects NIM before
+making cloud calls. Yearly preprocessing and manifest publication come later.
+Switch the `source.resourceId` and URL in `dsconfig.json` and redeploy the source
+function when ready to monitor the newer resource.
 
 ## MRN functions
 
 `org.traficinfo.dsfunctions.mrn.DataSourceFunction::handleRequest` downloads the
 Métropole Rouen Normandie
 [CSV export](https://data.metropole-rouen-normandie.fr/api/explore/v2.1/catalog/datasets/comptages-et-enquetes-sur-le-reseau-routier/exports/csv?use_labels=true&delimiter=%3B).
-Keep French labels and semicolon delimiters. Configure `NAMESPACE`, optionally
-`BUCKETNAME` (default `dsmrn`) and `USE_RESOURCE_PRINCIPAL` (default `true`).
+Keep French labels and semicolon delimiters. Deployment supplies `NAMESPACE`,
+`DATA_SOURCE_SETTINGS` and `BUCKETNAME` (normally `dsmrn`).
+`USE_RESOURCE_PRINCIPAL` defaults to `true`.
 The current object is `MRN_Comptage.csv`; previous versions are archived as
 `MRN_Comptage_YYYYMMDD.csv` before replacement. Publication uses the shared gzip
 storage, download metadata and content-change detection. On October 22, 2026,
@@ -118,8 +150,8 @@ and schedules with the existing setup scripts before relying on scheduled runs.
 Gard's [CSV resource](https://www.data.gouv.fr/api/1/datasets/r/69584212-8ff0-40d3-b82d-2d5d2890bff7).
 The HTTP client follows the stable URL's redirect to the dated file and uses
 its ETag for conditional downloads. HTTP 304 returns `OK` without uploads or
-archives. Configure `NAMESPACE`; `BUCKETNAME` defaults to `dsdpt30`, and
-`USE_RESOURCE_PRINCIPAL` defaults to `true`.
+archives. Deployment supplies `NAMESPACE`, `DATA_SOURCE_SETTINGS` and
+`BUCKETNAME` (normally `dsdpt30`); `USE_RESOURCE_PRINCIPAL` defaults to `true`.
 
 The function uploads `DPT30_Comptage.csv` as gzip `text/csv`, recording the
 source validator in `current-etag`, a UTC `downloaded-at` timestamp and a
@@ -157,8 +189,8 @@ through a redirect to another host name. Run `mvn -o -pl dsfunctions -am test`.
 
 `org.traficinfo.dsfunctions.dpt34.DataSourceFunction::handleRequest` downloads
 the Hérault [CSV export](https://www.herault-data.fr/api/explore/v2.1/catalog/datasets/trafic-de-l-herault-donnees-de-comptage/exports/csv?use_labels=true&delimiter=%3B).
-Configure `NAMESPACE`; `BUCKETNAME` defaults to `dsdpt34`, and
-`USE_RESOURCE_PRINCIPAL` defaults to `true`.
+Deployment supplies `NAMESPACE`, `DATA_SOURCE_SETTINGS` and `BUCKETNAME`
+(normally `dsdpt34`); `USE_RESOURCE_PRINCIPAL` defaults to `true`.
 
 The endpoint supplies no ETag or Last-Modified header. The function delegates
 change detection to the shared HTTP client using the stored `current-etag`
@@ -448,6 +480,7 @@ be configured as described in the root README.
 From the repository root, run `./deploy-functions.sh`. It builds the Maven
 `jar-with-dependencies` artifact once and uploads it directly to OCI Functions as
 `3MOpenDataSource`, `DPT30OpenDataSource`, `DPT34OpenDataSource`, `MRNOpenDataSource`,
+`NIMOpenDataSource`,
 `3MGeoJsonOut`, `DPT30GeoJsonOut`, `DPT34GeoJsonOut`, `MRNGeoJsonOut` and `OSMInfoFunction`
 in the existing `3MOpenDataProcessor` application. It uses
 the managed `java21.ol9` runtime, which can run this project's Java 17 bytecode.
@@ -522,12 +555,14 @@ To invoke a deployed function using OCI CLI:
 ```
 
 For data source functions, `invoke.sh` accepts two arguments: `ds|geojson` and
-the data source ID `MMM|DPT30|DPT34|MRN` from `dsconfig.json`. `MMM` maps to the
+the data source ID `MMM|DPT30|DPT34|MRN|NIM` from `dsconfig.json`.
+NIM currently supports `ds` only. `MMM` maps to the
 existing `3M` function names. Use `./invoke.sh osm` with no data source argument
 to invoke `OSMInfoFunction`, independently of `dsconfig.json`. For `osm` only,
 the script sets `--read-timeout 360`, allowing the client to wait up to six minutes
 for the response. This exceeds the function's configured 300-second runtime.
-Other invocation types use the OCI CLI's existing timeout settings (the default
+Other invocation types without an explicit source timeout use the OCI CLI's
+existing timeout settings (the default
 read timeout is 60 seconds; see [invocation timeouts](https://docs.oracle.com/en-us/iaas/Content/Functions/Tasks/functionsinvokingfunctions.htm)).
 The script resolves the selected function in `3MOpenDataProcessor`, invokes
 synchronously with an empty body, and prints the

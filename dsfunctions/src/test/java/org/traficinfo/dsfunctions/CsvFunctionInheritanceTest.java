@@ -27,18 +27,13 @@ import static org.junit.Assert.*;
 
 public class CsvFunctionInheritanceTest {
     @Test
-    public void enumDefinesAllCsvSourcesAndTheirResourceNames() {
-        assertEquals(URI.create("https://www.data.gouv.fr/api/1/datasets/r/"
-                + "69584212-8ff0-40d3-b82d-2d5d2890bff7"), CsvDataSource.DPT30.getCsvUri());
+    public void enumDefinesGeoJsonSourcesAndTheirResourceNames() {
         for (CsvDataSource source : CsvDataSource.values()) {
             String id = source.getDataSourceId();
             assertEquals(source.name(), id);
-            assertEquals("https", source.getCsvUri().getScheme());
             assertEquals(GeoJsonParser.DataSource.valueOf(id), source.getParserDataSource());
             assertEquals("ds" + id.toLowerCase(java.util.Locale.ROOT), source.getDefaultInputBucket());
             assertEquals(id + "_Comptage.csv", source.getCsvObjectName());
-            assertEquals(id + "_Comptage_20261022.csv",
-                    String.format(source.getCsvArchiveNamePattern(), "20261022"));
             assertEquals(id + "_TraficInfo.geojson", source.getGeoJsonObjectName());
             assertEquals(id + "_OSMInfo.json", source.getOsmCacheObjectName());
             assertEquals(id + "_OSMWayMapping.json", source.getOsmWayMappingObjectName());
@@ -52,7 +47,7 @@ public class CsvFunctionInheritanceTest {
                 Class<?> type = Class.forName("org.traficinfo.dsfunctions." + name + "." + handler);
                 MethodWrapper wrapper = new FunctionLoader().loadClass(type.getName(), "handleRequest");
                 Class<?> base = handler.equals("DataSourceFunction")
-                        ? AbstractCsvDataSourceFunction.class : AbstractCsvGeoJsonOutFunction.class;
+                        ? AbstractDataSourceFunction.class : AbstractCsvGeoJsonOutFunction.class;
                 assertEquals(base, wrapper.getTargetMethod().getDeclaringClass());
                 assertTrue(Modifier.isFinal(wrapper.getTargetMethod().getModifiers()));
                 var config = type.getMethod("config", com.fnproject.fn.api.RuntimeContext.class);
@@ -67,7 +62,28 @@ public class CsvFunctionInheritanceTest {
     }
 
     @Test
-    public void fnConfiguresAndInvokesInheritedMrnDownloadWithDefaultsAndOverrides() throws Exception {
+    public void allSourceHandlersShareTheSameConfigurationLifecycle() throws Exception {
+        for (String name : List.of("dpt30", "dpt34", "mrn", "m3m", "nim")) {
+            Class<?> type = Class.forName("org.traficinfo.dsfunctions." + name + ".DataSourceFunction");
+            assertEquals(AbstractDataSourceFunction.class, type.getSuperclass());
+            assertEquals(1, type.getConstructors().length);
+            MethodWrapper method = new FunctionLoader().loadClass(type.getName(), "handleRequest");
+            assertEquals(AbstractDataSourceFunction.class, method.getTargetMethod().getDeclaringClass());
+            var configure = type.getMethod("config", com.fnproject.fn.api.RuntimeContext.class);
+            assertNotNull(configure.getAnnotation(FnConfiguration.class));
+            assertEquals(AbstractDataSourceFunction.class, configure.getDeclaringClass());
+            AbstractDataSourceFunction function = (AbstractDataSourceFunction) type.getConstructor().newInstance();
+            try {
+                function.config(new FunctionRuntimeContext(method, Map.of()));
+                fail("Expected mandatory configuration for " + name);
+            } catch (IllegalArgumentException expected) {
+                assertEquals("Missing DATA_SOURCE_SETTINGS", expected.getMessage());
+            }
+        }
+    }
+
+    @Test
+    public void fnConfiguresAndInvokesInheritedMrnDownloadWithDeploymentSettingsAndOverrides() throws Exception {
         for (boolean overrides : new boolean[]{false, true}) {
             Map<String, String> config = overrides ? Map.of("NAMESPACE", "testns",
                     "BUCKETNAME", "custom-input", "USE_RESOURCE_PRINCIPAL", "false") : Map.of();
@@ -135,7 +151,12 @@ public class CsvFunctionInheritanceTest {
 
     private static FunctionRuntimeContext configuredRuntime(Class<?> handler, Map<String, String> config) {
         MethodWrapper wrapper = new FunctionLoader().loadClass(handler.getName(), "handleRequest");
-        FunctionRuntimeContext runtime = new FunctionRuntimeContext(wrapper, config);
+        Map<String, String> settings = new HashMap<>();
+        if (AbstractDataSourceFunction.class.isAssignableFrom(handler)) {
+            settings.putAll(DataSourceTestSettings.configuration("MRN"));
+        }
+        settings.putAll(config);
+        FunctionRuntimeContext runtime = new FunctionRuntimeContext(wrapper, settings);
         new FunctionConfigurer().configure(runtime);
         return runtime;
     }
@@ -173,7 +194,7 @@ public class CsvFunctionInheritanceTest {
         protected HttpClient createHttpClient() {
             return new HttpClient() {
                 @Override public EntityBody get(URI uri, String etag) {
-                    assertEquals(CsvDataSource.MRN.getCsvUri(), uri);
+                    assertEquals(URI.create(DataSourceTestSettings.settings("MRN").inputs().get(0).url()), uri);
                     assertEquals(metadata.isEmpty() ? null : metadata.get("MRN_Comptage.csv").getETag(), etag);
                     return new EntityBody("sha256:" + "a".repeat(64), null,
                             unchanged ? null : new ByteArrayInputStream(empty ? new byte[0]

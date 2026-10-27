@@ -32,18 +32,18 @@ public record DataSourceSettings(
         }
     }
 
-    public static DataSourceSettings from(RuntimeContext context, DataSourceSettings defaults) {
+    public static DataSourceSettings from(RuntimeContext context, String dataSourceId) {
         return context.getConfigurationByKey(CONFIG_KEY).map(json -> {
             try {
                 DataSourceSettings settings = new ObjectMapper().readValue(json, DataSourceSettings.class);
-                if (!settings.dataSourceId().equals(defaults.dataSourceId())) {
+                if (!settings.dataSourceId().equals(dataSourceId)) {
                     throw new IllegalArgumentException("Datasource ID does not match handler: " + settings.dataSourceId());
                 }
                 return settings;
             } catch (IOException invalid) {
                 throw new IllegalArgumentException("Invalid " + CONFIG_KEY, invalid);
             }
-        }).orElse(defaults);
+        }).orElseThrow(() -> new IllegalArgumentException("Missing " + CONFIG_KEY));
     }
 
     public record Input(

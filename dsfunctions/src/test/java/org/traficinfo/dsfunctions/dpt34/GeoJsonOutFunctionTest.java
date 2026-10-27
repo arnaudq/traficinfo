@@ -1,5 +1,6 @@
 package org.traficinfo.dsfunctions.dpt34;
 
+import org.traficinfo.dsfunctions.CsvDataSource;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oracle.bmc.objectstorage.ObjectStorage;
@@ -41,7 +42,7 @@ public class GeoJsonOutFunctionTest {
         for (boolean gzip : new boolean[]{false, true}) {
             StorageStub stub = new StorageStub(gzip);
             assertEquals("OK", stub.function().handleRequest(""));
-            assertEquals(List.of(DataSourceFunction.CSV_OBJECT_NAME), stub.downloads);
+            assertEquals(List.of(CsvDataSource.DPT34.getCsvObjectName()), stub.downloads);
             assertEquals(1, stub.uploads);
             JsonNode result = new ObjectMapper().readTree(stub.output);
             assertEquals("FeatureCollection", result.get("type").asText());
@@ -151,7 +152,7 @@ public class GeoJsonOutFunctionTest {
                             GetObjectRequest request = (GetObjectRequest) args[0];
                             assertEquals("namespace", request.getNamespaceName());
                             assertEquals("dsdpt34", request.getBucketName());
-                            assertEquals(DataSourceFunction.CSV_OBJECT_NAME, request.getObjectName());
+                            assertEquals(CsvDataSource.DPT34.getCsvObjectName(), request.getObjectName());
                             downloads.add(request.getObjectName());
                             if (failDownload) {
                                 throw new IllegalStateException("Download failed");
