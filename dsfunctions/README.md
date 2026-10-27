@@ -97,13 +97,13 @@ the shared publisher. The export uses French column labels and semicolons.
 
 `dsconfig.json` selects Monthly retrieval, `geoJsonEnabled: false`, and
 `source.timeoutSeconds: 300`. Deployment registers `NIMOpenDataSource` with a
-300-second runtime timeout on creation and updates. `invoke.sh ds NIM` allows
+300-second runtime timeout on creation and updates. `scripts/invoke.sh ds NIM` allows
 360 seconds for the synchronous response. `BUCKETNAME_NIM` overrides the
 deployment bucket. The existing 4096-byte configuration guard applies.
 
-After `source ./setup.sh`, create/reconcile its bucket with `./setup-buckets.sh`
-and deploy only its downloader with `./deploy-functions.sh ds NIM`. Invoke with
-`./invoke.sh ds NIM` when ready to fetch the large CSV. No full export has been
+After `source ./scripts/setup.sh`, create/reconcile its bucket with `./scripts/setup-buckets.sh`
+and deploy only its downloader with `./scripts/deploy-functions.sh ds NIM`. Invoke with
+`./scripts/invoke.sh ds NIM` when ready to fetch the large CSV. No full export has been
 downloaded during development; tests use synthetic bytes. Actual transfer time
 and temporary-storage requirements remain unverified. Deployment applies the
 Monthly schedule tag; the shared scheduler must be configured to run it.
@@ -126,11 +126,11 @@ datasets and reuses unchanged yearly Objects. It performs no OSM enrichment.
 See the [storage contract](../specs/datasource-storage-contract.md) for the JSON
 format, validation rules and failure behavior.
 
-After `source ./setup.sh`, deploy and invoke NIM preprocessing explicitly:
+After `source ./scripts/setup.sh`, deploy and invoke NIM preprocessing explicitly:
 
 ```sh
-./deploy-functions.sh preprocess NIM
-./invoke.sh preprocess NIM
+./scripts/deploy-functions.sh preprocess NIM
+./scripts/invoke.sh preprocess NIM
 ```
 
 The downloader must have populated the source Objects first. No remote download
@@ -180,9 +180,9 @@ from Rouen street labels. See the parser package README for campaign filtering.
 The MRN entry in `dsconfig.json` selects Daily retrieval. Deployment registers
 `MRNOpenDataSource` and `MRNGeoJsonOut`; `BUCKETNAME_MRN` overrides their input
 bucket. Bucket and event setup use the configured source ID, matching only the
-current `MRN_Comptage.csv` object. After `source ./setup.sh`, use
-`./deploy-functions.sh ds MRN`, `./deploy-functions.sh geojson MRN`,
-`./invoke.sh ds MRN` or `./invoke.sh geojson MRN`. Add/reconcile buckets, events
+current `MRN_Comptage.csv` object. After `source ./scripts/setup.sh`, use
+`./scripts/deploy-functions.sh ds MRN`, `./scripts/deploy-functions.sh geojson MRN`,
+`./scripts/invoke.sh ds MRN` or `./scripts/invoke.sh geojson MRN`. Add/reconcile buckets, events
 and schedules with the existing setup scripts before relying on scheduled runs.
 
 ## DPT30 functions
@@ -215,11 +215,11 @@ configuration overrides `OSM_CACHE_OBJECT`, `OSM_WAY_MAPPING_OBJECT` and
 including cache failures. Temporary output files are deleted on success and
 failure. CSV coordinates supply geometry; no companion GeoJSON is downloaded.
 
-`deploy-functions.sh` registers `DPT30OpenDataSource` and `DPT30GeoJsonOut`.
+`scripts/deploy-functions.sh` registers `DPT30OpenDataSource` and `DPT30GeoJsonOut`.
 Names, the `Monthly` schedule tag and default bucket `dsdpt30` come from the
 DPT30 entry in `dsconfig.json`; `BUCKETNAME_DPT30` overrides the deployment input
-bucket. After deployment, invoke with `./invoke.sh ds DPT30` or
-`./invoke.sh geojson DPT30`. Run `source ./setup.sh` before these scripts.
+bucket. After deployment, invoke with `./scripts/invoke.sh ds DPT30` or
+`./scripts/invoke.sh geojson DPT30`. Run `source ./scripts/setup.sh` before these scripts.
 
 Tests cover first/unchanged/changed downloads, archive and upload failures,
 empty downloads, plain/gzip CSV-to-GeoJSON output, annual history, OSM cache
@@ -256,7 +256,7 @@ the DPT34 parser supplies geometry from the CSV coordinates.
 
 The source bucket's object events cover archive uploads as well as current
 uploads; downstream event rules should match the exact current object name.
-`deploy-functions.sh` registers this handler as `DPT34OpenDataSource`.
+`scripts/deploy-functions.sh` registers this handler as `DPT34OpenDataSource`.
 Its bucket defaults to `dsdpt34`; override it with `BUCKETNAME_DPT34`.
 
 ## DPT34 GeoJSON output function
@@ -277,9 +277,9 @@ from `DPT34_OSMWayMapping.json` allow speed-limit enrichment through
 The handler returns `OK` on success and `KO` on download, parsing or upload failure,
 matching the M3M output function.
 
-`deploy-functions.sh` registers it as `DPT34GeoJsonOut` using
+`scripts/deploy-functions.sh` registers it as `DPT34GeoJsonOut` using
 `BUCKETNAME_DPT34` for its input bucket and `BUCKETNAME_OUT` for its output.
-After deployment, invoke it with `./invoke.sh geojson DPT34`.
+After deployment, invoke it with `./scripts/invoke.sh geojson DPT34`.
 
 ## M3M GeoJSON output function
 
@@ -505,11 +505,11 @@ HTTPS access. Gzip cache objects and
 paginated listings are supported. Count getters `getWayInfoCount()`,
 `getWayMappingCount()`, and `getUnknownWayMappingCount()` remain implementation-only.
 
-`deploy-functions.sh` registers `OSMInfoFunction`, sets its runtime timeout to
+`scripts/deploy-functions.sh` registers `OSMInfoFunction`, sets its runtime timeout to
 **300 seconds** on creation and updates, and applies
 `TraficInfo.DataSourceSchedule=Hourly`. The `Hourly` schedule invokes it at
-**the start of every hour (UTC)**. After `source ./setup.sh`, run `./deploy-functions.sh` and
-`./setup-schedules.sh` to deploy and reconcile the schedule. Set environment
+**the start of every hour (UTC)**. After `source ./scripts/setup.sh`, run `./scripts/deploy-functions.sh` and
+`./scripts/setup-schedules.sh` to deploy and reconcile the schedule. Set environment
 variables `MAX_LOOP_DURATION_SECONDS` and `MAX_WAY_MAPPINGS_PER_RUN` before deployment to override the defaults;
 the script applies these values on creation and updates. Keep the function runtime
 timeout above the configured loop budget plus time for the last bounded batch.
@@ -518,7 +518,7 @@ be configured as described in the root README.
 
 ## Archive deployment (code-only function)
 
-From the repository root, run `./deploy-functions.sh`. It builds the Maven
+From the repository root, run `./scripts/deploy-functions.sh`. It builds the Maven
 `jar-with-dependencies` artifact once and uploads it directly to OCI Functions as
 `3MOpenDataSource`, `DPT30OpenDataSource`, `DPT34OpenDataSource`, `MRNOpenDataSource`,
 `NIMOpenDataSource`,
@@ -530,18 +530,18 @@ handler (`DataSourceFunction::handleRequest`, `GeoJsonOutFunction::handleRequest
 or `OSMInfoFunction::handleRequest`).
 
 With no arguments, all functions are deployed. To deploy just one, use the same
-selectors as `invoke.sh`:
+selectors as `scripts/invoke.sh`:
 
 ```sh
-./deploy-functions.sh ds DPT34
-./deploy-functions.sh geojson MMM
-./deploy-functions.sh osm
+./scripts/deploy-functions.sh ds DPT34
+./scripts/deploy-functions.sh geojson MMM
+./scripts/deploy-functions.sh osm
 ```
 
 The script still builds the shared JAR once, then validates and deploys only the
 selected function. Invalid selectors fail before building or making OCI calls.
 
-First run `source ./setup.sh` to initialize the shared environment. Deployment
+First run `source ./scripts/setup.sh` to initialize the shared environment. Deployment
 uses the exported OCI credentials, `OCI_COMPARTMENT_ID`,
 `OCI_OBJECT_STORAGE_NAMESPACE`, `OCI_FN_APPLICATION_NAME`, `TRAFICINFO_ROOT`,
 and `TRAFICINFO_DSCONFIG`. Set `OCI_FN_APPLICATION_ID` to bypass application
@@ -552,7 +552,7 @@ receive `NAMESPACE` and `BUCKETNAME`; both GeoJSON functions receive `NAMESPACE`
 `OSM_WAY_MAPPING_OBJECT`.
 `OSMInfoFunction` receives `NAMESPACE`, `BUCKETNAME_OSM`, `MAX_LOOP_DURATION_SECONDS`, and `MAX_WAY_MAPPINGS_PER_RUN`.
 The script requires `jq` to prepare function configuration.
-Function names and input buckets are derived by `oci-common.sh` from each
+Function names and input buckets are derived by `scripts/oci-common.sh` from each
 data source's `id`, `functionPrefix`, and `inputBucket` in `dsconfig.json`.
 MMM currently uses `ds3mbucket`, overridable with `BUCKETNAME_IN`; DPT34 uses
 `dsdpt34`, overridable with `BUCKETNAME_DPT34`. The output bucket
@@ -580,7 +580,7 @@ For example:
 
 ```sh
 export OCI_CLI_CONFIG_FILE="$HOME/.oci/config.arnaudq"
-./deploy-functions.sh
+./scripts/deploy-functions.sh
 fn invoke 3MOpenDataProcessor 3MOpenDataSource
 fn invoke 3MOpenDataProcessor 3MGeoJsonOut
 ```
@@ -588,17 +588,17 @@ fn invoke 3MOpenDataProcessor 3MGeoJsonOut
 To invoke a deployed function using OCI CLI:
 
 ```sh
-./invoke.sh ds MMM
-./invoke.sh geojson MMM
-./invoke.sh ds DPT34
-./invoke.sh geojson DPT34
-./invoke.sh osm
+./scripts/invoke.sh ds MMM
+./scripts/invoke.sh geojson MMM
+./scripts/invoke.sh ds DPT34
+./scripts/invoke.sh geojson DPT34
+./scripts/invoke.sh osm
 ```
 
-For data source functions, `invoke.sh` accepts two arguments: `ds|geojson` and
+For data source functions, `scripts/invoke.sh` accepts two arguments: `ds|geojson` and
 the data source ID `MMM|DPT30|DPT34|MRN|NIM` from `dsconfig.json`.
 NIM currently supports `ds` only. `MMM` maps to the
-existing `3M` function names. Use `./invoke.sh osm` with no data source argument
+existing `3M` function names. Use `./scripts/invoke.sh osm` with no data source argument
 to invoke `OSMInfoFunction`, independently of `dsconfig.json`. For `osm` only,
 the script sets `--read-timeout 360`, allowing the client to wait up to six minutes
 for the response. This exceeds the function's configured 300-second runtime.
@@ -608,7 +608,7 @@ read timeout is 60 seconds; see [invocation timeouts](https://docs.oracle.com/en
 The script resolves the selected function in `3MOpenDataProcessor`, invokes
 synchronously with an empty body, and prints the
 function response to standard output. OCI errors propagate as a failing exit code.
-Run `source ./setup.sh` first. Application lookup uses the exported application
+Run `source ./scripts/setup.sh` first. Application lookup uses the exported application
 name and compartment, or `OCI_FN_APPLICATION_ID`, as in the deployment script.
 Invoking a function that has not been deployed reports its name and exits
 without invoking anything.

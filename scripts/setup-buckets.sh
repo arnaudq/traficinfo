@@ -2,7 +2,7 @@
 # Create or reconcile the Object Storage buckets used by the traffic functions.
 set -euo pipefail
 
-source "${TRAFICINFO_ROOT:?Run source ./setup.sh first}/oci-common.sh"
+source "${TRAFICINFO_ROOT:?Run source ./scripts/setup.sh first}/scripts/oci-common.sh"
 
 bucket_definitions() {
   local sources
@@ -78,8 +78,8 @@ main() {
   local dry_run compartment_id namespace definitions count index definition name matches state buckets
   local states=()
   dry_run="$(parse_dry_run_arguments "$@")"
-  compartment_id="${OCI_COMPARTMENT_ID:?Run source ./setup.sh first}"
-  namespace="${OCI_OBJECT_STORAGE_NAMESPACE:?Run source ./setup.sh first}"
+  compartment_id="${OCI_COMPARTMENT_ID:?Run source ./scripts/setup.sh first}"
+  namespace="${OCI_OBJECT_STORAGE_NAMESPACE:?Run source ./scripts/setup.sh first}"
   definitions="$(bucket_definitions)"
   count="$(jq 'length' <<< "$definitions")"
   # List successfully before deciding a bucket is absent.

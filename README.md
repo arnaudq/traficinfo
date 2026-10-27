@@ -5,7 +5,7 @@
 Install JDK 25, the Fn Project CLI, OCI CLI, and `jq`, and place your OCI configuration at `~/.oci/config.arnaudq`. Then, from the project root, run:
 
 ```sh
-source ./setup.sh
+source ./scripts/setup.sh
 ```
 
 Source this script before running the other shell scripts. It exports `JAVA_HOME`,
@@ -24,7 +24,7 @@ or the selected compartment. Application lookup stays in the scripts that need
 it, with `OCI_FN_APPLICATION_ID` available as an explicit override in deploy
 and invoke, as well as event setup.
 
-`oci-common.sh` contains reusable shell functions only. Setup and each executable
+`scripts/oci-common.sh` contains reusable shell functions only. Setup and each executable
 source it explicitly; it performs no OCI calls or environment initialization
 when sourced. It provides data source defaults and naming, application/function
 lookups, unique-match selection, logging, bucket-name validation, and dry-run
@@ -34,9 +34,9 @@ and failed lookups are errors.
 
 ## Object Storage buckets
 
-Run `./setup-buckets.sh` to create or update the configured input buckets and
+Run `./scripts/setup-buckets.sh` to create or update the configured input buckets and
 the shared `traficinfo` and `osminfo` buckets in
-the compartment selected by `source ./setup.sh`. It uses the exported
+the compartment selected by `source ./scripts/setup.sh`. It uses the exported
 `OCI_COMPARTMENT_ID`, `OCI_OBJECT_STORAGE_NAMESPACE`, and OCI credentials.
 
 Input buckets are read from `dsconfig.json`, using the shared naming defaults
@@ -48,14 +48,14 @@ storage on creation. Existing objects, metadata, and unrelated bucket settings
 are preserved. Repeated runs skip buckets that already meet these settings;
 updates change only the requested settings and verify the result.
 
-Use `./setup-buckets.sh --dry-run` to preview changes without submitting them.
+Use `./scripts/setup-buckets.sh --dry-run` to preview changes without submitting them.
 Enabling bucket events prepares each input bucket for an OCI Events rule; this script
 does not create the rule that invokes the GeoJSON function.
 
 ## CSV events and GeoJSON generation
 
-After running `./setup-buckets.sh` and deploying with `./deploy-functions.sh`,
-run `./setup-events.sh` to create or update one Events rule for every entry with
+After running `./scripts/setup-buckets.sh` and deploying with `./scripts/deploy-functions.sh`,
+run `./scripts/setup-events.sh` to create or update one Events rule for every entry with
 GeoJSON enabled in `dsconfig.json`, targeting GeoJSON functions in `3MOpenDataProcessor`:
 
 | Source ID | Events rule | CSV object | GeoJSON function |
@@ -73,12 +73,12 @@ uses the defaults. `functionPrefix` affects both the rule and function name.
 
 NIM currently downloads the 2022 dataset only. Its `geoJsonEnabled: false`
 setting excludes it from event setup; no NIM GeoJSON function is deployed.
-Use `./deploy-functions.sh ds NIM` and, when ready to download its large export,
-`./invoke.sh ds NIM`. The source uses bucket `dsnim`, Object `NIM_Comptage.csv`,
+Use `./scripts/deploy-functions.sh ds NIM` and, when ready to download its large export,
+`./scripts/invoke.sh ds NIM`. The source uses bucket `dsnim`, Object `NIM_Comptage.csv`,
 a 300-second runtime timeout and the Monthly schedule tag. The downloader does
 not perform yearly preprocessing. The shared preprocessing function can be
-deployed separately with `./deploy-functions.sh preprocess NIM` and run with
-`./invoke.sh preprocess NIM` to publish the yearly array and manifest.
+deployed separately with `./scripts/deploy-functions.sh preprocess NIM` and run with
+`./scripts/invoke.sh preprocess NIM` to publish the yearly array and manifest.
 Automatic preprocessing/GeoJSON routing remains a later step.
 
 Each rule matches create and update events for exactly its configured CSV in
@@ -88,15 +88,15 @@ object events enabled. Deployment bucket overrides must agree with the input
 bucket configured here.
 
 The script uses OCI CLI and `jq` directly, shell functions, and the environment
-exported by `source ./setup.sh`, including the data source config path,
+exported by `source ./scripts/setup.sh`, including the data source config path,
 application name, compartment, and storage namespace. Credentials
 must allow managing Events rules and configuring Functions actions; functions
 need access to their inputs and outputs. See
 [Oracle's Events IAM policies](https://docs.oracle.com/en-us/iaas/Content/Events/Concepts/eventspolicy.htm).
 
 ```sh
-./setup-events.sh --dry-run
-./setup-events.sh
+./scripts/setup-events.sh --dry-run
+./scripts/setup-events.sh
 ```
 
 Dry runs show proposed changes for every source without submitting them.
@@ -109,7 +109,7 @@ Existing CSV objects are not processed until the next matching object event.
 
 ## Hourly, daily, weekly and monthly schedules
 
-Run `./setup-schedules.sh` to create or reconcile `Hourly` (at **the start of every hour**),
+Run `./scripts/setup-schedules.sh` to create or reconcile `Hourly` (at **the start of every hour**),
 `Daily`, `Weekly` (Wednesdays), and `Monthly` (the 5th of each month). The latter
 three run at **15:30 UTC**; all schedules use UTC. Each uses dynamic
 resource filters selecting only `FunctionsFunction` resources in `TraficInfo`
@@ -120,7 +120,7 @@ Create the `TraficInfo` tag namespace and `DataSourceSchedule` key definition
 first, with allowed values `Hourly`, `Daily`, `Weekly`, and `Monthly`. Apply the
 appropriate value directly to each data source function. The script does not tag functions
 or attach function OCIDs; OCI selects matching functions dynamically at run time.
-Untagged functions do not match. Deployment with `./deploy-functions.sh` reads
+Untagged functions do not match. Deployment with `./scripts/deploy-functions.sh` reads
 `dsconfig.json` and sets `TraficInfo.DataSourceSchedule` on the data source
 functions: `MMM` maps to `3MOpenDataSource`, and `DPT34` maps to
 `DPT34OpenDataSource`. Current schedules are Daily and Monthly respectively.
@@ -131,8 +131,8 @@ GeoJSON functions receive no scheduling tag from deployment. Deploy the intended
 functions before converting an existing schedule from static targets to filters.
 
 ```sh
-./setup-schedules.sh --dry-run
-./setup-schedules.sh
+./scripts/setup-schedules.sh --dry-run
+./scripts/setup-schedules.sh
 ```
 
 Timing is defined directly in the script, using settings recorded previously
@@ -144,7 +144,7 @@ case-insensitively) cause an error. Updates do not use ETags.
 
 Uses shell functions, OCI CLI, and `jq`, without checking tool availability.
 Uses the OCI credentials and `OCI_COMPARTMENT_ID` exported by
-`source ./setup.sh`.
+`source ./scripts/setup.sh`.
 
 Dry runs read OCI and show proposed creates and updates without submitting them.
 Normal runs wait for each operation to succeed and verify timing, filters, and

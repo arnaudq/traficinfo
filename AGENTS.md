@@ -7,7 +7,7 @@
 
 ## OCI scripts
 
-- Assume `source ./setup.sh` has been run before any other script. Use the
+- Assume `source ./scripts/setup.sh` has been run before any other script. Use the
   shared paths and OCI settings it exports rather than repeating environment
   initialization, compartment discovery, or Object Storage namespace discovery.
 - Organize scripts into shell functions.

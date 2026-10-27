@@ -2,9 +2,9 @@
 # Reconcile one CSV -> GeoJSON OCI Events rule per configured data source.
 set -euo pipefail
 
-source "${TRAFICINFO_ROOT:?Run source ./setup.sh first}/oci-common.sh"
+source "${TRAFICINFO_ROOT:?Run source ./scripts/setup.sh first}/scripts/oci-common.sh"
 
-application_name="${OCI_FN_APPLICATION_NAME:?Run source ./setup.sh first}"
+application_name="${OCI_FN_APPLICATION_NAME:?Run source ./scripts/setup.sh first}"
 wait_options=(--wait-for-state ACTIVE --wait-for-state FAILED
   --max-wait-seconds 600 --wait-interval-seconds 5)
 
@@ -19,7 +19,7 @@ validate_bucket() {
     .data | .name == $name and ."compartment-id" == $compartment
     and ."object-events-enabled" == true
   ' <<< "$bucket" >/dev/null || {
-    printf '%s must be in the selected compartment with events enabled. Run ./setup-buckets.sh first.\n' "$bucket_name" >&2
+    printf '%s must be in the selected compartment with events enabled. Run ./scripts/setup-buckets.sh first.\n' "$bucket_name" >&2
     return 1
   }
 }
@@ -175,8 +175,8 @@ main() {
   if [ "$dry_run" = true ]; then
     log 'Dry run: OCI resources will be read; no changes will be submitted.'
   fi
-  compartment_id="${OCI_COMPARTMENT_ID:?Run source ./setup.sh first}"
-  namespace="${OCI_OBJECT_STORAGE_NAMESPACE:?Run source ./setup.sh first}"
+  compartment_id="${OCI_COMPARTMENT_ID:?Run source ./scripts/setup.sh first}"
+  namespace="${OCI_OBJECT_STORAGE_NAMESPACE:?Run source ./scripts/setup.sh first}"
   step "Resolving application $application_name..."
   application_id="$(resolve_application_id)"
   for ((index = 0; index < source_count; index++)); do

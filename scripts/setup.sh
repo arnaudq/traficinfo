@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Source this file to initialize the shared project and OCI environment:
-#   source ./setup.sh
+#   source ./scripts/setup.sh
 
 set_project_paths() {
   local script_file project_root
@@ -9,7 +9,7 @@ set_project_paths() {
   else
     script_file="${BASH_SOURCE[0]}"
   fi
-  project_root="$(cd "$(dirname "$script_file")" && pwd)" || return
+  project_root="$(cd "$(dirname "$script_file")/.." && pwd)" || return
   export TRAFICINFO_ROOT="$project_root"
   export TRAFICINFO_DSCONFIG="$project_root/dsconfig.json"
 }
@@ -98,7 +98,7 @@ list_fn_apps() {
 
 setup_project_environment() {
   set_project_paths || return 1
-  source "$TRAFICINFO_ROOT/oci-common.sh" || return 1
+  source "$TRAFICINFO_ROOT/scripts/oci-common.sh" || return 1
   set_java_home || return 1
   set_oci_config || return 1
   set_oci_environment || return 1

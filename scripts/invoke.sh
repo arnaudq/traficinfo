@@ -2,7 +2,7 @@
 # Invoke a traffic data-source, preprocessing, GeoJSON, or OSM information function.
 set -euo pipefail
 
-source "${TRAFICINFO_ROOT:?Run source ./setup.sh first}/oci-common.sh"
+source "${TRAFICINFO_ROOT:?Run source ./scripts/setup.sh first}/scripts/oci-common.sh"
 
 usage() {
   printf 'Usage: %s <ds|preprocess|geojson> <data-source-id>\n       %s osm\n' "$0" "$0" >&2

@@ -2,10 +2,10 @@
 # Build once and upload Java code-only functions, without Docker or fn deploy.
 set -euo pipefail
 
-source "${TRAFICINFO_ROOT:?Run source ./setup.sh first}/oci-common.sh"
+source "${TRAFICINFO_ROOT:?Run source ./scripts/setup.sh first}/scripts/oci-common.sh"
 
-root_dir="${TRAFICINFO_ROOT:?Run source ./setup.sh first}"
-app_name="${OCI_FN_APPLICATION_NAME:?Run source ./setup.sh first}"
+root_dir="${TRAFICINFO_ROOT:?Run source ./scripts/setup.sh first}"
+app_name="${OCI_FN_APPLICATION_NAME:?Run source ./scripts/setup.sh first}"
 runtime_name=java21.ol9
 output_bucket="${BUCKETNAME_OUT:-traficinfo}"
 osm_bucket="${BUCKETNAME_OSM:-osminfo}"
@@ -266,7 +266,7 @@ main() {
       source="$(get_data_source "$data_source_id" "$sources")"
       function_name="$(data_source_function_name "$source" "$type")"
     fi
-    namespace="${OCI_OBJECT_STORAGE_NAMESPACE:?Run source ./setup.sh first}"
+    namespace="${OCI_OBJECT_STORAGE_NAMESPACE:?Run source ./scripts/setup.sh first}"
     config="$(build_function_config "$type" "$namespace" "$source")"
     validate_configuration_size "$config" "$function_name"
     tags=''

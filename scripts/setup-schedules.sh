@@ -2,7 +2,7 @@
 # Ensure Hourly, Daily, Weekly and Monthly schedules use defined-tag resource filters.
 set -euo pipefail
 
-source "${TRAFICINFO_ROOT:?Run source ./setup.sh first}/oci-common.sh"
+source "${TRAFICINFO_ROOT:?Run source ./scripts/setup.sh first}/scripts/oci-common.sh"
 
 # Recorded from OCI during script preparation; no schedule is a runtime template.
 hourly_clock='BYMINUTE=0;BYSECOND=0'
@@ -131,7 +131,7 @@ main() {
   local name id recurrence payload index state
   local names=(Hourly Daily Weekly Monthly) ids=() payloads=() operations=()
   dry_run="$(parse_dry_run_arguments "$@")"
-  compartment_id="${OCI_COMPARTMENT_ID:?Run source ./setup.sh first}"
+  compartment_id="${OCI_COMPARTMENT_ID:?Run source ./scripts/setup.sh first}"
   log 'Reading existing schedules...'
   schedules="$(list_schedules)"
   # Check all names for ambiguity before submitting any creation.

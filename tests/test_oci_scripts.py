@@ -7,6 +7,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
+SCRIPTS = ROOT / 'scripts'
 MOCK_OCI = r'''#!/usr/bin/env python3
 import json, os, pathlib, sys
 args = sys.argv[1:]
@@ -159,21 +160,21 @@ class OciScriptsTest(unittest.TestCase):
         return result
 
     def common(self, code, success=True):
-        return self.run_shell('set -euo pipefail; source "$TRAFICINFO_ROOT/oci-common.sh"; ' + code,
+        return self.run_shell('set -euo pipefail; source "$TRAFICINFO_ROOT/scripts/oci-common.sh"; ' + code,
                               success=success)
 
     def script(self, name, *args, success=True):
-        return self.run_shell('exec bash "$@"', ROOT / name, *args, success=success)
+        return self.run_shell('exec bash "$@"', SCRIPTS / name, *args, success=success)
 
     def deploy(self, success=True):
         library = self.directory / 'deploy-library.sh'
-        library.write_text((ROOT / 'deploy-functions.sh').read_text().rsplit('\nmain "$@"', 1)[0])
+        library.write_text((SCRIPTS / 'deploy-functions.sh').read_text().rsplit('\nmain "$@"', 1)[0])
         return self.run_shell('set -euo pipefail; source "$1"; build_jar() { :; }; '
                               'validate_jar() { :; }; main', library, success=success)
 
     def deployment_common(self, code, *args, success=True):
         library = self.directory / 'deploy-library.sh'
-        library.write_text((ROOT / 'deploy-functions.sh').read_text().rsplit('\nmain "$@"', 1)[0])
+        library.write_text((SCRIPTS / 'deploy-functions.sh').read_text().rsplit('\nmain "$@"', 1)[0])
         return self.run_shell('set -euo pipefail; source "$1"; shift; ' + code,
                               library, *args, success=success)
 
@@ -222,7 +223,7 @@ class OciScriptsTest(unittest.TestCase):
         for shell in ['bash', 'zsh']:
             with self.subTest(shell=shell):
                 self.run_shell('before=$(set +o); before_traps=$(trap); before_dir=$PWD; '
-                               'source "$TRAFICINFO_ROOT/oci-common.sh"; '
+                               'source "$TRAFICINFO_ROOT/scripts/oci-common.sh"; '
                                'test "$before" = "$(set +o)"; test "$before_traps" = "$(trap)"; '
                                'test "$before_dir" = "$PWD"', shell=shell)
         self.assertNotIn('calls', self.state)
@@ -615,10 +616,12 @@ class OciScriptsTest(unittest.TestCase):
         self.assertEqual(hourly['recurrence-details'], 'FREQ=HOURLY;BYMINUTE=0;BYSECOND=0')
 
     def test_setup_in_bash_and_zsh_exports_environment(self):
-        setup = self.directory / 'setup.sh'
-        setup.write_text((ROOT / 'setup.sh').read_text().replace('/usr/libexec/java_home -v 25',
+        scripts = self.directory / 'scripts'
+        scripts.mkdir()
+        setup = scripts / 'setup.sh'
+        setup.write_text((SCRIPTS / 'setup.sh').read_text().replace('/usr/libexec/java_home -v 25',
                                                                "printf '/mock/jdk'"))
-        (self.directory / 'oci-common.sh').write_text((ROOT / 'oci-common.sh').read_text())
+        (scripts / 'oci-common.sh').write_text((SCRIPTS / 'oci-common.sh').read_text())
         credentials = self.directory / 'oci-config'
         credentials.write_text('[DEFAULT]\nregion=eu-frankfurt-1\n')
         fn = self.directory / 'fn'
