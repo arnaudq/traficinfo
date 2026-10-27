@@ -1,7 +1,8 @@
 # Shared datasource storage contract, version 1
 
 This contract applies to all datasource IDs in `dsconfig.json`. At this stage
-it defines a manifest model and JSON examples only. Deployed behaviour is unchanged.
+it defines the manifest format and the source retrieval configuration. Yearly
+processing and manifest publication are not implemented yet.
 
 Data is stored in Object Storage, with one bucket per data source. In this
 specification, Object refers to an item stored in that bucket.
@@ -53,13 +54,40 @@ Serialization of the existing source-specific Comptage implementations will be
 addressed when implementing yearly Objects. No additional count model or separate retrieval
 provenance Object is introduced in this step.
 
+## Source retrieval configuration
+
+The datasource function downloads the active source inputs into its bucket. It
+neither reads nor writes the manifest. Deployment reads the datasource's `source`
+entry in `dsconfig.json` and passes `dataSourceId`, `resourceId` and ordered
+`inputs` through the `DATA_SOURCE_SETTINGS` function configuration. The function
+reads these settings through `RuntimeContext`; it does not read the repository
+file at runtime.
+
+Function configuration carries only active retrieval settings; CSV headers and
+manifest history remain in Object Storage. Deployment enforces OCI's 4096-byte
+UTF-8 key/value budget, including inherited application settings, before changing
+any function. Function-level values override application values with the same key.
+
+Each input specifies `url`, `contentType` and an optional `objectName`. CSV names
+default to `<datasourceId>_Comptage.csv` (or the configured `csvObject` override).
+Companion inputs specify their Object names explicitly. Inputs are published in
+list order, so MMM's geometry JSON precedes its counts CSV. Source Objects retain
+the existing names and archive convention. A failure stops later inputs; this
+stage does not create an atomic snapshot of multiple inputs.
+
+Successful retrieval stores the datasource ID, resource ID, source URL and UTC
+download time in Object metadata. Conditional downloads reuse validators only
+for the same source URL, resource and datasource. Older Objects without these
+fields are refreshed once. Switching resources therefore cannot reuse the old
+resource's validator. Existing handlers retain their legacy defaults when the
+function configuration is absent.
+
 ## Processing sequence
 
 1. **Datasource function:** retrieve the configured inputs and store them as
    Objects in the datasource bucket.
 2. **Preprocessing function (later):** read the source Objects and check CSV
-   headers against the manifest for the same resource/input. Parsing by name may
-   tolerate reordering; missing, renamed or duplicate required columns
+   headers against the manifest for the same resource/input. Parsing by name may tolerate reordering; missing, renamed or duplicate required columns
    fail processing. Extra columns follow the source parser's documented policy.
    A new resource gets its own headers after successful parsing. On the first
    run, check the parser's required columns because no manifest exists yet.
@@ -73,9 +101,8 @@ provenance Object is introduced in this step.
 Serialize publication per datasource and make retries idempotent. A failed run
 leaves the previous manifest usable. Each source's aggregation rules must address
 hourly completeness and counting campaigns before its first run. Header validation,
-yearly serialization and manifest publication will be implemented in the
-preprocessing stage. Its source settings will be supplied through function
-configuration during deployment; it will not read `dsconfig.json` at runtime.
+yearly serialization and manifest publication will be implemented in the preprocessing stage. Deployment will also supply its source
+settings; this configuration wiring is still to be implemented for preprocessing.
 
 ## Compatibility and examples
 

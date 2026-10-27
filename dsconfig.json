@@ -8,27 +8,68 @@
     "csvObject": "MMM_MMM_Comptage.csv",
     "datasetInfoUrl": "https://data.montpellier3m.fr/dataset/comptage-vehicules-particuliers-de-montpellier",
     "datasetFaviconUrl": "https://data.montpellier3m.fr/favicons/apple-icon-57x57.png",
-    "datasetLogoUrl": "https://data.montpellier3m.fr/sites/default/files/logo-m3m-opendata_0.svg"
+    "datasetLogoUrl": "https://data.montpellier3m.fr/sites/default/files/logo-m3m-opendata_0.svg",
+    "source": {
+      "resourceId": "current",
+      "inputs": [
+        {
+          "url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_MMM_Comptage.json",
+          "objectName": "MMM_MMM_Comptage.json",
+          "contentType": "application/json"
+        },
+        {
+          "url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_MMM_Comptage.csv",
+          "contentType": "text/csv"
+        }
+      ]
+    }
   },
   "DPT30": {
     "id": "DPT30",
     "name": "Comptages véhicules - Département du Gard",
     "schedule": "Monthly",
     "datasetInfoUrl": "https://www.data.gouv.fr/datasets/les-trafics-moyens-journaliers-annuels-mesures-sur-le-reseau-routier-departemental-du-gard",
-    "datasetLogoUrl": "https://udata-avatars.s3.rbx.io.cloud.ovh.net/cf/d340e45e8c4d3cb8796f0227c5a257-100.jpg"
+    "datasetLogoUrl": "https://udata-avatars.s3.rbx.io.cloud.ovh.net/cf/d340e45e8c4d3cb8796f0227c5a257-100.jpg",
+    "source": {
+      "resourceId": "current",
+      "inputs": [
+        {
+          "url": "https://www.data.gouv.fr/api/1/datasets/r/69584212-8ff0-40d3-b82d-2d5d2890bff7",
+          "contentType": "text/csv"
+        }
+      ]
+    }
   },
   "MRN": {
     "id": "MRN",
     "name": "Comptages véhicules et vélos - Métropole Rouen Normandie",
     "schedule": "Daily",
     "datasetInfoUrl": "https://data.metropole-rouen-normandie.fr/explore/assets/comptages-et-enquetes-sur-le-reseau-routier/",
-    "datasetLogoUrl": "https://data.metropole-rouen-normandie.fr/assets/theme_image/logo.png"
+    "datasetLogoUrl": "https://data.metropole-rouen-normandie.fr/assets/theme_image/logo.png",
+    "source": {
+      "resourceId": "current",
+      "inputs": [
+        {
+          "url": "https://data.metropole-rouen-normandie.fr/api/explore/v2.1/catalog/datasets/comptages-et-enquetes-sur-le-reseau-routier/exports/csv?use_labels=true&delimiter=%3B",
+          "contentType": "text/csv"
+        }
+      ]
+    }
   },
   "DPT34": {
     "id": "DPT34",
     "name": "Comptages véhicules - Département de l'Hérault",
     "schedule": "Monthly",
     "datasetInfoUrl": "https://www.herault-data.fr/explore/dataset/trafic-de-l-herault-donnees-de-comptage/#",
-    "datasetLogoUrl": "https://www.herault-data.fr/assets/theme_image/logo%20herault%20data%20vfinal_petite.png"
+    "datasetLogoUrl": "https://www.herault-data.fr/assets/theme_image/logo%20herault%20data%20vfinal_petite.png",
+    "source": {
+      "resourceId": "current",
+      "inputs": [
+        {
+          "url": "https://www.herault-data.fr/api/explore/v2.1/catalog/datasets/trafic-de-l-herault-donnees-de-comptage/exports/csv?use_labels=true&delimiter=%3B",
+          "contentType": "text/csv"
+        }
+      ]
+    }
   }
 }

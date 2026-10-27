@@ -99,7 +99,7 @@ input_bucket_for_source() {
 }
 
 build_function_config() {
-  local type="$1" namespace="$2" source="$3" input config
+  local type="$1" namespace="$2" source="$3" input config settings
   if [ "$type" = osm ]; then
     validate_bucket_name "$osm_bucket" BUCKETNAME_OSM || return
     jq -cne --arg namespace "$namespace" --arg bucket "$osm_bucket" \
@@ -113,8 +113,9 @@ build_function_config() {
   fi
   input="$(input_bucket_for_source "$source")" || return
   if [ "$type" = ds ]; then
-    jq -cn --arg namespace "$namespace" --arg bucket "$input" \
-      '{NAMESPACE: $namespace, BUCKETNAME: $bucket}'
+    settings="$(data_source_settings "$source")" || return
+    jq -cn --arg namespace "$namespace" --arg bucket "$input" --arg settings "$settings" \
+      '{NAMESPACE: $namespace, BUCKETNAME: $bucket, DATA_SOURCE_SETTINGS: $settings}'
     return
   fi
   validate_bucket_name "$output_bucket" BUCKETNAME_OUT || return
@@ -129,6 +130,29 @@ build_function_config() {
     '. + {BUCKETNAME_OSM: $bucket, OSM_CACHE_OBJECT: $object, OSM_WAY_MAPPING_OBJECT: $mapping}' \
     <<< "$config")" || return
   printf '%s\n' "$config"
+}
+
+# OCI counts UTF-8 bytes in configuration keys and values, not JSON transport escaping.
+configuration_size_bytes() {
+  jq -ne --argjson config "$1" --argjson application "${2:-null}" '
+    def string_map:
+      if type != "object" then error("Expected a configuration object")
+      elif any(.[]; type != "string") then error("Configuration values must be strings")
+      else . end;
+    (($application // {} | string_map) + ($config | string_map))
+    | [to_entries[] | (.key | utf8bytelength) + (.value | utf8bytelength)]
+    | add // 0
+  '
+}
+
+validate_configuration_size() {
+  local bytes
+  bytes="$(configuration_size_bytes "$1" "${3:-null}")" || return
+  if [ "$bytes" -gt 4096 ]; then
+    printf '%s configuration uses %s UTF-8 bytes; OCI limit is 4096 (including application settings).\n' \
+      "$2" "$bytes" >&2
+    return 1
+  fi
 }
 
 schedule_tags() {
@@ -206,7 +230,7 @@ wait_for_work_request() {
 
 main() {
   local application_id function_id work_request_id definition function_name handler namespace config
-  local data_source_id type tags sources source index=0
+  local data_source_id type tags sources source application_config check_index index=0
   local function_ids=() function_names=() configs=() defined_tags=()
   select_functions "$@"
   sources="$(load_data_sources)"
@@ -222,6 +246,7 @@ main() {
     fi
     namespace="${OCI_OBJECT_STORAGE_NAMESPACE:?Run source ./setup.sh first}"
     config="$(build_function_config "$type" "$namespace" "$source")"
+    validate_configuration_size "$config" "$function_name"
     tags=''
     if [ "$type" = ds ] || [ "$type" = osm ]; then tags="$(schedule_tags "$source")"; fi
     function_names+=("$function_name")
@@ -229,6 +254,11 @@ main() {
     defined_tags+=("$tags")
   done
   application_id="$(resolve_application_id)"
+  application_config="$(oci fn application get --application-id "$application_id" \
+    | jq -ce '.data.config // {}')"
+  for ((check_index = 0; check_index < ${#configs[@]}; check_index++)); do
+    validate_configuration_size "${configs[$check_index]}" "${function_names[$check_index]}" "$application_config"
+  done
   for function_name in "${function_names[@]}"; do
     function_id="$(find_function_id "$application_id" "$function_name")"
     function_ids+=("$function_id")

@@ -15,6 +15,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 
 import static org.junit.Assert.*;
 
@@ -29,6 +31,9 @@ public class DataSourceFunctionTest {
     @Test
     public void unchangedSourcesDoNotUpload() {
         SourceStub stub = new SourceStub();
+        stub.function().handleRequest("");
+        stub.uploads.clear();
+        stub.downloads.clear();
         stub.unchanged = true;
         assertEquals("OK", stub.function().handleRequest(""));
         assertTrue(stub.uploads.isEmpty());
@@ -63,6 +68,8 @@ public class DataSourceFunctionTest {
     private static class SourceStub {
         final List<String> downloads = new ArrayList<>();
         final List<String> uploads = new ArrayList<>();
+        final Map<String, OOSResourceMetadata> metadata = new HashMap<>();
+        final Map<String, byte[]> contents = new HashMap<>();
         boolean unchanged;
         boolean failDownload;
         boolean failUpload;
@@ -72,7 +79,8 @@ public class DataSourceFunctionTest {
                 @Override
                 public EntityBody get(URI uri, String etag) throws IOException {
                     downloads.add(uri.getPath().substring(uri.getPath().lastIndexOf('/') + 1));
-                    assertEquals("\"previous\"", etag);
+                    String name = uri.getPath().substring(uri.getPath().lastIndexOf('/') + 1);
+                    assertEquals(metadata.containsKey(name) ? metadata.get(name).getETag() : null, etag);
                     if (failDownload) {
                         throw new IOException("download failed");
                     }
@@ -83,14 +91,12 @@ public class DataSourceFunctionTest {
             ObjectStoreClient storage = new ObjectStoreClient(null, "namespace", "bucket") {
                 @Override
                 public OOSResourceMetadata getResourceMetadata(String resourceName) {
-                    OOSResourceMetadata metadata = new OOSResourceMetadata();
-                    metadata.setETag("previous");
-                    return metadata;
+                    return metadata.get(resourceName);
                 }
 
                 @Override
-                public void renameResource(String oldName, String newName) {
-                    // Archive without contacting OCI.
+                public InputStream getResource(String name) {
+                    return new ByteArrayInputStream(contents.get(name));
                 }
 
                 @Override
@@ -99,6 +105,8 @@ public class DataSourceFunctionTest {
                     if (failUpload) {
                         throw new IOException("upload failed");
                     }
+                    contents.put(name, stream.readAllBytes());
+                    SourceStub.this.metadata.put(name, metadata);
                     uploads.add(name);
                 }
             };

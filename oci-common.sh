@@ -131,3 +131,28 @@ validate_bucket_name() {
     return 1
   fi
 }
+
+# Prepare the settings passed to a datasource function. Input order is publication order.
+data_source_settings() {
+  jq -ce '
+    def nonempty_string: type == "string" and test("[^[:space:]]");
+    . as $source
+    | if (.source | type) != "object" then error("Missing source settings for \(.id)") else . end
+    | .source
+    | if (.resourceId | nonempty_string | not) or (.inputs | type) != "array"
+        or (.inputs | length) == 0 then error("Expected resourceId and source inputs") else . end
+    | .inputs |= map(
+        if type != "object" then error("Invalid source input") else . end
+        | if (.url | type) != "string" or (.url | test("^https?://[^/[:space:]]+") | not)
+            or (.contentType | nonempty_string | not) then error("Invalid input URL or content type") else . end
+        | . + {objectName: (.objectName //
+            (if .contentType == "text/csv" then $source.csvObject else
+              error("Non-CSV inputs require an objectName") end))}
+        | if (.objectName | type) != "string" or (.objectName | test("\\.(csv|json)$") | not)
+            then error("Input Object name must end in .csv or .json") else . end
+      )
+    | if (.inputs | map(.objectName) | unique | length) != (.inputs | length) then
+        error("Duplicate input Object names") else . end
+    | {dataSourceId: $source.id, resourceId, inputs}
+  ' <<< "$1"
+}

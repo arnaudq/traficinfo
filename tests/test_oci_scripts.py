@@ -39,6 +39,8 @@ elif command == ['os', 'ns', 'get']: print('testnamespace')
 elif command == ['fn', 'application', 'list']:
     if state.get('malformed_applications'): emit({})
     else: emit(state['applications'])
+elif command == ['fn', 'application', 'get']:
+    emit(next(app for app in state['applications'] if app['id'] == opt('--application-id')))
 elif command == ['fn', 'function', 'list']:
     if state.get('blank_functions'): sys.exit(0)
     if state.get('malformed_functions'): emit({})
@@ -169,6 +171,53 @@ class OciScriptsTest(unittest.TestCase):
         return self.run_shell('set -euo pipefail; source "$1"; build_jar() { :; }; '
                               'validate_jar() { :; }; main', library, success=success)
 
+    def deployment_common(self, code, *args, success=True):
+        library = self.directory / 'deploy-library.sh'
+        library.write_text((ROOT / 'deploy-functions.sh').read_text().rsplit('\nmain "$@"', 1)[0])
+        return self.run_shell('set -euo pipefail; source "$1"; shift; ' + code,
+                              library, *args, success=success)
+
+    def test_configuration_limit_counts_utf8_keys_and_values(self):
+        for config, application, expected in [
+                ({}, {}, 0),
+                ({'KEY': 'a' * 4093}, {}, 4096),
+                ({'KEY': 'é' * 2046 + 'a'}, {}, 4096),
+                ({'KEY': '"' * 4093}, {}, 4096),
+                ({'KEY': 'function'}, {'KEY': 'application', 'OTHER': 'é'}, 18)]:
+            with self.subTest(expected=expected):
+                result = self.deployment_common('configuration_size_bytes "$1" "$2"',
+                                               json.dumps(config), json.dumps(application))
+                self.assertEqual(int(result.stdout), expected)
+                self.deployment_common('validate_configuration_size "$1" test "$2"',
+                                       json.dumps(config), json.dumps(application))
+        result = self.deployment_common('validate_configuration_size "$1" test',
+                                       json.dumps({'KEY': 'é' * 2047}), success=False)
+        self.assertIn('4097 UTF-8 bytes', result.stderr)
+        self.assertNotIn('calls', self.state)
+
+    def test_oversized_source_configuration_fails_before_cloud_calls(self):
+        config = json.loads(self.config_file.read_text())
+        config['MRN']['source']['inputs'][0]['url'] = 'https://example.invalid/' + 'x' * 4096
+        self.config_file.write_text(json.dumps(config))
+        result = self.deploy(success=False)
+        self.assertIn('MRNOpenDataSource configuration uses', result.stderr)
+        self.assertNotIn('calls', self.state)
+
+    def test_application_settings_count_towards_limit_before_any_function_changes(self):
+        self.state['applications'][0]['config'] = {'SHARED': 'x' * 3700}
+        self.save()
+        result = self.deploy(success=False)
+        self.assertIn('3MOpenDataSource configuration uses', result.stderr)
+        self.assertIn('OCI limit is 4096', result.stderr)
+        self.assertNotIn('writes', self.state)
+        self.assertFalse(any(call[:3] == ['fn', 'function', 'list'] for call in self.state['calls']))
+
+    def test_application_config_read_failure_stops_deployment(self):
+        self.state['fail_command'] = ['fn', 'application', 'get']
+        self.save()
+        self.deploy(success=False)
+        self.assertNotIn('writes', self.state)
+
     def test_library_has_no_source_side_effects(self):
         for shell in ['bash', 'zsh']:
             with self.subTest(shell=shell):
@@ -191,6 +240,54 @@ class OciScriptsTest(unittest.TestCase):
         self.assertEqual(mrn['csvObject'], 'MRN_Comptage.csv')
         self.assertEqual(mrn['inputBucket'], 'dsmrn')
         self.common('get_data_source UNKNOWN', success=False)
+
+    def test_retrieval_settings_derive_csv_names_and_preserve_companion_order(self):
+        config = json.loads(self.config_file.read_text())
+        config['DPT30']['csvObject'] = 'custom-counts.csv'
+        config['DPT30']['source']['inputs'][0]['url'] = 'https://example.invalid/new.csv'
+        self.config_file.write_text(json.dumps(config))
+        settings = json.loads(self.common('data_source_settings "$(get_data_source DPT30)"').stdout)
+        self.assertEqual(settings['dataSourceId'], 'DPT30')
+        self.assertEqual(settings['inputs'][0]['objectName'], 'custom-counts.csv')
+        self.assertEqual(settings['inputs'][0]['url'], 'https://example.invalid/new.csv')
+        self.assertNotIn('calls', self.state)
+
+    def test_datasource_deployment_passes_settings_to_every_source(self):
+        config = json.loads(self.config_file.read_text())
+        config['MRN']['source']['resourceId'] = 'replacement-resource'
+        config['MRN']['source']['inputs'][0]['url'] = 'https://example.invalid/replacement.csv'
+        self.config_file.write_text(json.dumps(config))
+        for existing in [True, False]:
+            with self.subTest(existing=existing):
+                if not existing:
+                    self.state['functions'] = []
+                    self.save()
+                self.deploy()
+                functions = {item['display-name']: item for item in self.state['functions']}
+                for source_id, entry in config.items():
+                    name = entry.get('functionPrefix', source_id) + 'OpenDataSource'
+                    settings = json.loads(functions[name]['config']['DATA_SOURCE_SETTINGS'])
+                    self.assertEqual(settings['dataSourceId'], source_id)
+                    self.assertEqual(settings['resourceId'], entry['source']['resourceId'])
+                    self.assertEqual([item['url'] for item in settings['inputs']],
+                                     [item['url'] for item in entry['source']['inputs']])
+                self.assertEqual([item['objectName'] for item in json.loads(
+                    functions['3MOpenDataSource']['config']['DATA_SOURCE_SETTINGS'])['inputs']],
+                    ['MMM_MMM_Comptage.json', 'MMM_MMM_Comptage.csv'])
+
+    def test_invalid_retrieval_settings_fail_before_deployment_calls(self):
+        original = json.loads(self.config_file.read_text())
+        for invalid in [None, {'resourceId': '', 'inputs': []},
+                        {'resourceId': 'current', 'inputs': [{'url': 'file:///tmp/input',
+                                                              'contentType': 'text/csv'}]},
+                        {'resourceId': 'current', 'inputs': [
+                            {'url': 'https://example.invalid/a', 'contentType': 'text/csv'},
+                            {'url': 'https://example.invalid/b', 'contentType': 'text/csv'}]}]:
+            config = json.loads(json.dumps(original))
+            config['DPT30']['source'] = invalid
+            self.config_file.write_text(json.dumps(config))
+            self.deploy(success=False)
+            self.assertNotIn('calls', self.state)
 
     def test_invalid_source_config(self):
         for value in [{'MMM': {'id': 'WRONG'}}, {'MMM': {'id': 'MMM', 'inputBucket': ''}},
@@ -296,8 +393,13 @@ class OciScriptsTest(unittest.TestCase):
                 self.assertEqual(functions['OSMInfoFunction']['timeout-in-seconds'], 300)
                 self.assertEqual(functions['OSMInfoFunction']['defined-tags'],
                                  {'TraficInfo': {'DataSourceSchedule': 'Hourly'}})
-                self.assertEqual(functions['3MOpenDataSource']['config'],
-                                 {'NAMESPACE': 'testnamespace', 'BUCKETNAME': 'ds3mbucket'})
+                source_config = functions['3MOpenDataSource']['config']
+                self.assertEqual(source_config['NAMESPACE'], 'testnamespace')
+                self.assertEqual(source_config['BUCKETNAME'], 'ds3mbucket')
+                retrieval = json.loads(source_config['DATA_SOURCE_SETTINGS'])
+                self.assertEqual(retrieval['dataSourceId'], 'MMM')
+                self.assertEqual([item['objectName'] for item in retrieval['inputs']],
+                                 ['MMM_MMM_Comptage.json', 'MMM_MMM_Comptage.csv'])
                 self.assertEqual(functions['DPT34OpenDataSource']['config']['BUCKETNAME'], 'dsdpt34')
                 self.assertEqual(functions['MRNOpenDataSource']['config']['BUCKETNAME'], 'dsmrn')
                 self.assertEqual(functions['MRNGeoJsonOut']['config'],

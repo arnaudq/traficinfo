@@ -14,6 +14,42 @@ The source function checks and publishes `MMM_MMM_Comptage.json` before
 triggers downstream processing. A JSON download or upload failure stops the
 invocation before the CSV is published and is reported as a function failure.
 
+## Source retrieval configuration
+
+Each datasource's `source` entry in `dsconfig.json` specifies `resourceId` and
+an ordered `inputs` array. Inputs have `url`, `contentType`, and optionally
+`objectName`. CSV Object names default to the datasource's `csvObject` naming
+convention; MMM's companion JSON keeps its explicit legacy name.
+
+Deployment passes these settings as a JSON string in `DATA_SOURCE_SETTINGS`,
+alongside `NAMESPACE` and `BUCKETNAME`. Functions read configuration through the
+Fn runtime; they do not read `dsconfig.json` at runtime. The existing source
+URLs remain compatibility defaults when this configuration is absent.
+
+Only the selected datasource's active retrieval settings are passed to the
+function. Headers and manifest history stay in Object Storage. Deployment checks
+OCI's 4096-byte configuration budget before building or changing functions,
+counting UTF-8 bytes in keys and values. It checks the function settings locally,
+then reads the application settings and checks the combined configuration with
+function-level overrides applied. An oversized configuration or an application
+configuration read failure stops the deployment before any function changes.
+See [OCI configuration limits](https://docs.oracle.com/en-us/iaas/tools/oci-cli/latest/oci_cli_docs/cmdref/fn/function/create/archive-function/object-storage/fn-update-runtime-config.html).
+
+`SourceObjectPublisher` streams changed inputs to the existing current Object
+names, with gzip storage and copy-before-replace archival. Each upload records
+`datasource-id`, `resource-id`, `source-url`, `downloaded-at` and the validator.
+A validator is reused only when its source identity matches. Legacy Objects
+without source identity are downloaded once to establish it. Changing a URL or
+resource ID forces a fresh download. Empty downloads and archive failures stop
+the invocation before replacement. MMM still publishes its JSON before CSV;
+a failure stops subsequent inputs but does not roll back earlier uploads.
+Archive dates use the previous download date, including for MMM.
+
+The datasource function does not use the manifest. Event routing remains the
+existing CSV-to-GeoJSON flow until preprocessing is implemented. Changing current
+Object names also requires matching consumers/event configuration; use existing
+names during this step. No NIM files are downloaded or deployed by this change.
+
 ## Shared infrastructure
 
 `org.traficinfo.dsfunctions.HttpClient`, `ObjectStoreClient` and
@@ -36,8 +72,8 @@ DPT30, DPT34 and MRN use `AbstractCsvDataSourceFunction` and
 enum value to the superclass constructor. The enum exposes `getDataSourceId()`
 and `getCsvUri()`, selects the parser, and derives default bucket and object
 names. Existing public handler names, configuration keys, constants and return
-behavior are preserved. MMM remains separate because its companion GeoJSON
-requires a different input sequence.
+behavior are preserved. MMM keeps its separate handler for its companion input
+sequence. All source handlers now use `SourceObjectPublisher` for retrieval, archival and publication.
 
 Both `config(RuntimeContext)` (annotated `@FnConfiguration`) and
 `handleRequest(String)` are public final methods on the superclasses. Fn runtime
@@ -515,6 +551,6 @@ grant-fn-access-to-use-objects: "Allow dynamic-group traficinfo_fn to use object
 ## Planned normalized storage
 
 The shared [datasource storage contract](../specs/datasource-storage-contract.md)
-defines the manifest and yearly file layout for all sources. It currently adds
-the manifest model and examples only; existing handlers and event rules continue
-to use their current CSV inputs.
+defines the manifest, yearly file layout and retrieval configuration for all
+sources. Yearly preprocessing and manifest publication are still pending;
+existing event rules continue to use their current CSV inputs.
