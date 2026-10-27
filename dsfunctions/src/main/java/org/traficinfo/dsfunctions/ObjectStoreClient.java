@@ -65,7 +65,11 @@ public class ObjectStoreClient {
 
         // both providers are RegionProvider so no need to set region
         LOG.info("Configuring Objectstore client");
-        client = ObjectStorageClient.builder().build(provider);
+        // getResource callers close response streams with try-with-resources. Suppress only
+        // the SDK's generic startup reminder; keep stream auto-close and other warnings.
+        client = ObjectStorageClient.builder()
+                .isStreamWarningEnabled(false)
+                .build(provider);
 
         this.namespaceName = namespace;
         this.bucketName = bucketName;
