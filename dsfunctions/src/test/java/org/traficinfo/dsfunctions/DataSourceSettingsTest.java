@@ -26,7 +26,7 @@ public class DataSourceSettingsTest {
 
     @Test
     public void fnReceivesDeploymentSettingsAndUsesConfiguredInput() throws Exception {
-        DataSourceSettings settings = settings("resource-2022", CSV);
+        DataSourceSettings settings = settings("dataset-2022", CSV);
         String json = new ObjectMapper().writeValueAsString(settings);
         FunctionRuntimeContext runtime = new FunctionRuntimeContext(
                 new FunctionLoader().loadClass(Probe.class.getName(), "handleRequest"),
@@ -39,7 +39,7 @@ public class DataSourceSettingsTest {
         assertEquals(List.of(URI.create(CSV.url())), probe.stub.requests);
         assertEquals(List.of(CSV.objectName()), probe.stub.writes);
         OOSResourceMetadata metadata = probe.stub.metadata.get(CSV.objectName());
-        assertEquals("resource-2022", metadata.getMetadata().get("resource-id"));
+        assertEquals("dataset-2022", metadata.getMetadata().get("dataset-id"));
         assertEquals(CSV.url(), metadata.getMetadata().get("source-url"));
         assertEquals("MRN", metadata.getMetadata().get("datasource-id"));
     }
@@ -48,17 +48,17 @@ public class DataSourceSettingsTest {
     public void sourceSwitchDoesNotReuseValidatorAndArchivesPreviousContents() {
         Stub stub = new Stub();
         SourceObjectPublisher publisher = new SourceObjectPublisher(stub.http, stub.storage);
-        publisher.publish(settings("resource-2022", CSV));
-        publisher.publish(settings("resource-2022", CSV));
+        publisher.publish(settings("dataset-2022", CSV));
+        publisher.publish(settings("dataset-2022", CSV));
         assertEquals("\"validator\"", stub.validators.get(1));
         DataSourceSettings.Input next = new DataSourceSettings.Input(
                 "https://example.invalid/new.csv", CSV.objectName(), CSV.contentType());
-        publisher.publish(settings("resource-2022", next));
+        publisher.publish(settings("dataset-2022", next));
         assertNull(stub.validators.get(2));
-        publisher.publish(settings("resource-2023", next));
+        publisher.publish(settings("dataset-2023", next));
         assertNull(stub.validators.get(3));
         assertTrue(stub.writes.stream().anyMatch(name -> name.startsWith("custom-counts_")));
-        assertEquals("resource-2023", stub.metadata.get(CSV.objectName()).getMetadata().get("resource-id"));
+        assertEquals("dataset-2023", stub.metadata.get(CSV.objectName()).getMetadata().get("dataset-id"));
     }
 
     @Test
@@ -125,9 +125,9 @@ public class DataSourceSettingsTest {
     public void invalidInputsPreventStorageConfigurationAndDownloads() throws Exception {
         for (String json : List.of(
                 new ObjectMapper().writeValueAsString(settings("current", CSV)).replace("MRN", "WRONG"),
-                "{\"dataSourceId\":\"WRONG\",\"resourceId\":\"x\",\"inputs\":[]}",
-                "{\"dataSourceId\":\"MRN\",\"resourceId\":\"x\",\"inputs\":[]}",
-                "{\"dataSourceId\":\"MRN\",\"resourceId\":\"x\",\"inputs\":["
+                "{\"dataSourceId\":\"WRONG\",\"datasetId\":\"x\",\"inputs\":[]}",
+                "{\"dataSourceId\":\"MRN\",\"datasetId\":\"x\",\"inputs\":[]}",
+                "{\"dataSourceId\":\"MRN\",\"datasetId\":\"x\",\"inputs\":["
                         + "{\"url\":\"file:///tmp/counts.csv\",\"objectName\":\"x.csv\",\"contentType\":\"text/csv\"}]}")) {
             Probe probe = new Probe();
             FunctionRuntimeContext runtime = new FunctionRuntimeContext(
@@ -182,8 +182,8 @@ public class DataSourceSettingsTest {
         }
     }
 
-    private static DataSourceSettings settings(String resourceId, DataSourceSettings.Input... inputs) {
-        return new DataSourceSettings("MRN", resourceId, List.of(inputs));
+    private static DataSourceSettings settings(String datasetId, DataSourceSettings.Input... inputs) {
+        return new DataSourceSettings("MRN", datasetId, List.of(inputs));
     }
 
     public static class Probe extends org.traficinfo.dsfunctions.mrn.DataSourceFunction {

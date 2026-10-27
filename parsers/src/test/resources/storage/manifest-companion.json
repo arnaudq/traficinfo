@@ -3,8 +3,8 @@
   "dataSourceId": "MMM",
   "revision": "r0001",
   "publishedAt": "2026-10-26T12:00:00Z",
-  "activeResourceId": "mmm-current",
-  "resources": {
+  "activeDatasetId": "mmm-current",
+  "datasets": {
     "mmm-current": {
       "datasetUrl": "https://example.invalid/mmm",
       "years": [

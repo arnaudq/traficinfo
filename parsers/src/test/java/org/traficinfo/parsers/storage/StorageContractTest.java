@@ -20,11 +20,11 @@ public class StorageContractTest {
     }
 
     @Test
-    public void manifestPreservesInactiveResourceYearsAndImmutableObjectReferences() throws Exception {
+    public void manifestPreservesInactiveDatasetYearsAndImmutableObjectReferences() throws Exception {
         DataManifest manifest = read("manifest.json", DataManifest.class);
-        assertEquals("nim-2023-2024", manifest.activeResourceId());
-        assertEquals(List.of(2023, 2024), manifest.resources().get(manifest.activeResourceId()).years());
-        assertEquals("nim-2022", manifest.years().get(2022).resourceId());
+        assertEquals("nim-2023-2024", manifest.activeDatasetId());
+        assertEquals(List.of(2023, 2024), manifest.datasets().get(manifest.activeDatasetId()).years());
+        assertEquals("nim-2022", manifest.years().get(2022).datasetId());
         assertEquals("data/r0001/NIM_Comptage_2022.json", manifest.years().get(2022).object());
         assertEquals("data/r0002/NIM_Comptage_2024.json", manifest.years().get(2024).object());
     }
@@ -32,7 +32,7 @@ public class StorageContractTest {
     @Test
     public void companionInputsHaveIndependentHeaders() throws Exception {
         DataManifest manifest = read("manifest-companion.json", DataManifest.class);
-        var inputs = manifest.resources().get(manifest.activeResourceId()).inputs();
+        var inputs = manifest.datasets().get(manifest.activeDatasetId()).inputs();
         assertNotNull(inputs.get("counts").headers());
         assertNull(inputs.get("geometry").headers());
         assertEquals("CSV", inputs.get("counts").format());

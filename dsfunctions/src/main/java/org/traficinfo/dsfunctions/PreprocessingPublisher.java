@@ -74,7 +74,7 @@ public final class PreprocessingPublisher {
         String manifestName = source.dataSourceId() + "_Manifest.json";
         PreprocessingSource parser = PreprocessingSource.forId(source.dataSourceId());
 
-        // Load the current publication so inactive resources and unchanged years can be retained.
+        // Load the current publication so inactive datasets and unchanged years can be retained.
         DataManifest previous = null;
         if (storage.getResourceMetadata(manifestName) != null) {
             try (InputStream input = storage.getResource(manifestName)) {
@@ -91,11 +91,11 @@ public final class PreprocessingPublisher {
                 inputMetadata.put(input.objectName(), sourceMetadata(source, input));
             }
 
-            // Keep the existing resource scope intact when processing another download.
+            // Keep the existing dataset scope intact when processing another download.
             Map<String, DataManifest.Input> inputs = new TreeMap<>();
-            DataManifest.Resource oldResource = previous == null ? null : previous.resources().get(source.resourceId());
-            if (oldResource != null && !settings.years().containsAll(oldResource.years())) {
-                throw new IOException("Reducing a resource's year scope requires a new resourceId");
+            DataManifest.Dataset oldDataset = previous == null ? null : previous.datasets().get(source.datasetId());
+            if (oldDataset != null && !settings.years().containsAll(oldDataset.years())) {
+                throw new IOException("Reducing a dataset's year scope requires a new datasetId");
             }
 
             // Stage inputs locally and compare CSV headers with their last published definitions.
@@ -108,16 +108,16 @@ public final class PreprocessingPublisher {
 
                 boolean csv = input.contentType().equals("text/csv");
                 List<String> headers = csv ? headers(file, parser) : null;
-                if (oldResource != null) {
-                    DataManifest.Input oldInput = oldResource.inputs().get(input.objectName());
+                if (oldDataset != null) {
+                    DataManifest.Input oldInput = oldDataset.inputs().get(input.objectName());
                     if (oldInput != null && csv && oldInput.headers() != null) {
                         Set<String> current = headerKeys(headers, parser);
                         Set<String> previousHeaders = headerKeys(oldInput.headers(), parser);
                         List<String> addedHeaders = headers.stream()
                                 .filter(header -> !previousHeaders.contains(parser.headerKey(header))).toList();
                         if (!addedHeaders.isEmpty()) {
-                            logger.warn("CSV headers added: dataSourceId={}, resourceId={}, input={}, headers={}",
-                                    source.dataSourceId(), source.resourceId(), input.objectName(), addedHeaders);
+                            logger.warn("CSV headers added: dataSourceId={}, datasetId={}, input={}, headers={}",
+                                    source.dataSourceId(), source.datasetId(), input.objectName(), addedHeaders);
                         }
                         if (!current.containsAll(previousHeaders)) {
                             throw new IOException("CSV headers removed or renamed for " + input.objectName());
@@ -128,8 +128,8 @@ public final class PreprocessingPublisher {
                 inputs.put(input.objectName(), new DataManifest.Input(input.url(), csv ? "CSV" : "GEOJSON", headers));
             }
 
-            if (oldResource != null && !inputs.keySet().equals(oldResource.inputs().keySet())) {
-                throw new IOException("Changing a resource's input names requires a new resourceId");
+            if (oldDataset != null && !inputs.keySet().equals(oldDataset.inputs().keySet())) {
+                throw new IOException("Changing a dataset's input names requires a new datasetId");
             }
 
             // Parse source-specific counts and attach companion geometry for MMM.
@@ -168,7 +168,7 @@ public final class PreprocessingPublisher {
                 String checksum = HexFormat.of().formatHex(digest().digest(payload));
 
                 DataManifest.YearData old = years.get(entry.getKey());
-                if (old != null && checksum.equals(old.sha256()) && source.resourceId().equals(old.resourceId())
+                if (old != null && checksum.equals(old.sha256()) && source.datasetId().equals(old.datasetId())
                         && parser.parserVersion.equals(old.parserVersion()) && old.recordCount() == entry.getValue().size()) continue;
 
                 String object = "data/" + revision + "/" + source.dataSourceId() + "_Comptage_" + entry.getKey() + ".json";
@@ -176,15 +176,15 @@ public final class PreprocessingPublisher {
                     throw new IOException("Immutable yearly Object already exists: " + object);
                 }
                 years.put(entry.getKey(), new DataManifest.YearData(object, checksum, entry.getValue().size(),
-                        source.resourceId(), parser.parserVersion));
+                        source.datasetId(), parser.parserVersion));
             }
 
-            // Assemble the complete candidate manifest, retaining inactive resource definitions.
-            Map<String, DataManifest.Resource> resources = new TreeMap<>();
-            if (previous != null) resources.putAll(previous.resources());
-            resources.put(source.resourceId(), new DataManifest.Resource(settings.datasetUrl(), settings.years(), inputs));
+            // Assemble the complete candidate manifest, retaining inactive dataset definitions.
+            Map<String, DataManifest.Dataset> datasets = new TreeMap<>();
+            if (previous != null) datasets.putAll(previous.datasets());
+            datasets.put(source.datasetId(), new DataManifest.Dataset(settings.datasetUrl(), settings.years(), inputs));
             DataManifest next = new DataManifest(DataManifest.VERSION, source.dataSourceId(), revision,
-                    Instant.now().toString(), source.resourceId(), resources, years);
+                    Instant.now().toString(), source.datasetId(), datasets, years);
 
             // Read back all referenced yearly Objects and verify their checksum, record count and year.
             validateManifest(next, source.dataSourceId());
@@ -198,8 +198,8 @@ public final class PreprocessingPublisher {
             }
 
             // An identical retry keeps the existing manifest, including its revision and publication time.
-            if (previous != null && previous.activeResourceId().equals(next.activeResourceId())
-                    && previous.resources().equals(next.resources()) && previous.years().equals(next.years())) {
+            if (previous != null && previous.activeDatasetId().equals(next.activeDatasetId())
+                    && previous.datasets().equals(next.datasets()) && previous.years().equals(next.years())) {
                 logger.info("No preprocessing change for {}", source.dataSourceId());
                 return previous;
             }
@@ -220,7 +220,7 @@ public final class PreprocessingPublisher {
         if (metadata == null) throw new IOException("Missing input: " + input.objectName());
         Map<String, String> values = metadata.getMetadata();
         if (!source.dataSourceId().equals(values.get("datasource-id"))
-                || !source.resourceId().equals(values.get("resource-id")) || !input.url().equals(values.get("source-url"))
+                || !source.datasetId().equals(values.get("dataset-id")) || !input.url().equals(values.get("source-url"))
                 || values.get("downloaded-at") == null) {
             throw new IOException("Input does not match configured source: " + input.objectName());
         }
@@ -282,21 +282,21 @@ public final class PreprocessingPublisher {
     private void validateManifest(DataManifest manifest, String dataSourceId) throws IOException {
         if (!dataSourceId.equals(manifest.dataSourceId()) || manifest.revision() == null || manifest.revision().isBlank()
                 || manifest.publishedAt() == null || !manifest.publishedAt().endsWith("Z")
-                || !manifest.resources().containsKey(manifest.activeResourceId()) || manifest.years().isEmpty()) {
+                || !manifest.datasets().containsKey(manifest.activeDatasetId()) || manifest.years().isEmpty()) {
             throw new IOException("Invalid manifest identity");
         }
         try { Instant.parse(manifest.publishedAt()); }
         catch (RuntimeException invalid) { throw new IOException("Invalid manifest timestamp", invalid); }
-        for (DataManifest.Resource resource : manifest.resources().values()) {
-            if (resource.years().isEmpty() || resource.inputs().isEmpty()
-                    || !manifest.years().keySet().containsAll(resource.years())) {
-                throw new IOException("Incomplete manifest resource scope");
+        for (DataManifest.Dataset dataset : manifest.datasets().values()) {
+            if (dataset.years().isEmpty() || dataset.inputs().isEmpty()
+                    || !manifest.years().keySet().containsAll(dataset.years())) {
+                throw new IOException("Incomplete manifest dataset scope");
             }
         }
         for (var entry : manifest.years().entrySet()) {
             DataManifest.YearData year = entry.getValue();
-            DataManifest.Resource resource = manifest.resources().get(year.resourceId());
-            if (resource == null || !resource.years().contains(entry.getKey()) || year.recordCount() <= 0
+            DataManifest.Dataset dataset = manifest.datasets().get(year.datasetId());
+            if (dataset == null || !dataset.years().contains(entry.getKey()) || year.recordCount() <= 0
                     || year.sha256() == null || !year.sha256().matches("[0-9a-f]{64}")
                     || year.object() == null || !year.object().matches("data/[A-Za-z0-9_-]+/" + dataSourceId + "_Comptage_" + entry.getKey() + "\\.json")
                     || year.parserVersion() == null || year.parserVersion().isBlank()) {

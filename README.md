@@ -71,7 +71,7 @@ bucket `ds${lowercase(id)}`, and CSV `${id}_Comptage.csv`. Optional per-source
 MMM supplies all three overrides to retain its existing resource names; DPT34
 uses the defaults. `functionPrefix` affects both the rule and function name.
 
-NIM currently downloads the 2022 resource only. Its `geoJsonEnabled: false`
+NIM currently downloads the 2022 dataset only. Its `geoJsonEnabled: false`
 setting excludes it from event setup; no NIM GeoJSON function is deployed.
 Use `./deploy-functions.sh ds NIM` and, when ready to download its large export,
 `./invoke.sh ds NIM`. The source uses bucket `dsnim`, Object `NIM_Comptage.csv`,

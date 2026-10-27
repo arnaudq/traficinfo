@@ -39,14 +39,14 @@ public class DataSourceFunctionTest {
         assertEquals(List.of("NIM_Comptage.csv"), function.writes);
         assertArrayEquals(CSV, function.contents.get("NIM_Comptage.csv"));
         OOSResourceMetadata metadata = function.metadata.get("NIM_Comptage.csv");
-        assertEquals("nim-2022", metadata.getMetadata().get("resource-id"));
+        assertEquals("nim-2022", metadata.getMetadata().get("dataset-id"));
         assertEquals("NIM", metadata.getMetadata().get("datasource-id"));
         assertEquals(CSV_URI.toString(), metadata.getMetadata().get("source-url"));
         assertTrue(function.closed);
     }
 
     @Test
-    public void configuredResourceAndBucketAreUsed() throws Exception {
+    public void configuredDatasetAndBucketAreUsed() throws Exception {
         DataSourceSettings settings = new DataSourceSettings("NIM", "nim-later", List.of(
                 new DataSourceSettings.Input("https://example.invalid/later.csv", "NIM_Comptage.csv", "text/csv")));
         Probe function = configured(Map.of("NAMESPACE", "testns", "BUCKETNAME", "custom-nim",
@@ -54,7 +54,7 @@ public class DataSourceFunctionTest {
         function.handleRequest("");
         assertEquals("testns/custom-nim", function.bucket);
         assertEquals(URI.create("https://example.invalid/later.csv"), function.requests.get(0));
-        assertEquals("nim-later", function.metadata.get("NIM_Comptage.csv").getMetadata().get("resource-id"));
+        assertEquals("nim-later", function.metadata.get("NIM_Comptage.csv").getMetadata().get("dataset-id"));
     }
 
     @Test

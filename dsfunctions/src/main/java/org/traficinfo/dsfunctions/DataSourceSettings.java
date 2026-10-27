@@ -14,14 +14,14 @@ import java.util.Set;
 /** Retrieval settings passed by deployment, rather than reading dsconfig.json at runtime. */
 public record DataSourceSettings(
         @JsonProperty("dataSourceId") String dataSourceId,
-        @JsonProperty("resourceId") String resourceId,
+        @JsonProperty("datasetId") String datasetId,
         @JsonProperty("inputs") List<Input> inputs) {
     public static final String CONFIG_KEY = "DATA_SOURCE_SETTINGS";
 
     @JsonCreator
     public DataSourceSettings {
         requireText(dataSourceId, "dataSourceId");
-        requireText(resourceId, "resourceId");
+        requireText(datasetId, "datasetId");
         inputs = List.copyOf(inputs);
         if (inputs.isEmpty()) throw new IllegalArgumentException("At least one source input is required");
         Set<String> names = new HashSet<>();

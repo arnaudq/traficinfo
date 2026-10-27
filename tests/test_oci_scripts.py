@@ -254,7 +254,7 @@ class OciScriptsTest(unittest.TestCase):
 
     def test_datasource_deployment_passes_settings_to_every_source(self):
         config = json.loads(self.config_file.read_text())
-        config['MRN']['source']['resourceId'] = 'replacement-resource'
+        config['MRN']['source']['datasetId'] = 'replacement-dataset'
         config['MRN']['source']['inputs'][0]['url'] = 'https://example.invalid/replacement.csv'
         self.config_file.write_text(json.dumps(config))
         for existing in [True, False]:
@@ -268,7 +268,7 @@ class OciScriptsTest(unittest.TestCase):
                     name = entry.get('functionPrefix', source_id) + 'OpenDataSource'
                     settings = json.loads(functions[name]['config']['DATA_SOURCE_SETTINGS'])
                     self.assertEqual(settings['dataSourceId'], source_id)
-                    self.assertEqual(settings['resourceId'], entry['source']['resourceId'])
+                    self.assertEqual(settings['datasetId'], entry['source']['datasetId'])
                     self.assertEqual([item['url'] for item in settings['inputs']],
                                      [item['url'] for item in entry['source']['inputs']])
                 self.assertEqual([item['objectName'] for item in json.loads(
@@ -277,10 +277,10 @@ class OciScriptsTest(unittest.TestCase):
 
     def test_invalid_retrieval_settings_fail_before_deployment_calls(self):
         original = json.loads(self.config_file.read_text())
-        for invalid in [None, {'resourceId': '', 'inputs': []},
-                        {'resourceId': 'current', 'inputs': [{'url': 'file:///tmp/input',
+        for invalid in [None, {'datasetId': '', 'inputs': []},
+                        {'datasetId': 'current', 'inputs': [{'url': 'file:///tmp/input',
                                                               'contentType': 'text/csv'}]},
-                        {'resourceId': 'current', 'inputs': [
+                        {'datasetId': 'current', 'inputs': [
                             {'url': 'https://example.invalid/a', 'contentType': 'text/csv'},
                             {'url': 'https://example.invalid/b', 'contentType': 'text/csv'}]}]:
             config = json.loads(json.dumps(original))
@@ -296,7 +296,7 @@ class OciScriptsTest(unittest.TestCase):
         self.assertEqual(source['dataSourceFunction'], 'NIMOpenDataSource')
         self.assertEqual(source['csvObject'], 'NIM_Comptage.csv')
         self.assertFalse(source['geoJsonEnabled'])
-        self.assertEqual(settings['resourceId'], 'nim-2022')
+        self.assertEqual(settings['datasetId'], 'nim-2022')
         self.assertIn('lagglomeration-2022/exports/csv?', settings['inputs'][0]['url'])
         self.assertEqual(settings['inputs'][0]['objectName'], 'NIM_Comptage.csv')
         result = self.script('invoke.sh', 'geojson', 'NIM', success=False)
@@ -317,7 +317,7 @@ class OciScriptsTest(unittest.TestCase):
                 self.assertEqual(function['defined-tags'], {'TraficInfo': {'DataSourceSchedule': 'Monthly'}})
                 self.assertEqual(function['config']['BUCKETNAME'], 'dsnim')
                 settings = json.loads(function['config']['DATA_SOURCE_SETTINGS'])
-                self.assertEqual(settings['resourceId'], 'nim-2022')
+                self.assertEqual(settings['datasetId'], 'nim-2022')
                 size = sum(len(k.encode()) + len(v.encode()) for k, v in function['config'].items())
                 self.assertLessEqual(size, 4096)
                 handler = [call for call in self.state['calls'] if '--handler' in call][-1]
@@ -334,7 +334,9 @@ class OciScriptsTest(unittest.TestCase):
                 self.assertEqual(config['BUCKETNAME'], 'dsnim')
                 settings = json.loads(config['PREPROCESSING_SETTINGS'])
                 self.assertEqual(settings['source']['dataSourceId'], 'NIM')
-                self.assertEqual(settings['source']['resourceId'], 'nim-2022')
+                self.assertEqual(settings['source']['datasetId'], 'nim-2022')
+                self.assertEqual(settings['datasetUrl'],
+                                 json.loads(self.config_file.read_text())['NIM']['source']['datasetInfoUrl'])
                 self.assertEqual(settings['years'], [2022])
                 self.assertEqual(settings['source']['inputs'][0]['objectName'], 'NIM_Comptage.csv')
                 self.assertLessEqual(sum(len(k.encode()) + len(v.encode()) for k, v in config.items()), 4096)

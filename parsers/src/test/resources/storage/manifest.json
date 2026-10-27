@@ -3,8 +3,8 @@
   "dataSourceId": "NIM",
   "revision": "r0002",
   "publishedAt": "2026-10-26T12:00:00Z",
-  "activeResourceId": "nim-2023-2024",
-  "resources": {
+  "activeDatasetId": "nim-2023-2024",
+  "datasets": {
     "nim-2022": {
       "datasetUrl": "https://example.invalid/nim/2022",
       "years": [
@@ -46,21 +46,21 @@
       "object": "data/r0001/NIM_Comptage_2022.json",
       "sha256": "054aecf1aeda0ab4583ff10e38ab0df1a6357bc4a042bde36836e60cef7ca77f",
       "recordCount": 1,
-      "resourceId": "nim-2022",
+      "datasetId": "nim-2022",
       "parserVersion": "nim-v1"
     },
     "2023": {
       "object": "data/r0002/NIM_Comptage_2023.json",
       "sha256": "fd4b5853b52dffa4d3e8bff535d755556a60dea6234d58b67e33490430d701ab",
       "recordCount": 1,
-      "resourceId": "nim-2023-2024",
+      "datasetId": "nim-2023-2024",
       "parserVersion": "nim-v1"
     },
     "2024": {
       "object": "data/r0002/NIM_Comptage_2024.json",
       "sha256": "cf98b8a57e0c606d7cea34a6e7ef934d3bccaee199683a4f282544f2c70a6676",
       "recordCount": 1,
-      "resourceId": "nim-2023-2024",
+      "datasetId": "nim-2023-2024",
       "parserVersion": "nim-v1"
     }
   }

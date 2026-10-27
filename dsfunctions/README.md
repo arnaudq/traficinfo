@@ -16,7 +16,7 @@ invocation before the CSV is published and is reported as a function failure.
 
 ## Source retrieval configuration
 
-Each datasource's `source` entry in `dsconfig.json` specifies `resourceId` and
+Each datasource's `source` entry in `dsconfig.json` specifies `datasetId` and
 an ordered `inputs` array. Inputs have `url`, `contentType`, and optionally
 `objectName`. CSV Object names default to the datasource's `csvObject` naming
 convention; MMM's companion JSON keeps its explicit legacy name.
@@ -38,10 +38,10 @@ See [OCI configuration limits](https://docs.oracle.com/en-us/iaas/tools/oci-cli/
 
 `SourceObjectPublisher` streams changed inputs to the existing current Object
 names, with gzip storage and copy-before-replace archival. Each upload records
-`datasource-id`, `resource-id`, `source-url`, `downloaded-at` and the validator.
+`datasource-id`, `dataset-id`, `source-url`, `downloaded-at` and the validator.
 A validator is reused only when its source identity matches. Legacy Objects
 without source identity are downloaded once to establish it. Changing a URL or
-resource ID forces a fresh download. Empty downloads and archive failures stop
+dataset ID forces a fresh download. Empty downloads and archive failures stop
 the invocation before replacement. MMM still publishes its JSON before CSV;
 a failure stops subsequent inputs but does not roll back earlier uploads.
 Archive dates use the previous download date, including for MMM.
@@ -90,7 +90,7 @@ explicit test settings and clients without introducing runtime fallbacks.
 
 `org.traficinfo.dsfunctions.nim.DataSourceFunction::handleRequest` downloads the
 CSV export for [Nîmes Métropole's 2022 hourly counts](https://data.nimes-metropole.fr/explore/dataset/comptages-routiers-sur-la-voirie-de-lagglomeration-2022/).
-The active resource ID is `nim-2022`. Default bucket `dsnim` contains the gzip
+The active dataset ID is `nim-2022`. Default bucket `dsnim` contains the gzip
 Object `NIM_Comptage.csv`; changed downloads archive the previous content as
 `NIM_Comptage_YYYYMMDD.csv`. Retrieval, source identity checks and metadata use
 the shared publisher. The export uses French column labels and semicolons.
@@ -113,8 +113,8 @@ The parser library provides `NIMComptageParser` for hourly aggregation; see the
 NIM still has no cloud GeoJSON handler. Event setup skips entries
 with `geoJsonEnabled: false`, and GeoJSON deployment/invocation rejects NIM before
 making cloud calls. Preprocessing can publish yearly Objects and the manifest through an explicit invocation; GeoJSON migration comes later.
-Switch the `source.resourceId` and URL in `dsconfig.json` and redeploy the source
-function when ready to monitor the newer resource.
+Switch the `source.datasetId` and URL in `dsconfig.json` and redeploy the source
+function when ready to monitor the newer dataset.
 
 ## Preprocessing
 
@@ -122,7 +122,7 @@ function when ready to monitor the newer resource.
 all datasource IDs. It reads source Objects from the datasource bucket, checks
 headers and expected years, and publishes immutable yearly arrays followed by
 `<datasourceId>_Manifest.json`. It preserves years belonging to inactive
-resources and reuses unchanged yearly Objects. It performs no OSM enrichment.
+datasets and reuses unchanged yearly Objects. It performs no OSM enrichment.
 See the [storage contract](../specs/datasource-storage-contract.md) for the JSON
 format, validation rules and failure behavior.
 
@@ -135,12 +135,12 @@ After `source ./setup.sh`, deploy and invoke NIM preprocessing explicitly:
 
 The downloader must have populated the source Objects first. No remote download
 is performed by preprocessing. Deployment builds `PREPROCESSING_SETTINGS` from
-`source`, `datasetInfoUrl` and `preprocessing.years` in `dsconfig.json`, applies
+`source`, `source.datasetInfoUrl` and `preprocessing.years` in `dsconfig.json`, applies
 the 4096-byte configuration limit, and sets a 300-second runtime timeout.
 NIM starts with `[2022]`. Other sources need an explicit expected year scope;
 MMM also requires its companion geometry input. Input names are used as named
-manifest inputs. A resource may expand its year scope;
-use a new `resourceId` to reduce the scope or change input Object names.
+manifest inputs. A dataset may expand its year scope;
+use a new `datasetId` to reduce the scope or change input Object names.
 
 Preprocessing is currently manual: deployment without arguments, Events rules
 and GeoJSON handlers retain their existing behavior. There is no preprocessing
@@ -188,7 +188,7 @@ and schedules with the existing setup scripts before relying on scheduled runs.
 ## DPT30 functions
 
 `org.traficinfo.dsfunctions.dpt30.DataSourceFunction::handleRequest` downloads
-Gard's [CSV resource](https://www.data.gouv.fr/api/1/datasets/r/69584212-8ff0-40d3-b82d-2d5d2890bff7).
+Gard's [CSV export](https://www.data.gouv.fr/api/1/datasets/r/69584212-8ff0-40d3-b82d-2d5d2890bff7).
 The HTTP client follows the stable URL's redirect to the dated file and uses
 its ETag for conditional downloads. HTTP 304 returns `OK` without uploads or
 archives. Deployment supplies `NAMESPACE`, `DATA_SOURCE_SETTINGS` and

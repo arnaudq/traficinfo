@@ -33,9 +33,9 @@ public class PreprocessingPublisherTest {
         PreprocessingSettings settings = settings("initial", List.of(2022));
         store.source(settings, HEADER + row("52", 2022, 10) + row("52", 1970, 20));
         DataManifest manifest = new PreprocessingPublisher(store).publish(settings);
-        assertEquals("initial", manifest.activeResourceId());
+        assertEquals("initial", manifest.activeDatasetId());
         assertEquals(List.of("id_camera", "date", "tranche", "nbPassage"),
-                manifest.resources().get("initial").inputs().get("NIM_Comptage.csv").headers());
+                manifest.datasets().get("initial").inputs().get("NIM_Comptage.csv").headers());
         DataManifest.YearData year = manifest.years().get(2022);
         byte[] bytes = store.objects.get(year.object());
         assertEquals(1, year.recordCount());
@@ -73,7 +73,7 @@ public class PreprocessingPublisherTest {
         store.source(current, HEADER + row("52", 2023, 20) + row("52", 2024, 30));
         DataManifest second = publisher.publish(current);
         assertEquals(first.years().get(2022), second.years().get(2022));
-        assertEquals(2, second.resources().size());
+        assertEquals(2, second.datasets().size());
         store.source(current, HEADER + row("52", 2023, 20) + row("52", 2024, 40));
         DataManifest third = publisher.publish(current);
         assertEquals(second.years().get(2023), third.years().get(2023));
@@ -97,7 +97,7 @@ public class PreprocessingPublisherTest {
     }
 
     @Test
-    public void checksHeadersInitiallyAndAgainstPreviousResourceWhileAllowingReorderingAndAdditions() throws Exception {
+    public void checksHeadersInitiallyAndAgainstPreviousDatasetWhileAllowingReorderingAndAdditions() throws Exception {
         Store store = new Store();
         PreprocessingSettings settings = settings("initial", List.of(2022));
         for (String bad : List.of("id_camera;date;tranche\n", "id_camera;date;tranche;nbPassage;NBPASSAGE\n")) {
@@ -139,19 +139,19 @@ public class PreprocessingPublisherTest {
         assertTrue(warnings.isEmpty());
         store.source(settings, "nbPassage;tranche;date;id_camera;extra;another\n10;00:00 - 01:00;2022-01-01;52;ignored;ignored\n");
         publisher.publish(settings);
-        assertEquals(List.of("CSV headers added: dataSourceId=NIM, resourceId=initial, input=NIM_Comptage.csv, headers=[extra, another]"), warnings);
+        assertEquals(List.of("CSV headers added: dataSourceId=NIM, datasetId=initial, input=NIM_Comptage.csv, headers=[extra, another]"), warnings);
         warnings.clear();
         publisher.publish(settings);
         assertTrue(warnings.isEmpty());
     }
 
     @Test
-    public void rejectsMissingInputWrongProvenanceAndResourceScopeChanges() throws Exception {
+    public void rejectsMissingInputWrongProvenanceAndDatasetScopeChanges() throws Exception {
         Store store = new Store();
         PreprocessingSettings settings = settings("initial", List.of(2022));
         expectFailure(store, settings, "Missing input");
         store.source(settings, HEADER + row("52", 2022, 10));
-        store.metadata.get("NIM_Comptage.csv").put("resource-id", "wrong");
+        store.metadata.get("NIM_Comptage.csv").put("dataset-id", "wrong");
         expectFailure(store, settings, "configured source");
         store.source(settings, HEADER + row("52", 2022, 10));
         new PreprocessingPublisher(store).publish(settings);
@@ -234,18 +234,18 @@ public class PreprocessingPublisherTest {
         store.objects.put(geometry.objectName(), ("{\"type\":\"FeatureCollection\",\"features\":["
                 + "{\"type\":\"Feature\",\"properties\":{\"code_centrale\":\"52\"},"
                 + "\"geometry\":{\"type\":\"Point\",\"coordinates\":[3.8,43.6]}}]}").getBytes(StandardCharsets.UTF_8));
-        store.metadata.put(geometry.objectName(), Map.of("datasource-id", "MMM", "resource-id", "current",
+        store.metadata.put(geometry.objectName(), Map.of("datasource-id", "MMM", "dataset-id", "current",
                 "source-url", geometry.url(), "downloaded-at", "2026-01-01T00:00:00Z"));
         DataManifest manifest = new PreprocessingPublisher(store).publish(settings);
         byte[] bytes = store.objects.get(manifest.years().get(2024).object());
         var counts = new ComptageJson().read(new ByteArrayInputStream(bytes), org.traficinfo.parsers.m3m.M3MComptage.class);
         assertEquals(new org.geojson.Point(3.8, 43.6), counts.get(0).getGeometry());
-        assertNull(manifest.resources().get("current").inputs().get("legacy.json").headers());
+        assertNull(manifest.datasets().get("current").inputs().get("legacy.json").headers());
     }
 
-    private static PreprocessingSettings settings(String resource, List<Integer> years) {
-        return new PreprocessingSettings(new DataSourceSettings("NIM", resource, List.of(
-                new DataSourceSettings.Input("https://example.invalid/" + resource, "NIM_Comptage.csv", "text/csv"))),
+    private static PreprocessingSettings settings(String dataset, List<Integer> years) {
+        return new PreprocessingSettings(new DataSourceSettings("NIM", dataset, List.of(
+                new DataSourceSettings.Input("https://example.invalid/" + dataset, "NIM_Comptage.csv", "text/csv"))),
                 "https://example.invalid/dataset", years);
     }
 
@@ -272,7 +272,7 @@ public class PreprocessingPublisherTest {
             DataSourceSettings.Input input = settings.source().inputs().get(0);
             objects.put(input.objectName(), csv.getBytes(StandardCharsets.UTF_8));
             metadata.put(input.objectName(), new HashMap<>(Map.of("datasource-id", settings.source().dataSourceId(),
-                    "resource-id", settings.source().resourceId(), "source-url", input.url(), "downloaded-at", "2026-01-01T00:00:00Z")));
+                    "dataset-id", settings.source().datasetId(), "source-url", input.url(), "downloaded-at", "2026-01-01T00:00:00Z")));
         }
 
         List<String> publications() { return writes.stream().filter(name -> !name.endsWith(".lock")).toList(); }

@@ -12,8 +12,8 @@ public record DataManifest(
         @JsonProperty("dataSourceId") String dataSourceId,
         @JsonProperty("revision") String revision,
         @JsonProperty("publishedAt") String publishedAt,
-        @JsonProperty("activeResourceId") String activeResourceId,
-        @JsonProperty("resources") Map<String, Resource> resources,
+        @JsonProperty("activeDatasetId") String activeDatasetId,
+        @JsonProperty("datasets") Map<String, Dataset> datasets,
         @JsonProperty("years") Map<Integer, YearData> years) {
     public static final int VERSION = 1;
 
@@ -22,16 +22,16 @@ public record DataManifest(
         if (manifestVersion != VERSION) {
             throw new IllegalArgumentException("Unsupported manifest version: " + manifestVersion);
         }
-        resources = Map.copyOf(resources);
+        datasets = Map.copyOf(datasets);
         years = Map.copyOf(years);
     }
 
-    public record Resource(
+    public record Dataset(
             @JsonProperty("datasetUrl") String datasetUrl,
             @JsonProperty("years") List<Integer> years,
             @JsonProperty("inputs") Map<String, Input> inputs) {
         @JsonCreator
-        public Resource {
+        public Dataset {
             years = List.copyOf(years);
             inputs = Map.copyOf(inputs);
         }
@@ -51,7 +51,7 @@ public record DataManifest(
             @JsonProperty("object") String object,
             @JsonProperty("sha256") String sha256,
             @JsonProperty("recordCount") long recordCount,
-            @JsonProperty("resourceId") String resourceId,
+            @JsonProperty("datasetId") String datasetId,
             @JsonProperty("parserVersion") String parserVersion) {
         @JsonCreator
         public YearData {

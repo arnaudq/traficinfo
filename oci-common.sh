@@ -150,8 +150,8 @@ data_source_settings() {
     . as $source
     | if (.source | type) != "object" then error("Missing source settings for \(.id)") else . end
     | .source
-    | if (.resourceId | nonempty_string | not) or (.inputs | type) != "array"
-        or (.inputs | length) == 0 then error("Expected resourceId and source inputs") else . end
+    | if (.datasetId | nonempty_string | not) or (.inputs | type) != "array"
+        or (.inputs | length) == 0 then error("Expected datasetId and source inputs") else . end
     | .inputs |= map(
         if type != "object" then error("Invalid source input") else . end
         | if (.url | type) != "string" or (.url | test("^https?://[^/[:space:]]+") | not)
@@ -164,7 +164,7 @@ data_source_settings() {
       )
     | if (.inputs | map(.objectName) | unique | length) != (.inputs | length) then
         error("Duplicate input Object names") else . end
-    | {dataSourceId: $source.id, resourceId, inputs}
+    | {dataSourceId: $source.id, datasetId, inputs}
   ' <<< "$1"
 }
 
@@ -181,7 +181,7 @@ preprocessing_settings() {
       elif any($years[]; type != "number") then error("Invalid preprocessing year")
       elif any($years[]; . != floor or . < 1900 or . > (now | strftime("%Y") | tonumber)) then
         error("Invalid preprocessing year")
-      elif ($source.datasetInfoUrl | type) != "string" then error("Missing datasetInfoUrl")
-      elif ($source.datasetInfoUrl | test("^https?://[^/[:space:]]+") | not) then error("Invalid datasetInfoUrl")
-      else {source: $settings, datasetUrl: $source.datasetInfoUrl, years: $years} end'
+      elif ($source.source.datasetInfoUrl | type) != "string" then error("Missing source.datasetInfoUrl")
+      elif ($source.source.datasetInfoUrl | test("^https?://[^/[:space:]]+") | not) then error("Invalid source.datasetInfoUrl")
+      else {source: $settings, datasetUrl: $source.source.datasetInfoUrl, years: $years} end'
 }

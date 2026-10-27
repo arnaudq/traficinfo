@@ -6,6 +6,12 @@ GeoJSON consumption of the manifest remains a separate step.
 Data is stored in Object Storage, with one bucket per data source. In this
 specification, Object refers to an item stored in that bucket.
 
+A datasource such as NIM or DPT34 can contain multiple datasets. Each dataset
+has a `datasetId`, such as `nim-2022` or `nim-2023-2024`; one dataset is actively
+monitored at a time. Datasource branding uses the top-level `dataSourceLogoUrl`
+and optional `dataSourceFaviconUrl`; the dataset page URL is
+`source.datasetInfoUrl`, next to `source.datasetId`.
+
 ## Objects
 
 Object names are relative to the datasource's configured input bucket. Use the
@@ -31,21 +37,21 @@ Publication timestamps are ISO 8601 UTC strings ending in `Z`.
 
 - `manifestVersion`: manifest format version, currently 1.
 - `dataSourceId`, `revision`, `publishedAt`: publication identity.
-- `activeResourceId`: the one resource group currently monitored.
-- `resources`: upstream resource groups, retained after monitoring switches.
+- `activeDatasetId`: the dataset currently monitored.
+- `datasets`: upstream datasets, retained after monitoring switches.
 - `years`: exact Object references, checksums, record counts and source/parser
   information for every year available to GeoJSON generation.
 
-Each resource has a `datasetUrl`, explicit `years` scope and named `inputs`.
+Each dataset has a `datasetUrl`, explicit `years` scope and named `inputs`.
 An input has a retrieval `url`, `format` (CSV or GEOJSON in the examples), and
 `headers`: the ordered parsed CSV column names, or null for non-CSV input.
-MMM can therefore have counts and companion geometry within one resource group.
+MMM can therefore have counts and companion geometry within one dataset.
 Headers live directly in the manifest; no separate headers Object is needed.
 
-Each year entry has `object`, `sha256`, `recordCount`, `resourceId` and
+Each year entry has `object`, `sha256`, `recordCount`, `datasetId` and
 `parserVersion`. For example, NIM's 2022 Object can remain at
 `data/r0001/NIM_Comptage_2022.json` while 2023 and 2024 refer to `data/r0002/`.
-Switching the active resource never removes years from inactive resources.
+Switching the active dataset never removes years from inactive datasets.
 
 ## Yearly arrays
 
@@ -65,7 +71,7 @@ is maintained in code and must change when the stored interpretation changes.
 
 The datasource function downloads the active source inputs into its bucket. It
 neither reads nor writes the manifest. Deployment reads the datasource's `source`
-entry in `dsconfig.json` and passes `dataSourceId`, `resourceId` and ordered
+entry in `dsconfig.json` and passes `dataSourceId`, `datasetId` and ordered
 `inputs` through the `DATA_SOURCE_SETTINGS` function configuration. The function
 reads these settings through `RuntimeContext`; it does not read the repository
 file at runtime.
@@ -82,13 +88,13 @@ list order, so MMM's geometry JSON precedes its counts CSV. Source Objects retai
 the existing names and archive convention. A failure stops later inputs; this
 stage does not create an atomic snapshot of multiple inputs.
 
-Successful retrieval stores the datasource ID, resource ID, source URL and UTC
+Successful retrieval stores the datasource ID, dataset ID, source URL and UTC
 download time in Object metadata. Conditional downloads reuse validators only
-for the same source URL, resource and datasource. Older Objects without these
-fields are refreshed once. Switching resources therefore cannot reuse the old
-resource's validator. All datasource handlers require `DATA_SOURCE_SETTINGS`
+for the same source URL, dataset and datasource. Older Objects without these
+fields are refreshed once. Switching datasets therefore cannot reuse the old
+dataset's validator. All datasource handlers require `DATA_SOURCE_SETTINGS`
 and `BUCKETNAME`; missing settings fail before any clients are created. Retrieval
-URLs and resource IDs are configured only in `dsconfig.json`, with no Java
+URLs and dataset IDs are configured only in `dsconfig.json`, with no Java
 fallbacks. Each handler supplies only its datasource ID to the shared retrieval
 superclass. `CsvDataSource` retains only GeoJSON parser selection and naming.
 
@@ -104,17 +110,17 @@ invocation/deployment is disabled. Explicit preprocessing is independent of this
 1. **Datasource function:** retrieve the configured inputs and store them as
    Objects in the datasource bucket.
 2. **Preprocessing function:** read the source Objects and check CSV
-   headers against the manifest for the same resource/input. Preprocessing permits
+   headers against the manifest for the same dataset/input. Preprocessing permits
    column additions and reordering, but rejects blank or
    duplicate headers and removal/renaming of any previously recorded column.
-   Added columns are logged at warning level with datasource ID, resource ID,
+   Added columns are logged at warning level with datasource ID, dataset ID,
    input Object name and new column names. First publications have no previous
    headers to compare. Extra columns are ignored by the current source parsers.
-   A new resource gets its own headers after successful parsing. On the first
+   A new dataset gets its own headers after successful parsing. On the first
    run, check the parser's required columns because no manifest exists yet.
 3. Parse and validate, then write yearly Objects under a new revision. Missing
    expected inputs/years must fail validation rather than erase published data.
-   Only years within the resource's scope change.
+   Only years within the dataset's scope change.
 4. Verify the complete referenced Object set, then publish the manifest last.
 5. **GeoJSON function (later):** trigger from that manifest. Read it once and
    follow its exact Object references instead of listing Objects by wildcard.
@@ -129,7 +135,7 @@ or Object event. Preprocessing can also be invoked manually on existing Objects.
 
 ```mermaid
 flowchart TD
-    upstream["Upstream resource inputs"]
+    upstream["Upstream dataset inputs"]
 
     subgraph datasource["Datasource function"]
         retrieve["Request each input in configured order<br/>Reuse validator only for the same source"]
@@ -147,7 +153,7 @@ flowchart TD
 
     subgraph preprocessing["Preprocessing function"]
         lock["Acquire exclusive publication lock"]
-        prepare["Load previous manifest and stage inputs<br/>Check metadata, headers and resource scope"]
+        prepare["Load previous manifest and stage inputs<br/>Check metadata, headers and dataset scope"]
         parse["Parse and validate records<br/>Group records by expected year"]
         years["Write changed yearly Objects<br/>Reuse unchanged and inactive year references"]
         verify["Read back every referenced yearly Object<br/>Verify checksums, number of records and years<br/>Recheck source metadata"]
@@ -173,13 +179,13 @@ as described below.
 ## Preprocessing configuration and execution
 
 Deployment builds `PREPROCESSING_SETTINGS` from the existing retrieval settings,
-`datasetInfoUrl`, and `preprocessing.years` in `dsconfig.json`:
+`source.datasetInfoUrl`, and `preprocessing.years` in `dsconfig.json`:
 
 ```json
 {
   "source": {
     "dataSourceId": "NIM",
-    "resourceId": "nim-2022",
+    "datasetId": "nim-2022",
     "inputs": [{
       "url": "https://example.org/counts.csv",
       "objectName": "NIM_Comptage.csv",
@@ -194,13 +200,13 @@ Deployment builds `PREPROCESSING_SETTINGS` from the existing retrieval settings,
 The shared `PreprocessingFunction` supports all current datasource IDs. NIM has
 an initial explicit scope of `[2022]`; other sources require their own expected
 years before invoking this stage. The scope may expand. Reducing the scope or changing input Object names for
-an existing resource requires a new `resourceId`. Every scoped year must contain
+an existing dataset requires a new `datasetId`. Every scoped year must contain
 at least one parsed record, and records outside the scope fail validation.
 NIM's established hourly aggregation, 1970 exclusion and conflicting-hour policy
 apply. Other sources retain their existing parser's annual/campaign semantics.
 No OSM enrichment or GeoJSON filtering occurs during preprocessing.
 
-All inputs must carry matching downloader metadata (datasource ID, resource ID,
+All inputs must carry matching downloader metadata (datasource ID, dataset ID,
 source URL and download time). Legacy inputs must be refreshed by the datasource
 function first. Inputs are staged locally and their metadata is checked again
 before publication; a concurrent replacement aborts publication. This detects
@@ -215,7 +221,7 @@ Locks never expire automatically, avoiding races with slow invocations.
 
 Each changed year is written under a fresh UUID revision, using create-if-absent.
 Unchanged years retain their paths. The function reads back every referenced
-yearly Object, including inactive resources' years, checking checksum, record
+yearly Object, including inactive datasets' years, checking checksum, record
 count and year before replacing the manifest last. Identical retries leave the
 manifest unchanged. A failed run leaves the previous manifest usable and may
 leave unreferenced yearly Objects; automatic cleanup is outside this step.
@@ -232,6 +238,6 @@ Missing or unsupported manifest versions are rejected. The model uses Jackson's
 default strict handling of unknown fields and the existing Jackson dependency.
 
 JSON examples live in `parsers/src/test/resources/storage`. The NIM manifest
-shows a resource switch preserving 2022; the MMM example shows companion inputs.
+shows a dataset switch preserving 2022; the MMM example shows companion inputs.
 URLs, headers, record counts and checksums are illustrative. Tests retrieve no
 remote data and do not verify these example checksums against actual Objects.

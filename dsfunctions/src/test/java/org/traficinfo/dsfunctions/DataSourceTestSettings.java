@@ -22,7 +22,7 @@ public final class DataSourceTestSettings {
         JsonNode source = SOURCES.get(id);
         ObjectNode settings = JSON.createObjectNode();
         settings.put("dataSourceId", id);
-        settings.put("resourceId", source.get("source").get("resourceId").asText());
+        settings.put("datasetId", source.get("source").get("datasetId").asText());
         ArrayNode inputs = settings.putArray("inputs");
         for (JsonNode original : source.get("source").get("inputs")) {
             ObjectNode input = original.deepCopy();
