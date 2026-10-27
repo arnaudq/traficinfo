@@ -56,7 +56,8 @@ GeoJSON output. Blank numeric measures remain null, distinct from real zero.
 | Permanent bicycle count | `BICYCLES` |
 | Temporary soft-mode survey with details exactly `Vélos` | `BICYCLES` |
 | Temporary soft-mode survey with details exactly `Piétons / Vélos` | `PIETONS_VELOS` |
-| Other populations, including EDP, other surveys and unknown or blank categories | `UNKNOWN`; warning logged with counter ID, campaign and details. |
+| Temporary soft-mode survey with details exactly `Piétons / Vélos / EDP` | `PIETONS_VELOS` |
+| Other populations, including other EDP combinations, other surveys and unknown or blank categories | `UNKNOWN`; warning logged with counter ID, campaign and details. |
 
 The parser uses an explicit `TYPE_MAP` keyed by `Type de Campagne`, with a
 population-details map for soft-mode campaigns. Missing mappings default to
@@ -65,8 +66,8 @@ by the parser. The shared
 GeoJSON filters exclude missing/zero averages and currently include only
 vehicles and bicycles. Unknown populations are excluded even if they contain
 counts. Location-only junction and soft-mode surveys therefore
-do not generate traffic features. Pedestrian-only and EDP populations must not
-be silently reclassified as bicycles or combined pedestrian/bicycle counts.
+do not generate traffic features. Pedestrian-only and other EDP combinations remain unknown. The mixed
+`Piétons / Vélos / EDP` population uses the shared `PIETONS_VELOS` type.
 
 The shared renderer supplies the existing year window, latest geometry,
 three-year displayed history and styling. No retrieval functions, OCI resources

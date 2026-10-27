@@ -67,9 +67,10 @@ public class MRNComptageParserTest extends ParserBaseTest {
     assertEquals(Comptage.Type.BICYCLES, counts.get(3).getType());
     assertEquals(Comptage.DirectionType.UNIDIRECTIONAL, counts.get(3).getDirectionType()); // "Sens unique"
     assertEquals("Piste Cyclable Unidirectionnelle", counts.get(3).getCampaignDetails());
-    for (int i = 4; i < counts.size(); i++) {
+    for (int i = 4; i < 6; i++) {
       assertEquals(Comptage.Type.UNKNOWN, counts.get(i).getType());
     }
+    assertEquals(Comptage.Type.PIETONS_VELOS, counts.get(6).getType());
     assertNull(counts.get(4).getTvTmja());
     assertEquals(0, counts.get(4).getMoyenneJourAnnuelle());
     for (MRNComptage count : counts) {
@@ -122,19 +123,20 @@ public class MRNComptageParserTest extends ParserBaseTest {
   @Test
   public void retainsUnmappedPopulationsAsUnknown() throws Exception {
     String rows = "";
-    for (String details : List.of("Vélos", "Piétons / Vélos", "Piétons", "Vélos / EDP",
-        "Piétons / Vélos / EDP")) {
+    for (String details : List.of("Vélos", "Piétons / Vélos", "Piétons / Vélos / EDP",
+        "Piétons", "Vélos / EDP")) {
       rows += "Comptage ponctuel de modes doux;" + details
           + ";A;2025;;;2 sens;;;;;;;;\n";
     }
     rows += "Unknown campaign;;B;2025;;;;;;;;;;;\n";
     List<MRNComptage> counts = parser.parseComptages(new StringReader(HEADER + rows));
     assertEquals(6, counts.size());
-    for (int i = 2; i < counts.size(); i++) {
+    for (int i = 3; i < counts.size(); i++) {
       assertEquals(Comptage.Type.UNKNOWN, counts.get(i).getType());
     }
     assertEquals(Comptage.Type.BICYCLES, counts.get(0).getType());
     assertEquals(Comptage.Type.PIETONS_VELOS, counts.get(1).getType());
+    assertEquals(Comptage.Type.PIETONS_VELOS, counts.get(2).getType());
   }
 
   @Test

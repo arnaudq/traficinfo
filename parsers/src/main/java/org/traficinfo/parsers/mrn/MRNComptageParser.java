@@ -32,7 +32,8 @@ public final class MRNComptageParser implements ComptageParser {
 
   private static final Map<String, Comptage.Type> SOFT_MODE_TYPE_MAP = Map.of(
       "Vélos", Comptage.Type.BICYCLES,
-      "Piétons / Vélos", Comptage.Type.PIETONS_VELOS);
+      "Piétons / Vélos", Comptage.Type.PIETONS_VELOS,
+      "Piétons / Vélos / EDP", Comptage.Type.PIETONS_VELOS);
 
   @Override
   public List<MRNComptage> parseComptages(Reader reader) throws IOException {
@@ -93,7 +94,7 @@ public final class MRNComptageParser implements ComptageParser {
   private static Comptage.Type typeFor(MRNComptage count) {
     String campaign = trim(count.getCampaignType());
     Comptage.Type type = campaign == null ? null : TYPE_MAP.get(campaign);
-    // Soft-mode campaigns need their population details to avoid classifying EDP as bicycles.
+    // Soft-mode campaigns need their population details to distinguish bicycle and mixed counts.
     if ("Comptage ponctuel de modes doux".equals(campaign)) {
       String details = trim(count.getCampaignDetails());
       type = details == null ? null : SOFT_MODE_TYPE_MAP.get(details);
