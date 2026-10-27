@@ -12,6 +12,7 @@ import com.oracle.bmc.objectstorage.model.ListObjects;
 import com.oracle.bmc.objectstorage.requests.ListObjectsRequest;
 import com.oracle.bmc.objectstorage.requests.HeadObjectRequest;
 import com.oracle.bmc.objectstorage.requests.GetObjectRequest;
+import com.oracle.bmc.objectstorage.requests.DeleteObjectRequest;
 import com.oracle.bmc.objectstorage.requests.PutObjectRequest;
 import com.oracle.bmc.objectstorage.requests.RenameObjectRequest;
 import com.oracle.bmc.objectstorage.responses.HeadObjectResponse;
@@ -122,6 +123,22 @@ public class ObjectStoreClient {
 
     public void putResource(String resourceName, String contentType, OOSResourceMetadata metadata,
                               InputStream inputStream) throws IOException {
+        writeResource(resourceName, contentType, metadata, inputStream, false);
+    }
+
+    /** Atomically creates an Object only if its name is absent. No ETag is involved. */
+    public boolean createResource(String resourceName, String contentType, OOSResourceMetadata metadata,
+                                  InputStream inputStream) throws IOException {
+        return writeResource(resourceName, contentType, metadata, inputStream, true);
+    }
+
+    public void deleteResource(String resourceName) {
+        client.deleteObject(DeleteObjectRequest.builder().namespaceName(namespaceName)
+                .bucketName(bucketName).objectName(resourceName).build());
+    }
+
+    private boolean writeResource(String resourceName, String contentType, OOSResourceMetadata metadata,
+                                  InputStream inputStream, boolean createOnly) throws IOException {
         // Stage compressed bytes on disk to avoid buffering an entire dataset in memory.
         Path compressedFile = Files.createTempFile("traficinfo-", ".gz");
         try {
@@ -134,13 +151,20 @@ public class ObjectStoreClient {
                         .bucketName(bucketName)
                         .objectName(resourceName)
                         .contentType(contentType)
+                        .ifNoneMatch(createOnly ? "*" : null)
                         .contentEncoding("gzip")
                         .contentLength(Files.size(compressedFile))
                         .opcMeta(metadata.getMetadata())
                         .putObjectBody(compressedInput).build();
 
-                final PutObjectResponse response = client.putObject(request);
-                LOG.info("OOS PUT response = {}", response.toString());
+                try {
+                    final PutObjectResponse response = client.putObject(request);
+                    LOG.info("OOS PUT response = {}", response.toString());
+                    return true;
+                } catch (BmcException failure) {
+                    if (createOnly && failure.getStatusCode() == 412) return false;
+                    throw failure;
+                }
             }
         } finally {
             Files.deleteIfExists(compressedFile);
