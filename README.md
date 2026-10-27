@@ -76,7 +76,10 @@ setting excludes it from event setup; no NIM GeoJSON function is deployed.
 Use `./deploy-functions.sh ds NIM` and, when ready to download its large export,
 `./invoke.sh ds NIM`. The source uses bucket `dsnim`, Object `NIM_Comptage.csv`,
 a 300-second runtime timeout and the Monthly schedule tag. The downloader does
-not perform yearly preprocessing or publish a manifest yet.
+not perform yearly preprocessing. The shared preprocessing function can be
+deployed separately with `./deploy-functions.sh preprocess NIM` and run with
+`./invoke.sh preprocess NIM` to publish the yearly array and manifest.
+Automatic preprocessing/GeoJSON routing remains a later step.
 
 Each rule matches create and update events for exactly its configured CSV in
 its bucket, compartment, and Object Storage namespace. Archive objects,

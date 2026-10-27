@@ -26,7 +26,7 @@ functions=(
 )
 
 usage() {
-  printf 'Usage: %s [<ds|geojson> <data-source-id> | osm]\n' "$0" >&2
+  printf 'Usage: %s [<ds|preprocess|geojson> <data-source-id> | osm]\n' "$0" >&2
 }
 
 select_functions() {
@@ -34,6 +34,14 @@ select_functions() {
   local selected_type="$1" selected_source='' definition data_source_id type handler
   local selected_functions=()
   case "$selected_type" in
+    preprocess)
+      if [ "$#" -ne 2 ]; then usage; return 1; fi
+      local preprocessing_source
+      preprocessing_source="$(get_data_source "$2")" || return
+      data_source_function_name "$preprocessing_source" preprocess >/dev/null || return
+      functions=("$2|preprocess|org.traficinfo.dsfunctions.PreprocessingFunction::handleRequest")
+      return
+      ;;
     ds|geojson)
       if [ "$#" -ne 2 ]; then usage; return 1; fi
       local selected_config
@@ -116,6 +124,12 @@ build_function_config() {
     return
   fi
   input="$(input_bucket_for_source "$source")" || return
+  if [ "$type" = preprocess ]; then
+    settings="$(preprocessing_settings "$source")" || return
+    jq -cn --arg namespace "$namespace" --arg bucket "$input" --arg settings "$settings" \
+      '{NAMESPACE: $namespace, BUCKETNAME: $bucket, PREPROCESSING_SETTINGS: $settings}'
+    return
+  fi
   if [ "$type" = ds ]; then
     settings="$(data_source_settings "$source")" || return
     jq -cn --arg namespace "$namespace" --arg bucket "$input" --arg settings "$settings" \
@@ -262,6 +276,7 @@ main() {
     defined_tags+=("$tags")
     timeout=''
     if [ "$type" = ds ]; then timeout="$(jq -r '.source.timeoutSeconds // empty' <<< "$source")"; fi
+    if [ "$type" = preprocess ]; then timeout=300; fi
     timeouts+=("$timeout")
   done
   application_id="$(resolve_application_id)"

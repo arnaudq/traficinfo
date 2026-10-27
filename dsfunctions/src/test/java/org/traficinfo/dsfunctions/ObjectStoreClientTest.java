@@ -56,6 +56,31 @@ public class ObjectStoreClientTest {
         assertCompressedUpload("empty.csv", "text/csv", "");
     }
 
+    @Test
+    public void createsOnlyAbsentObjectsAndPropagatesOtherStorageFailures() throws IOException {
+        AtomicInteger calls = new AtomicInteger();
+        ObjectStorage storage = (ObjectStorage) Proxy.newProxyInstance(
+                ObjectStorage.class.getClassLoader(), new Class<?>[]{ObjectStorage.class},
+                (proxy, method, args) -> {
+                    PutObjectRequest request = (PutObjectRequest) args[0];
+                    assertEquals("*", request.getIfNoneMatch());
+                    assertNull(request.getIfMatch());
+                    int call = calls.getAndIncrement();
+                    if (call > 0) throw new com.oracle.bmc.model.BmcException(call == 1 ? 412 : 500,
+                            "test", "create failed", "request");
+                    return PutObjectResponse.builder().build();
+                });
+        ObjectStoreClient store = new ObjectStoreClient(storage, "namespace", "bucket");
+        assertTrue(store.createResource("lock", "application/json", new OOSResourceMetadata(), new ByteArrayInputStream(new byte[0])));
+        assertFalse(store.createResource("lock", "application/json", new OOSResourceMetadata(), new ByteArrayInputStream(new byte[0])));
+        try {
+            store.createResource("lock", "application/json", new OOSResourceMetadata(), new ByteArrayInputStream(new byte[0]));
+            fail("Expected storage failure");
+        } catch (com.oracle.bmc.model.BmcException expected) {
+            assertEquals(500, expected.getStatusCode());
+        }
+    }
+
     private void assertCompressedUpload(String name, String contentType, String content) throws IOException {
         byte[] original = content.getBytes(StandardCharsets.UTF_8);
         OOSResourceMetadata metadata = new OOSResourceMetadata();

@@ -47,9 +47,10 @@ a failure stops subsequent inputs but does not roll back earlier uploads.
 Archive dates use the previous download date, including for MMM.
 
 The datasource function does not use the manifest. Event routing remains the
-existing CSV-to-GeoJSON flow until preprocessing is implemented. Changing current
+existing CSV-to-GeoJSON flow until manifest-based routing is enabled. Changing current
 Object names also requires matching consumers/event configuration; use existing
-names during this step. NIM is registered for retrieval only; its CSV does not trigger GeoJSON processing.
+names during this step. NIM preprocessing is invoked explicitly; its CSV does
+not trigger GeoJSON processing.
 
 ## Shared infrastructure
 
@@ -111,9 +112,47 @@ The parser library provides `NIMComptageParser` for hourly aggregation; see the
 [NIM parser README](../parsers/src/main/java/org/traficinfo/parsers/nim/README.md).
 NIM still has no cloud GeoJSON handler. Event setup skips entries
 with `geoJsonEnabled: false`, and GeoJSON deployment/invocation rejects NIM before
-making cloud calls. Yearly preprocessing and manifest publication come later.
+making cloud calls. Preprocessing can publish yearly Objects and the manifest through an explicit invocation; GeoJSON migration comes later.
 Switch the `source.resourceId` and URL in `dsconfig.json` and redeploy the source
 function when ready to monitor the newer resource.
+
+## Preprocessing
+
+`org.traficinfo.dsfunctions.PreprocessingFunction::handleRequest` is shared by
+all datasource IDs. It reads source Objects from the datasource bucket, checks
+headers and expected years, and publishes immutable yearly arrays followed by
+`<datasourceId>_Manifest.json`. It preserves years belonging to inactive
+resources and reuses unchanged yearly Objects. It performs no OSM enrichment.
+See the [storage contract](../specs/datasource-storage-contract.md) for the JSON
+format, validation rules and failure behavior.
+
+After `source ./setup.sh`, deploy and invoke NIM preprocessing explicitly:
+
+```sh
+./deploy-functions.sh preprocess NIM
+./invoke.sh preprocess NIM
+```
+
+The downloader must have populated the source Objects first. No remote download
+is performed by preprocessing. Deployment builds `PREPROCESSING_SETTINGS` from
+`source`, `datasetInfoUrl` and `preprocessing.years` in `dsconfig.json`, applies
+the 4096-byte configuration limit, and sets a 300-second runtime timeout.
+NIM starts with `[2022]`. Other sources need an explicit expected year scope;
+MMM also requires its companion geometry input. Input names are used as named
+manifest inputs. A resource may expand its year scope;
+use a new `resourceId` to reduce the scope or change input Object names.
+
+Preprocessing is currently manual: deployment without arguments, Events rules
+and GeoJSON handlers retain their existing behavior. There is no preprocessing
+schedule tag. Future wiring can route source changes to preprocessing and
+manifest changes to GeoJSON.
+
+Publication uses `<datasourceId>_Preprocessing.lock`, created atomically and
+released on normal completion or failure. A terminated invocation can leave a
+lock. Inspect its owner/start time and confirm the previous publisher has stopped
+before deleting it manually. Function permissions need Object read, create,
+update and delete access within the datasource bucket. Failed runs can leave
+unreferenced yearly Objects; cleanup is not automatic.
 
 ## MRN functions
 
@@ -585,9 +624,10 @@ traficinfo_apigw: all APIGW in traficinfo compartment
 Policies
 grant-fn-access-to-use-objects: "Allow dynamic-group traficinfo_fn to use objects in compartment TraficInfo"
 
-## Planned normalized storage
+## Manifest storage
 
 The shared [datasource storage contract](../specs/datasource-storage-contract.md)
 defines the manifest, yearly file layout and retrieval configuration for all
-sources. Yearly preprocessing and manifest publication are still pending;
-existing event rules continue to use their current CSV inputs.
+sources. The shared preprocessing function implements yearly publication.
+Existing event rules continue to use their current CSV inputs until the separate
+GeoJSON migration.

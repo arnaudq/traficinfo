@@ -1,9 +1,14 @@
 package org.traficinfo.parsers;
 
+import org.traficinfo.parsers.dpt34.DPT34Comptage;
 import org.traficinfo.parsers.dpt34.DPT34ComptageParser;
+import org.traficinfo.parsers.mrn.MRNComptage;
 import org.traficinfo.parsers.mrn.MRNComptageParser;
+import org.traficinfo.parsers.nim.NIMComptage;
 import org.traficinfo.parsers.nim.NIMComptageParser;
+import org.traficinfo.parsers.dpt30.DPT30Comptage;
 import org.traficinfo.parsers.dpt30.DPT30ComptageParser;
+import org.traficinfo.parsers.m3m.M3MComptage;
 import org.traficinfo.parsers.m3m.M3MComptageParser;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -22,22 +27,28 @@ import java.util.stream.Collectors;
 public class GeoJsonParser {
 
     public enum DataSource {
-        M3MV2("MMM", new M3MComptageParser()),
-        DPT34("DPT34", new DPT34ComptageParser()),
-        DPT30("DPT30", new DPT30ComptageParser()),
-        MRN("MRN", new MRNComptageParser()),
-        NIM("NIM", new NIMComptageParser());
+        M3MV2("MMM", new M3MComptageParser(), M3MComptage.class),
+        DPT34("DPT34", new DPT34ComptageParser(), DPT34Comptage.class),
+        DPT30("DPT30", new DPT30ComptageParser(), DPT30Comptage.class),
+        MRN("MRN", new MRNComptageParser(), MRNComptage.class),
+        NIM("NIM", new NIMComptageParser(), NIMComptage.class);
 
-        private DataSource(String id, ComptageParser parser) {
+        private DataSource(String id, ComptageParser parser, Class<? extends Comptage> dsComptageClass) {
             this.id = id;
             this.parser = parser;
+            this.dsComptageClass = dsComptageClass;
         }
 
         private final String id;
         private final ComptageParser parser;
+        private final Class<? extends Comptage> dsComptageClass;
 
         public String getId() {
             return id;
+        }
+
+        public Class<? extends Comptage> getDsComptageClass() {
+            return dsComptageClass;
         }
 
         public ComptageParser getParser() {

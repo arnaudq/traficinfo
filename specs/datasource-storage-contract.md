@@ -1,8 +1,7 @@
 # Shared datasource storage contract, version 1
 
-This contract applies to all datasource IDs in `dsconfig.json`. At this stage
-it defines the manifest format and the source retrieval configuration. Yearly
-processing and manifest publication are not implemented yet.
+This contract applies to all datasource IDs in `dsconfig.json`. It defines source retrieval, yearly preprocessing and manifest publication.
+GeoJSON consumption of the manifest remains a separate step.
 
 Data is stored in Object Storage, with one bucket per data source. In this
 specification, Object refers to an item stored in that bucket.
@@ -15,6 +14,7 @@ configured datasource ID, including MMM despite its legacy bucket/function names
 | Object | Contents |
 | --- | --- |
 | `<datasourceId>_Manifest.json` | Current complete publication |
+| `<datasourceId>_Preprocessing.lock` | Exclusive publication lock |
 | `data/<revision>/<datasourceId>_Comptage_<year>.json` | Yearly array of Comptage records |
 
 Revisions are unique path components. Published yearly Objects are immutable:
@@ -50,9 +50,16 @@ Switching the active resource never removes years from inactive resources.
 ## Yearly arrays
 
 Each yearly Object contains an array of Comptage records for its named year.
-Serialization of the existing source-specific Comptage implementations will be
-addressed when implementing yearly Objects. No additional count model or separate retrieval
-provenance Object is introduced in this step.
+`ComptageJson` serializes the existing source-specific implementations by stored
+field name, including null values. Derived getter aliases such as NIM's
+`moyenneJourAnnuelle` are excluded, preserving the distinction between a null
+`dailyAverage` and zero. MMM records include geometry from the companion input.
+There is no additional count model or separate retrieval provenance Object.
+
+Properties and array records use deterministic ordering. Header order is retained
+in the manifest; reordering data rows alone does not change yearly checksums.
+The datasource ID selects the concrete count class when reading. `parserVersion`
+is maintained in code and must change when the stored interpretation changes.
 
 ## Source retrieval configuration
 
@@ -89,16 +96,20 @@ The optional `source.timeoutSeconds` sets the download function's synchronous
 runtime timeout (1–300 seconds). Deployment applies it on creation and updates;
 invocation allows an additional 60 seconds when it exceeds the default 30. NIM
 uses 300 seconds for its 2022 export. `geoJsonEnabled: false` marks a datasource
-as download-only: event setup skips it and GeoJSON invocation/deployment is
-disabled until processing is implemented. Other sources remain enabled by default.
+as having no GeoJSON handler: event setup skips it and GeoJSON
+invocation/deployment is disabled. Explicit preprocessing is independent of this flag. Other sources remain enabled by default.
 
 ## Processing sequence
 
 1. **Datasource function:** retrieve the configured inputs and store them as
    Objects in the datasource bucket.
-2. **Preprocessing function (later):** read the source Objects and check CSV
-   headers against the manifest for the same resource/input. Parsing by name may tolerate reordering; missing, renamed or duplicate required columns
-   fail processing. Extra columns follow the source parser's documented policy.
+2. **Preprocessing function:** read the source Objects and check CSV
+   headers against the manifest for the same resource/input. Preprocessing permits
+   column additions and reordering, but rejects blank or
+   duplicate headers and removal/renaming of any previously recorded column.
+   Added columns are logged at warning level with datasource ID, resource ID,
+   input Object name and new column names. First publications have no previous
+   headers to compare. Extra columns are ignored by the current source parsers.
    A new resource gets its own headers after successful parsing. On the first
    run, check the parser's required columns because no manifest exists yet.
 3. Parse and validate, then write yearly Objects under a new revision. Missing
@@ -108,11 +119,112 @@ disabled until processing is implemented. Other sources remain enabled by defaul
 5. **GeoJSON function (later):** trigger from that manifest. Read it once and
    follow its exact Object references instead of listing Objects by wildcard.
 
-Serialize publication per datasource and make retries idempotent. A failed run
-leaves the previous manifest usable. Each source's aggregation rules must address
-hourly completeness and counting campaigns before its first run. Header validation,
-yearly serialization and manifest publication will be implemented in the preprocessing stage. Deployment will also supply its source
-settings; this configuration wiring is still to be implemented for preprocessing.
+## Workflow diagram
+
+The diagram shows data flow; preprocessing is currently invoked manually.
+The dashed connection is the future manifest-triggered GeoJSON workflow.
+The datasource decision applies to each input independently; both outcomes
+continue with the next configured input. An unchanged response causes no upload
+or Object event. Preprocessing can also be invoked manually on existing Objects.
+
+```mermaid
+flowchart TD
+    upstream["Upstream resource inputs"]
+
+    subgraph datasource["Datasource function"]
+        retrieve["Request each input in configured order<br/>Reuse validator only for the same source"]
+        modified{"Input modified?"}
+        store["Archive previous Object if present<br/>Store input and download metadata"]
+        unchanged["Keep current Object<br/>No upload"]
+
+        retrieve --> modified
+        modified -->|Yes| store
+        modified -->|No| unchanged
+    end
+
+    upstream --> retrieve
+    store --> raw["Source Objects and download metadata<br/>in the datasource bucket"]
+
+    subgraph preprocessing["Preprocessing function"]
+        lock["Acquire exclusive publication lock"]
+        prepare["Load previous manifest and stage inputs<br/>Check metadata, headers and resource scope"]
+        parse["Parse and validate records<br/>Group records by expected year"]
+        years["Write changed yearly Objects<br/>Reuse unchanged and inactive year references"]
+        verify["Read back every referenced yearly Object<br/>Verify checksums, number of records and years<br/>Recheck source metadata"]
+        changed{"Publication changed?"}
+        publish["Replace the manifest last"]
+        release["Release lock and remove staged inputs"]
+
+        lock --> prepare --> parse --> years --> verify --> changed
+        changed -->|Yes| publish --> release
+        changed -->|No: retain current manifest| release
+    end
+
+    raw --> lock
+    publish -.->|Future: manifest event| geojson["GeoJSON function: read manifest once<br/>Read yearly Objects using exact references"]
+    geojson --> output["Publish GeoJSON output"]
+```
+
+A preprocessing error stops publication and releases the acquired lock during
+normal cleanup. The previous manifest is retained; yearly Objects written before
+the failure can remain unreferenced. A terminated invocation can leave a lock,
+as described below.
+
+## Preprocessing configuration and execution
+
+Deployment builds `PREPROCESSING_SETTINGS` from the existing retrieval settings,
+`datasetInfoUrl`, and `preprocessing.years` in `dsconfig.json`:
+
+```json
+{
+  "source": {
+    "dataSourceId": "NIM",
+    "resourceId": "nim-2022",
+    "inputs": [{
+      "url": "https://example.org/counts.csv",
+      "objectName": "NIM_Comptage.csv",
+      "contentType": "text/csv"
+    }]
+  },
+  "datasetUrl": "https://example.org/dataset",
+  "years": [2022]
+}
+```
+
+The shared `PreprocessingFunction` supports all current datasource IDs. NIM has
+an initial explicit scope of `[2022]`; other sources require their own expected
+years before invoking this stage. The scope may expand. Reducing the scope or changing input Object names for
+an existing resource requires a new `resourceId`. Every scoped year must contain
+at least one parsed record, and records outside the scope fail validation.
+NIM's established hourly aggregation, 1970 exclusion and conflicting-hour policy
+apply. Other sources retain their existing parser's annual/campaign semantics.
+No OSM enrichment or GeoJSON filtering occurs during preprocessing.
+
+All inputs must carry matching downloader metadata (datasource ID, resource ID,
+source URL and download time). Legacy inputs must be refreshed by the datasource
+function first. Inputs are staged locally and their metadata is checked again
+before publication; a concurrent replacement aborts publication. This detects
+changes during a run, but does not turn multi-input retrieval into an atomic
+upstream snapshot.
+
+Publication is serialized per datasource using atomic create-if-absent of the
+lock Object. There are no ETag-based updates. Normal completion or failure
+releases the lock. A terminated invocation can leave a lock: inspect its owner
+and UTC start time, confirm no publisher is running, then remove it manually.
+Locks never expire automatically, avoiding races with slow invocations.
+
+Each changed year is written under a fresh UUID revision, using create-if-absent.
+Unchanged years retain their paths. The function reads back every referenced
+yearly Object, including inactive resources' years, checking checksum, record
+count and year before replacing the manifest last. Identical retries leave the
+manifest unchanged. A failed run leaves the previous manifest usable and may
+leave unreferenced yearly Objects; automatic cleanup is outside this step.
+
+Preprocessing deployment and invocation are explicit (`preprocess` in the shared
+scripts), with a 300-second runtime timeout. It is not included in a deployment
+without arguments, has no schedule tag and is not connected to Events yet.
+GeoJSON handlers continue using their current inputs until their separate
+manifest migration.
 
 ## Compatibility and examples
 

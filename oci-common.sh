@@ -106,6 +106,7 @@ load_data_sources() {
       | . + {functionPrefix: $prefix,
           dataSourceFunction: ($prefix + "OpenDataSource"),
           geoJsonFunction: ($prefix + "GeoJsonOut"),
+          preprocessingFunction: ($prefix + "Preprocessing"),
           eventRule: ($prefix + "ComptageCsvToGeoJson"),
           inputBucket: (.inputBucket // ("ds" + (.id | ascii_downcase))),
           csvObject: (.csvObject // (.id + "_Comptage.csv"))}
@@ -127,9 +128,11 @@ get_data_source() {
 data_source_function_name() {
   case "$2" in
     ds) jq -er '.dataSourceFunction' <<< "$1" ;;
+    preprocess) preprocessing_settings "$1" >/dev/null || return
+      jq -er '.preprocessingFunction' <<< "$1" ;;
     geojson) jq -er 'if .geoJsonEnabled == false then
       error("GeoJSON is not enabled for \(.id)") else .geoJsonFunction end' <<< "$1" ;;
-    *) printf 'Expected ds or geojson.\n' >&2; return 1 ;;
+    *) printf 'Expected ds, preprocess or geojson.\n' >&2; return 1 ;;
   esac
 }
 
@@ -163,4 +166,22 @@ data_source_settings() {
         error("Duplicate input Object names") else . end
     | {dataSourceId: $source.id, resourceId, inputs}
   ' <<< "$1"
+}
+
+# Source retrieval stays unchanged; preprocessing additionally needs a dataset URL and explicit year scope.
+preprocessing_settings() {
+  local source="$1" settings
+  settings="$(data_source_settings "$source")" || return
+  jq -cne --argjson source "$source" --argjson settings "$settings" '
+    $source.preprocessing.years as $years
+    | if ($years | type) != "array" or ($years | length) == 0 then
+        error("preprocessing.years must be a nonempty array")
+      elif ($years | unique | length) != ($years | length) then
+        error("preprocessing.years must be distinct")
+      elif any($years[]; type != "number") then error("Invalid preprocessing year")
+      elif any($years[]; . != floor or . < 1900 or . > (now | strftime("%Y") | tonumber)) then
+        error("Invalid preprocessing year")
+      elif ($source.datasetInfoUrl | type) != "string" then error("Missing datasetInfoUrl")
+      elif ($source.datasetInfoUrl | test("^https?://[^/[:space:]]+") | not) then error("Invalid datasetInfoUrl")
+      else {source: $settings, datasetUrl: $source.datasetInfoUrl, years: $years} end'
 }

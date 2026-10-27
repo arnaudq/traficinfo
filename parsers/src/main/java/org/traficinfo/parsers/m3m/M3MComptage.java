@@ -11,6 +11,13 @@ public class M3MComptage implements Comptage {
   @CsvBindByName(column="osm_id")
   private Long osmWayId;
 
+  private org.geojson.GeoJsonObject geometry;
+
+  @Override
+  public org.geojson.GeoJsonObject getGeometry() { return geometry; }
+
+  public void setGeometry(org.geojson.GeoJsonObject geometry) { this.geometry = geometry; }
+
   @CsvBindByName(column="code_centrale")
   private String codeCentrale;
 
@@ -228,12 +235,12 @@ public class M3MComptage implements Comptage {
     if (this == o) return true;
     if (o == null || getClass() != o.getClass()) return false;
     M3MComptage that = (M3MComptage) o;
-    return annee == that.annee && moyenneJourAnnuelle == that.moyenneJourAnnuelle && v85Speed == that.v85Speed && meanSpeed == that.meanSpeed && maximumSpeed == that.maximumSpeed && Objects.equals(osmWayId, that.osmWayId) && Objects.equals(codeCentrale, that.codeCentrale) && Objects.equals(streetName, that.streetName) && Objects.equals(altStreetName, that.altStreetName) && Objects.equals(cityName, that.cityName) && Objects.equals(typeCompteur, that.typeCompteur) && Objects.equals(typeComptage, that.typeComptage) && Objects.equals(codeCanal, that.codeCanal) && Objects.equals(moyenneHeureDePointeMatin, that.moyenneHeureDePointeMatin) && Objects.equals(moyenneHeureDePointeSoir, that.moyenneHeureDePointeSoir) && Objects.equals(displayName, that.displayName) && type == that.type;
+    return annee == that.annee && moyenneJourAnnuelle == that.moyenneJourAnnuelle && v85Speed == that.v85Speed && meanSpeed == that.meanSpeed && maximumSpeed == that.maximumSpeed && Objects.equals(geometry, that.geometry) && Objects.equals(osmWayId, that.osmWayId) && Objects.equals(codeCentrale, that.codeCentrale) && Objects.equals(streetName, that.streetName) && Objects.equals(altStreetName, that.altStreetName) && Objects.equals(cityName, that.cityName) && Objects.equals(typeCompteur, that.typeCompteur) && Objects.equals(typeComptage, that.typeComptage) && Objects.equals(codeCanal, that.codeCanal) && Objects.equals(moyenneHeureDePointeMatin, that.moyenneHeureDePointeMatin) && Objects.equals(moyenneHeureDePointeSoir, that.moyenneHeureDePointeSoir) && Objects.equals(displayName, that.displayName) && type == that.type;
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(osmWayId, codeCentrale, streetName, altStreetName, cityName, annee, typeCompteur, typeComptage, codeCanal, moyenneJourAnnuelle, moyenneHeureDePointeMatin, moyenneHeureDePointeSoir, v85Speed, meanSpeed, maximumSpeed, displayName, type);
+    return Objects.hash(geometry, osmWayId, codeCentrale, streetName, altStreetName, cityName, annee, typeCompteur, typeComptage, codeCanal, moyenneJourAnnuelle, moyenneHeureDePointeMatin, moyenneHeureDePointeSoir, v85Speed, meanSpeed, maximumSpeed, displayName, type);
   }
 
   @Override

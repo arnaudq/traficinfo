@@ -324,6 +324,50 @@ class OciScriptsTest(unittest.TestCase):
                 self.assertEqual(handler[handler.index('--handler') + 1],
                                  'org.traficinfo.dsfunctions.nim.DataSourceFunction::handleRequest')
 
+    def test_preprocessing_deployment_and_invocation_are_explicit_and_share_the_handler(self):
+        for existing in [False, True]:
+            with self.subTest(existing=existing):
+                self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main preprocess NIM')
+                function = next(f for f in self.state['functions'] if f['display-name'] == 'NIMPreprocessing')
+                self.assertEqual(function['timeout-in-seconds'], 300)
+                config = function['config']
+                self.assertEqual(config['BUCKETNAME'], 'dsnim')
+                settings = json.loads(config['PREPROCESSING_SETTINGS'])
+                self.assertEqual(settings['source']['dataSourceId'], 'NIM')
+                self.assertEqual(settings['source']['resourceId'], 'nim-2022')
+                self.assertEqual(settings['years'], [2022])
+                self.assertEqual(settings['source']['inputs'][0]['objectName'], 'NIM_Comptage.csv')
+                self.assertLessEqual(sum(len(k.encode()) + len(v.encode()) for k, v in config.items()), 4096)
+                self.assertNotIn('TraficInfo', function.get('defined-tags', {}))
+        self.script('invoke.sh', 'preprocess', 'NIM')
+        call = self.state['calls'][-1]
+        self.assertEqual(call[call.index('--read-timeout') + 1], '360')
+        self.assertTrue(any('org.traficinfo.dsfunctions.PreprocessingFunction::handleRequest' in call
+                            for call in self.state['calls']))
+
+    def test_preprocessing_requires_explicit_valid_years_before_any_oci_call(self):
+        config = json.loads(self.config_file.read_text())
+        for years in [None, [], [2022, 2022], [0], [3000], [2022.5], ['2022']]:
+            with self.subTest(years=years):
+                config['NIM']['preprocessing']['years'] = years
+                self.config_file.write_text(json.dumps(config))
+                self.deployment_common('main preprocess NIM', success=False)
+                self.assertFalse(self.state.get('calls', []))
+        self.deployment_common('main preprocess DPT30', success=False)
+        self.assertFalse(self.state.get('calls', []))
+
+    def test_preprocessing_supports_another_source_without_a_new_handler(self):
+        config = json.loads(self.config_file.read_text())
+        config['DPT30']['preprocessing'] = {'years': [2025]}
+        self.config_file.write_text(json.dumps(config))
+        self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main preprocess DPT30')
+        function = next(f for f in self.state['functions'] if f['display-name'] == 'DPT30Preprocessing')
+        settings = json.loads(function['config']['PREPROCESSING_SETTINGS'])
+        self.assertEqual(settings['source']['dataSourceId'], 'DPT30')
+        self.assertEqual(settings['years'], [2025])
+        self.assertTrue(any('org.traficinfo.dsfunctions.PreprocessingFunction::handleRequest' in call
+                            for call in self.state['calls']))
+
     def test_nim_invocation_has_matching_client_timeout(self):
         self.script('invoke.sh', 'ds', 'NIM')
         call = self.state['calls'][-1]
