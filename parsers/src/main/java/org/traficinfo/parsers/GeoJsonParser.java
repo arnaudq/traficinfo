@@ -2,6 +2,7 @@ package org.traficinfo.parsers;
 
 import org.traficinfo.parsers.dpt34.DPT34ComptageParser;
 import org.traficinfo.parsers.mrn.MRNComptageParser;
+import org.traficinfo.parsers.nim.NIMComptageParser;
 import org.traficinfo.parsers.dpt30.DPT30ComptageParser;
 import org.traficinfo.parsers.m3m.M3MComptageParser;
 
@@ -24,7 +25,8 @@ public class GeoJsonParser {
         M3MV2("MMM", new M3MComptageParser()),
         DPT34("DPT34", new DPT34ComptageParser()),
         DPT30("DPT30", new DPT30ComptageParser()),
-        MRN("MRN", new MRNComptageParser());
+        MRN("MRN", new MRNComptageParser()),
+        NIM("NIM", new NIMComptageParser());
 
         private DataSource(String id, ComptageParser parser) {
             this.id = id;

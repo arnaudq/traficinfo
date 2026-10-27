@@ -107,7 +107,9 @@ downloaded during development; tests use synthetic bytes. Actual transfer time
 and temporary-storage requirements remain unverified. Deployment applies the
 Monthly schedule tag; the shared scheduler must be configured to run it.
 
-NIM has no GeoJSON handler or parser at this stage. Event setup skips entries
+The parser library provides `NIMComptageParser` for hourly aggregation; see the
+[NIM parser README](../parsers/src/main/java/org/traficinfo/parsers/nim/README.md).
+NIM still has no cloud GeoJSON handler. Event setup skips entries
 with `geoJsonEnabled: false`, and GeoJSON deployment/invocation rejects NIM before
 making cloud calls. Yearly preprocessing and manifest publication come later.
 Switch the `source.resourceId` and URL in `dsconfig.json` and redeploy the source
