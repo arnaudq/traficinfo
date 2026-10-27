@@ -284,7 +284,7 @@ public final class NIMComptageParser implements ComptageParser {
         LocalDate date = entry.getKey();
         DayCounts day = entry.getValue();
         if (previous != null && ChronoUnit.DAYS.between(previous, date) > 1) {
-          logger.warn("NIM gap: camera={}, from={}, to={}, daysWithoutRecords={} (within observed date range)",
+          logger.debug("NIM gap: camera={}, from={}, to={}, daysWithoutRecords={} (within observed date range)",
               result.getCodeCentrale(), previous.plusDays(1), date.minusDays(1),
               ChronoUnit.DAYS.between(previous, date) - 1);
         }
@@ -292,7 +292,7 @@ public final class NIMComptageParser implements ComptageParser {
         conflicts += day.conflicts.size();
         for (var conflict : day.conflicts.entrySet()) {
           int hour = conflict.getKey();
-          logger.warn("NIM conflicting hour excluded: camera={}, date={}, hour={}, values={}",
+          logger.debug("NIM conflicting hour excluded: camera={}, date={}, hour={}, values={}",
               result.getCodeCentrale(), date,
               String.format(Locale.ROOT, "%02d:00 - %02d:00", hour, hour + 1), conflict.getValue());
         }
