@@ -3,7 +3,6 @@
   "dataSourceId": "MMM",
   "revision": "r0001",
   "publishedAt": "2026-10-26T12:00:00Z",
-  "comptageSchemaVersion": 1,
   "activeResourceId": "mmm-current",
   "resources": {
     "mmm-current": {

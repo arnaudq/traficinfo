@@ -515,6 +515,6 @@ grant-fn-access-to-use-objects: "Allow dynamic-group traficinfo_fn to use object
 ## Planned normalized storage
 
 The shared [datasource storage contract](../specs/datasource-storage-contract.md)
-defines versioned manifests, yearly count records and import provenance
-for all sources. It currently adds models and examples only; existing handlers
-and event rules continue to use their current CSV inputs.
+defines the manifest and yearly file layout for all sources. It currently adds
+the manifest model and examples only; existing handlers and event rules continue
+to use their current CSV inputs.

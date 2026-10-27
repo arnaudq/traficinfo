@@ -12,14 +12,16 @@ public record DataManifest(
         @JsonProperty("dataSourceId") String dataSourceId,
         @JsonProperty("revision") String revision,
         @JsonProperty("publishedAt") String publishedAt,
-        @JsonProperty("comptageSchemaVersion") int comptageSchemaVersion,
         @JsonProperty("activeResourceId") String activeResourceId,
         @JsonProperty("resources") Map<String, Resource> resources,
         @JsonProperty("years") Map<Integer, YearData> years) {
+    public static final int VERSION = 1;
+
     @JsonCreator
     public DataManifest {
-        StorageContract.requireVersion(manifestVersion);
-        StorageContract.requireVersion(comptageSchemaVersion);
+        if (manifestVersion != VERSION) {
+            throw new IllegalArgumentException("Unsupported manifest version: " + manifestVersion);
+        }
         resources = Map.copyOf(resources);
         years = Map.copyOf(years);
     }
@@ -50,8 +52,7 @@ public record DataManifest(
             @JsonProperty("sha256") String sha256,
             @JsonProperty("recordCount") long recordCount,
             @JsonProperty("resourceId") String resourceId,
-            @JsonProperty("parserVersion") String parserVersion,
-            @JsonProperty("importId") String importId) {
+            @JsonProperty("parserVersion") String parserVersion) {
         @JsonCreator
         public YearData {
         }
