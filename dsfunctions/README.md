@@ -162,6 +162,105 @@ before deleting it manually. Function permissions need Object read, create,
 update and delete access within the datasource bucket. Failed runs can leave
 unreferenced yearly Objects; cleanup is not automatic.
 
+### Making past periods read-only
+
+Use separate dataset IDs for the periods you want to preserve and the period
+you want to keep processing. A single downloaded CSV can contain all these
+years. Once you switch to a dataset whose year scope excludes an earlier period,
+preprocessing keeps that period's published yearly Objects and manifest references
+unchanged, even if the upstream CSV later modifies those records.
+
+For example, DPT34 contains records for 2014–2025 in one CSV. Publish those years
+in two groups, then leave 2026 as the active period.
+
+Before starting, ensure `DPT34_Comptage.csv` has been downloaded successfully.
+The following JSON fragments show only the fields to change inside the existing
+`DPT34` entry in `dsconfig.json`. Preserve the other fields, including
+`source.datasetInfoUrl`, `source.inputs` and the datasource logo URL. Keep the
+same input URL throughout; switching dataset IDs does not require another download.
+
+**1. Publish the first historical period: 2014–2019.**
+
+Set these values in the DPT34 configuration:
+
+```json
+{
+  "preprocessing": {
+    "years": [2014, 2015, 2016, 2017, 2018, 2019]
+  },
+  "source": {
+    "datasetId": "dpt34-2014-2019"
+  }
+}
+```
+
+Apply the configuration and run preprocessing:
+
+```sh
+./scripts/deploy-functions.sh preprocess DPT34
+./scripts/invoke.sh preprocess DPT34
+```
+
+After a successful run, inspect `DPT34_Manifest.json` in the DPT34 bucket.
+Confirm that `activeDatasetId` is `dpt34-2014-2019`, that `datasets` contains this
+dataset, and that `years` references a yearly JSON Object for every year from
+2014 through 2019. Check the INFO messages for configured years without records;
+such years have no new Object to preserve. Continue after the expected historical
+records have been published.
+
+**2. Publish the second historical period: 2020–2025.**
+
+Change the same fields to:
+
+```json
+{
+  "preprocessing": {
+    "years": [2020, 2021, 2022, 2023, 2024, 2025]
+  },
+  "source": {
+    "datasetId": "dpt34-2020-2025"
+  }
+}
+```
+
+Repeat the deployment and invocation above. Confirm that `activeDatasetId` is
+now `dpt34-2020-2025`. The manifest should retain the dataset and exact yearly
+Object references for 2014–2019, and add the dataset and references for 2020–2025.
+The first historical period is now excluded from ongoing updates.
+
+**3. Switch ongoing processing to 2026.**
+
+Change the configuration to:
+
+```json
+{
+  "preprocessing": {
+    "years": [2026]
+  },
+  "source": {
+    "datasetId": "dpt34-2026"
+  }
+}
+```
+
+Repeat the deployment and invocation. Confirm that `activeDatasetId` is now
+`dpt34-2026` and all three datasets remain in the manifest. The yearly references
+for 2014–2025 stay unchanged. Only records for 2026 can create or update yearly
+Objects on subsequent runs; records for other years are skipped and their years
+are logged at INFO level.
+
+If the CSV has no 2026 records yet, preprocessing logs that year as having no
+records and retains the historical publication. A 2026 Object is added when
+records become available. Selecting `[2026]` does not impose a publication date:
+if 2026 must only be published from the beginning of 2027, run preprocessing for
+that period only from then, unless the upstream publisher itself withholds
+those records until 2027.
+
+Keep historical year ranges out of future active configurations to preserve them.
+Reactivating an earlier dataset, or including its years in a new active dataset,
+allows those years to be processed again. Use a new dataset ID when moving to
+the next period, and inspect the generated manifest rather than editing it manually.
+
 ## MRN functions
 
 `org.traficinfo.dsfunctions.mrn.DataSourceFunction::handleRequest` downloads the

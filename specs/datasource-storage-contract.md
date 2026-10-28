@@ -241,6 +241,9 @@ without arguments, has no schedule tag and is not connected to Events yet.
 GeoJSON handlers continue using their current inputs until their separate
 manifest migration.
 
+For the end-user procedure, including the DPT34 period-splitting example, see
+[Making past periods read-only](../dsfunctions/README.md#making-past-periods-read-only).
+
 ## Compatibility and examples
 
 Missing or unsupported manifest versions are rejected. The model uses Jackson's
