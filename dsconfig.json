@@ -64,11 +64,11 @@
     "name": "Comptages véhicules - Département de l'Hérault",
     "schedule": "Monthly",
     "preprocessing": {
-      "years": [2014, 2015, 2016, 2017, 2018,2019]
+      "years": [2020, 2021, 2022, 2023, 2024,2025]
     },
     "dataSourceLogoUrl": "https://www.herault-data.fr/assets/theme_image/logo%20herault%20data%20vfinal_petite.png",
     "source": {
-      "datasetId": "dpt34-2014-2019",
+      "datasetId": "dpt34-2020-2025",
       "datasetInfoUrl": "https://www.herault-data.fr/explore/dataset/trafic-de-l-herault-donnees-de-comptage/#",
       "inputs": [
         {
