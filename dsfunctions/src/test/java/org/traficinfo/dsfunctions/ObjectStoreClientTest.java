@@ -24,6 +24,55 @@ import static org.junit.Assert.*;
 
 public class ObjectStoreClientTest {
     @Test
+    public void existingObjectsWithoutCustomMetadataReturnAnEmptyMetadataObject() {
+        for (java.util.Map<String, String> values : java.util.Arrays.<java.util.Map<String, String>>asList(
+                null, java.util.Map.of(), java.util.Map.of("dataset-id", "dpt34-2014-2019"))) {
+            ObjectStorage storage = (ObjectStorage) Proxy.newProxyInstance(
+                    ObjectStorage.class.getClassLoader(), new Class<?>[]{ObjectStorage.class},
+                    (proxy, method, args) -> {
+                        assertEquals("headObject", method.getName());
+                        var request = (com.oracle.bmc.objectstorage.requests.HeadObjectRequest) args[0];
+                        assertEquals("namespace", request.getNamespaceName());
+                        assertEquals("dsdpt34", request.getBucketName());
+                        assertEquals("DPT34_Manifest.json", request.getObjectName());
+                        return com.oracle.bmc.objectstorage.responses.HeadObjectResponse.builder().opcMeta(values).build();
+                    });
+            OOSResourceMetadata metadata = new ObjectStoreClient(storage, "namespace", "dsdpt34")
+                    .getResourceMetadata("DPT34_Manifest.json");
+            assertNotNull(metadata);
+            assertEquals(values == null ? java.util.Map.of() : values, metadata.getMetadata());
+            assertNull(metadata.getETag());
+            assertNull(metadata.getLastModified());
+            if (values == null) {
+                metadata.setETag("test");
+                assertEquals("\"test\"", metadata.getETag());
+            }
+        }
+    }
+
+    @Test
+    public void onlyMissingObjectsReturnNullMetadataAndOtherHeadFailuresPropagate() {
+        for (int status : new int[]{404, 500}) {
+            ObjectStorage storage = (ObjectStorage) Proxy.newProxyInstance(
+                    ObjectStorage.class.getClassLoader(), new Class<?>[]{ObjectStorage.class},
+                    (proxy, method, args) -> {
+                        throw new com.oracle.bmc.model.BmcException(status, "test", "HEAD failed", "request");
+                    });
+            ObjectStoreClient store = new ObjectStoreClient(storage, "namespace", "dsdpt34");
+            if (status == 404) {
+                assertNull(store.getResourceMetadata("DPT34_Manifest.json"));
+            } else {
+                try {
+                    store.getResourceMetadata("DPT34_Manifest.json");
+                    fail("Expected HEAD failure");
+                } catch (com.oracle.bmc.model.BmcException expected) {
+                    assertEquals(status, expected.getStatusCode());
+                }
+            }
+        }
+    }
+
+    @Test
     public void listsNamesAcrossAllPagesIncludingAnEmptyBucket() {
         AtomicInteger calls = new AtomicInteger();
         ObjectStorage storage = (ObjectStorage) Proxy.newProxyInstance(

@@ -182,9 +182,12 @@ public class ObjectStoreClient {
         try {
             final HeadObjectResponse response = client.headObject(request);
             LOG.info("OOS HEAD response = {}", response.toString());
-            LOG.info("OOS HEAD response = {}", response.getOpcMeta().entrySet());
+            // Objects without custom metadata can have a null opc-meta map, including manifests.
+            OOSResourceMetadata metadata = response.getOpcMeta() == null
+                    ? new OOSResourceMetadata() : new OOSResourceMetadata(response.getOpcMeta());
+            LOG.info("OOS HEAD metadata = {}", metadata.getMetadata().entrySet());
 
-            return new OOSResourceMetadata(response.getOpcMeta());
+            return metadata;
         } catch (BmcException bmce) {
            if (bmce.getStatusCode() == 404) {
                LOG.info("OOS HEAD response - resource  {} does not exist", resourceName);

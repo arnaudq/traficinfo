@@ -82,6 +82,51 @@ public class PreprocessingPublisherTest {
     }
 
     @Test
+    public void dpt34DatasetSwitchRetainsEarlierYearsWhenManifestHeadHasNoCustomMetadata() throws Exception {
+        Store store = new Store() {
+            @Override public OOSResourceMetadata getResourceMetadata(String name) {
+                var headClient = (com.oracle.bmc.objectstorage.ObjectStorage) java.lang.reflect.Proxy.newProxyInstance(
+                        com.oracle.bmc.objectstorage.ObjectStorage.class.getClassLoader(),
+                        new Class<?>[]{com.oracle.bmc.objectstorage.ObjectStorage.class},
+                        (proxy, method, args) -> {
+                            assertEquals("headObject", method.getName());
+                            if (!objects.containsKey(name)) {
+                                throw new com.oracle.bmc.model.BmcException(404, "test", "Missing Object", "request");
+                            }
+                            Map<String, String> values = metadata.get(name);
+                            return com.oracle.bmc.objectstorage.responses.HeadObjectResponse.builder()
+                                    .opcMeta(values == null || values.isEmpty() ? null : values).build();
+                        });
+                return new ObjectStoreClient(headClient, "test", "dsdpt34").getResourceMetadata(name);
+            }
+        };
+        StringBuilder csv = new StringBuilder("Identifiant du compteur;Année;mja_tv_tcj\n");
+        for (int year = 2014; year <= 2025; year++) csv.append("site;").append(year).append(";100\n");
+        List<Integer> earlier = List.of(2014, 2015, 2016, 2017, 2018, 2019);
+        List<Integer> later = List.of(2020, 2021, 2022, 2023, 2024, 2025);
+        var input = new DataSourceSettings.Input("https://example.invalid/dpt34.csv", "DPT34_Comptage.csv", "text/csv");
+        var initial = new PreprocessingSettings(new DataSourceSettings("DPT34", "dpt34-2014-2019", List.of(input)),
+                "https://example.invalid/dpt34", earlier);
+        store.source(initial, csv.toString());
+        PreprocessingPublisher publisher = new PreprocessingPublisher(store);
+        DataManifest first = publisher.publish(initial);
+        Map<Integer, byte[]> originalYears = new HashMap<>();
+        first.years().forEach((year, data) -> originalYears.put(year, store.objects.get(data.object())));
+        var current = new PreprocessingSettings(new DataSourceSettings("DPT34", "dpt34-2020-2025", List.of(input)),
+                "https://example.invalid/dpt34", later);
+        store.source(current, csv.toString());
+        DataManifest next = publisher.publish(current);
+        assertEquals("dpt34-2020-2025", next.activeDatasetId());
+        assertEquals(12, next.years().size());
+        assertEquals(2, next.datasets().size());
+        for (int year : earlier) {
+            assertEquals(first.years().get(year), next.years().get(year));
+            assertArrayEquals(originalYears.get(year), store.objects.get(next.years().get(year).object()));
+        }
+        for (int year : later) assertEquals("dpt34-2020-2025", next.years().get(year).datasetId());
+    }
+
+    @Test
     public void logsDistinctYearsOutsideScopeAndConfiguredYearsWithoutRecordsAtInfoLevel() throws Exception {
         Store store = new Store();
         List<String> messages = new ArrayList<>();
