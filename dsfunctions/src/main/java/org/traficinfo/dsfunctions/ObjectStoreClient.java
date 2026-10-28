@@ -22,6 +22,7 @@ import com.oracle.bmc.objectstorage.responses.RenameObjectResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -145,7 +146,8 @@ public class ObjectStoreClient {
             try (GZIPOutputStream gzip = new GZIPOutputStream(Files.newOutputStream(compressedFile))) {
                 inputStream.transferTo(gzip);
             }
-            try (InputStream compressedInput = Files.newInputStream(compressedFile)) {
+            // OCI can rewind FileInputStream through its file channel without buffering in memory.
+            try (InputStream compressedInput = new FileInputStream(compressedFile.toFile())) {
                 PutObjectRequest request = PutObjectRequest.builder()
                         .namespaceName(namespaceName)
                         .bucketName(bucketName)

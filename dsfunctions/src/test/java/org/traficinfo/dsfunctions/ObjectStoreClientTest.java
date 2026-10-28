@@ -7,6 +7,7 @@ import com.oracle.bmc.objectstorage.model.ListObjects;
 import com.oracle.bmc.objectstorage.model.ObjectSummary;
 import com.oracle.bmc.objectstorage.responses.ListObjectsResponse;
 import com.oracle.bmc.objectstorage.responses.PutObjectResponse;
+import com.oracle.bmc.retrier.Retriers;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
@@ -97,7 +98,11 @@ public class ObjectStoreClientTest {
                     assertEquals(contentType, request.getContentType());
                     assertEquals("gzip", request.getContentEncoding());
                     assertEquals(metadata.getMetadata(), request.getOpcMeta());
-                    byte[] compressed = request.getPutObjectBody().readAllBytes();
+                    InputStream retryableBody = Retriers.wrapInputStreamForRetry(request.getPutObjectBody());
+                    retryableBody.mark(Integer.MAX_VALUE);
+                    byte[] compressed = retryableBody.readAllBytes();
+                    retryableBody.reset();
+                    assertArrayEquals(compressed, retryableBody.readAllBytes());
                     assertEquals(Long.valueOf(compressed.length), request.getContentLength());
                     try (GZIPInputStream gzip = new GZIPInputStream(new ByteArrayInputStream(compressed))) {
                         assertArrayEquals(original, gzip.readAllBytes());
