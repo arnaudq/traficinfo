@@ -422,7 +422,13 @@ the review file. Processed counts include manual approvals.
 
 At the end, the document is rebuilt from all source caches, including sources
 whose API batches were skipped by the time budget. Applied approvals disappear
-from it. A load/save failure preserves the previous review document rather than
+from it. The function logs added, changed, and removed record counts relative to
+the document loaded at startup, identifying records by data source and counter ID.
+Changes to any serialized record field, including timestamps, count as changes;
+JSON formatting and object-key order do not. An unchanged document skips the PUT.
+A missing document is created even when empty; changes to empty source groups
+also update the document without increasing the record counts.
+A load/save failure preserves the previous review document rather than
 publishing incomplete results. Each mapping has generated `candidateOsmWayUrl`,
 `osmWayIdUrl`, and `coordinatesOsmUrl` links where IDs/coordinates are valid; map
 links use `https://www.openstreetmap.org/?mlat={latitude}&mlon={longitude}#map=17/{latitude}/{longitude}`

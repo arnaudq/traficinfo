@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.math.BigInteger;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 
 /** A counter's cached OSM way assignment, location, and review metadata. */
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -46,6 +47,30 @@ public class OSMWayMapping {
     private String lastLookupAt;
     private JsonNode reverseLookupResult;
     private final Map<String, JsonNode> additionalProperties = new LinkedHashMap<>();
+
+    public OSMWayMapping() { }
+
+    /** Independent snapshot, including mutable lookup results and extra review annotations. */
+    public OSMWayMapping(OSMWayMapping other) {
+        osmWayId = other.osmWayId;
+        latitude = other.latitude;
+        longitude = other.longitude;
+        sourceRoadReference = other.sourceRoadReference;
+        status = other.status;
+        firstSeen = other.firstSeen;
+        lastSeen = other.lastSeen;
+        lastUpdated = other.lastUpdated;
+        candidateOsmWayId = other.candidateOsmWayId;
+        osmRoadReference = other.osmRoadReference;
+        reviewReason = other.reviewReason;
+        distanceMeters = other.distanceMeters;
+        lastLookupLatitude = other.lastLookupLatitude;
+        lastLookupLongitude = other.lastLookupLongitude;
+        lastLookupAt = other.lastLookupAt;
+        reverseLookupResult = other.reverseLookupResult == null ? null : other.reverseLookupResult.deepCopy();
+        other.additionalProperties.forEach((key, value) ->
+                additionalProperties.put(key, value == null ? null : value.deepCopy()));
+    }
 
     public Long getOsmWayId() {
         return osmWayId;
@@ -212,6 +237,37 @@ public class OSMWayMapping {
         if (!name.equals("candidateOsmWayUrl") && !name.equals("coordinatesOsmUrl") && !name.equals("osmWayIdUrl")) {
             additionalProperties.put(name, value);
         }
+    }
+
+    @Override
+    public boolean equals(Object object) {
+        if (this == object) return true;
+        if (!(object instanceof OSMWayMapping other)) return false;
+        return Objects.equals(osmWayId, other.osmWayId)
+                && Objects.equals(latitude, other.latitude)
+                && Objects.equals(longitude, other.longitude)
+                && Objects.equals(sourceRoadReference, other.sourceRoadReference)
+                && status == other.status
+                && Objects.equals(firstSeen, other.firstSeen)
+                && Objects.equals(lastSeen, other.lastSeen)
+                && Objects.equals(lastUpdated, other.lastUpdated)
+                && Objects.equals(candidateOsmWayId, other.candidateOsmWayId)
+                && Objects.equals(osmRoadReference, other.osmRoadReference)
+                && Objects.equals(reviewReason, other.reviewReason)
+                && Objects.equals(distanceMeters, other.distanceMeters)
+                && Objects.equals(lastLookupLatitude, other.lastLookupLatitude)
+                && Objects.equals(lastLookupLongitude, other.lastLookupLongitude)
+                && Objects.equals(lastLookupAt, other.lastLookupAt)
+                && Objects.equals(reverseLookupResult, other.reverseLookupResult)
+                && Objects.equals(additionalProperties, other.additionalProperties);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(osmWayId, latitude, longitude, sourceRoadReference, status,
+                firstSeen, lastSeen, lastUpdated, candidateOsmWayId, osmRoadReference,
+                reviewReason, distanceMeters, lastLookupLatitude, lastLookupLongitude,
+                lastLookupAt, reverseLookupResult, additionalProperties);
     }
 
     /** Avoid coercing string or fractional IDs into usable OSM way identifiers. */

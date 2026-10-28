@@ -10,6 +10,50 @@ import static org.junit.Assert.*;
 
 public class OSMWayMappingTest {
     @Test
+    public void comparesAllStoredFieldsByValue() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        var json = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree("""
+                {"osmWayId":123,"latitude":43.5,"longitude":3.2,"sourceRoadReference":"D11",
+                 "status":"NEEDS_REVIEW","firstSeen":"first","lastSeen":"last","lastUpdated":"updated",
+                 "candidateOsmWayId":456,"osmRoadReference":"M11","reviewReason":"different_ref",
+                 "distanceMeters":12.5,"lastLookupLatitude":43.5,"lastLookupLongitude":3.2,
+                 "lastLookupAt":"lookup","reverseLookupResult":{"name":"road"},"audit":{"note":"review"}}
+                """);
+        OSMWayMapping original = mapper.treeToValue(json, OSMWayMapping.class);
+        OSMWayMapping equal = mapper.treeToValue(json, OSMWayMapping.class);
+        assertEquals(original, equal);
+        assertEquals(equal, original);
+        assertEquals(original.hashCode(), equal.hashCode());
+        assertNotEquals(original, null);
+        assertNotEquals(original, "mapping");
+        assertEquals(new OSMWayMapping(), new OSMWayMapping());
+        for (var fields = json.fieldNames(); fields.hasNext();) {
+            String field = fields.next();
+            var changed = json.deepCopy();
+            if (field.equals("status")) changed.put(field, "MATCHED");
+            else changed.putNull(field);
+            assertNotEquals(field, original, mapper.treeToValue(changed, OSMWayMapping.class));
+        }
+    }
+
+    @Test
+    public void snapshotDoesNotShareMutableLookupResultsOrAnnotations() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        OSMWayMapping original = mapper.readValue("""
+                {"status":"NEEDS_REVIEW","reverseLookupResult":{"name":"road"},"audit":{"note":"review"}}
+                """, OSMWayMapping.class);
+        OSMWayMapping copy = new OSMWayMapping(original);
+        assertEquals(original, copy);
+        assertEquals(original.hashCode(), copy.hashCode());
+        ((com.fasterxml.jackson.databind.node.ObjectNode) original.getReverseLookupResult()).put("name", "changed");
+        ((com.fasterxml.jackson.databind.node.ObjectNode) original.getAdditionalProperties().get("audit"))
+                .put("note", "changed");
+        assertEquals("road", copy.getReverseLookupResult().get("name").asText());
+        assertEquals("review", copy.getAdditionalProperties().get("audit").get("note").asText());
+        assertNotEquals(original, copy);
+    }
+
+    @Test
     public void readsSeedFieldsAndPreservesReviewMetadataWhenAssigningWayId() throws Exception {
         ObjectMapper mapper = new ObjectMapper();
         String json = "{\"osmWayId\":null,\"candidateOsmWayId\":456,\"latitude\":43.5,\"longitude\":3.2,"

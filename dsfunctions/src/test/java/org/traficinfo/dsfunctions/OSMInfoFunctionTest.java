@@ -14,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -227,8 +228,59 @@ public class OSMInfoFunctionTest {
         review = json.readTree(store.objects.get(reviewName));
         assertEquals(0, review.get("DPT30").size());
         assertEquals(1, review.get("DPT34").size());
+        int reviewWrites = store.reviewWrites;
         assertEquals("OK", new OSMInfoFunction(store, client, () -> 0L).handleRequest(""));
         assertEquals(List.of(777L), tagsRequested);
+        assertEquals(reviewWrites, store.reviewWrites);
+    }
+
+    @Test
+    public void countsReviewChangesBySourceAndCounterAndSkipsUnchangedUploads() throws Exception {
+        Store store = new Store();
+        OSMWayMappingReviewStore reviews = new OSMWayMappingReviewStore(store);
+        reviews.load();
+        OSMWayMapping first = new OSMWayMapping();
+        first.setStatus(OSMWayMappingStatus.NEEDS_REVIEW);
+        OSMWayMapping second = new OSMWayMapping();
+        second.setStatus(OSMWayMappingStatus.NEEDS_REVIEW);
+        Map<String, Map<String, OSMWayMapping>> document = new TreeMap<>();
+        document.put("DPT30", new TreeMap<>(Map.of("same-id", first, "removed", second)));
+        document.put("DPT34", new TreeMap<>(Map.of("same-id", second)));
+        assertEquals(new OSMWayMappingReviewStore.SaveResult(true, 3, 0, 0), reviews.save(document));
+
+        // Reload independently, with different JSON formatting and property ordering.
+        ObjectMapper mapper = new ObjectMapper();
+        store.objects.put(OSMWayMappingReviewStore.OBJECT_NAME,
+                mapper.writeValueAsString(Map.of("DPT34", document.get("DPT34"), "DPT30", document.get("DPT30"))));
+        reviews = new OSMWayMappingReviewStore(store);
+        document = reviews.load();
+        assertEquals(new OSMWayMappingReviewStore.SaveResult(false, 0, 0, 0), reviews.save(document));
+        assertEquals(1, store.reviewWrites);
+
+        document.get("DPT30").get("same-id").setLastUpdated("2026-10-28T06:00:00Z");
+        document.get("DPT30").remove("removed");
+        document.get("DPT34").put("added", first);
+        assertEquals(new OSMWayMappingReviewStore.SaveResult(true, 1, 1, 1), reviews.save(document));
+        assertEquals(2, store.reviewWrites);
+        assertEquals(new OSMWayMappingReviewStore.SaveResult(false, 0, 0, 0), reviews.save(document));
+        assertEquals(2, store.reviewWrites);
+    }
+
+    @Test
+    public void createsMissingEmptyReviewAndDetectsChangesToEmptySourceGroups() throws Exception {
+        Store store = new Store();
+        OSMWayMappingReviewStore reviews = new OSMWayMappingReviewStore(store);
+        reviews.load();
+        assertEquals(new OSMWayMappingReviewStore.SaveResult(true, 0, 0, 0), reviews.save(Map.of()));
+        reviews = new OSMWayMappingReviewStore(store);
+        reviews.load();
+        assertEquals(new OSMWayMappingReviewStore.SaveResult(false, 0, 0, 0), reviews.save(Map.of()));
+        assertEquals(new OSMWayMappingReviewStore.SaveResult(true, 0, 0, 0),
+                reviews.save(Map.of("DPT30", Map.of())));
+        assertEquals(new OSMWayMappingReviewStore.SaveResult(false, 0, 0, 0),
+                reviews.save(Map.of("DPT30", Map.of())));
+        assertEquals(new OSMWayMappingReviewStore.SaveResult(true, 0, 0, 0), reviews.save(Map.of()));
+        assertEquals(3, store.reviewWrites);
     }
 
     @Test
@@ -330,6 +382,7 @@ public class OSMInfoFunctionTest {
         final List<String> read = new ArrayList<>();
         final List<String> closed = new ArrayList<>();
         int writes;
+        int reviewWrites;
         Store() { super(null, "namespace", "osminfo"); }
         @Override public List<String> listResources() { return List.copyOf(objects.keySet()); }
         @Override public InputStream getResource(String name) {
@@ -353,6 +406,7 @@ public class OSMInfoFunctionTest {
                 throws IOException {
             objects.put(name, new String(body.readAllBytes(), StandardCharsets.UTF_8));
             writes++;
+            if (name.equals(OSMWayMappingReviewStore.OBJECT_NAME)) reviewWrites++;
         }
     }
 }

@@ -17,6 +17,9 @@ class OSMWayMappingReviewStore {
     private final ObjectStoreClient client;
     private final ObjectMapper mapper = new ObjectMapper()
             .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
+    private Map<String, Map<String, OSMWayMapping>> previousReview;
+
+    record SaveResult(boolean written, int added, int changed, int removed) { }
 
     OSMWayMappingReviewStore(ObjectStoreClient client) {
         this.client = client;
@@ -30,19 +33,55 @@ class OSMWayMappingReviewStore {
                     || group.values().stream().anyMatch(record -> record == null || record.getStatus() == null))) {
                 throw new IOException("OSM review must contain data source objects with non-null mapping records and statuses");
             }
+            // Snapshot before approvals or cache refreshes can change any mapping records.
+            previousReview = snapshot(review);
             return review;
         } catch (BmcException failure) {
             if (failure.getStatusCode() == 404) {
+                previousReview = null;
                 return new TreeMap<>();
             }
             throw failure;
         }
     }
 
-    void save(Map<String, Map<String, OSMWayMapping>> review) throws IOException {
+    SaveResult save(Map<String, Map<String, OSMWayMapping>> review) throws IOException {
+        Map<String, Map<String, OSMWayMapping>> current = snapshot(review);
+        Map<String, Map<String, OSMWayMapping>> previous = previousReview == null ? Map.of() : previousReview;
+        int added = 0;
+        int changed = 0;
+        int removed = 0;
+        for (var source : current.entrySet()) {
+            for (var record : source.getValue().entrySet()) {
+                OSMWayMapping oldRecord = previous.getOrDefault(source.getKey(), Map.of()).get(record.getKey());
+                if (oldRecord == null) added++;
+                else if (!oldRecord.equals(record.getValue())) changed++;
+            }
+        }
+        for (var source : previous.entrySet()) {
+            for (String counterId : source.getValue().keySet()) {
+                if (!current.getOrDefault(source.getKey(), Map.of()).containsKey(counterId)) removed++;
+            }
+        }
+        if (previousReview != null && previousReview.equals(current)) {
+            return new SaveResult(false, added, changed, removed);
+        }
         byte[] json = mapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(review);
         try (InputStream input = new ByteArrayInputStream(json)) {
             client.putResource(OBJECT_NAME, "application/json", new OOSResourceMetadata(), input);
         }
+        previousReview = current;
+        return new SaveResult(true, added, changed, removed);
+    }
+
+    private static Map<String, Map<String, OSMWayMapping>> snapshot(
+            Map<String, Map<String, OSMWayMapping>> review) {
+        Map<String, Map<String, OSMWayMapping>> copy = new TreeMap<>();
+        review.forEach((source, records) -> {
+            Map<String, OSMWayMapping> group = new TreeMap<>();
+            records.forEach((id, mapping) -> group.put(id, new OSMWayMapping(mapping)));
+            copy.put(source, group);
+        });
+        return copy;
     }
 }

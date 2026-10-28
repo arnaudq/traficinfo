@@ -196,10 +196,12 @@ public class OSMInfoFunction {
         }
         if (completeReview) {
             try {
-                reviewStore.save(review);
-                LOG.info("Stored OSM review document {}: {} records across {} data sources",
+                OSMWayMappingReviewStore.SaveResult result = reviewStore.save(review);
+                LOG.info("{} OSM review document {}: {} records across {} data sources; {} added, {} changed, {} removed",
+                        result.written() ? "Stored" : "Skipped PUT for unchanged",
                         OSMWayMappingReviewStore.OBJECT_NAME,
-                        review.values().stream().mapToInt(Map::size).sum(), review.size());
+                        review.values().stream().mapToInt(Map::size).sum(), review.size(),
+                        result.added(), result.changed(), result.removed());
             } catch (Exception failure) {
                 failures++;
                 LOG.warn("Could not store OSM review document", failure);
