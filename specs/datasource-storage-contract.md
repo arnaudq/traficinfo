@@ -119,8 +119,10 @@ invocation/deployment is disabled. Explicit preprocessing is independent of this
    A new dataset gets its own headers after successful parsing. On the first
    run, check the parser's required columns because no manifest exists yet.
 3. Parse and validate, then write yearly Objects under a new revision. Missing
-   expected inputs/years must fail validation rather than erase published data.
-   Only years within the dataset's scope change.
+   inputs must fail validation rather than erase published data. Years outside
+   the configured scope are skipped and logged as a distinct set at INFO level.
+   Configured years without records are also logged at INFO level; their existing
+   yearly Objects remain referenced. Only years within the dataset's scope change.
 4. Verify the complete referenced Object set, then publish the manifest last.
 5. **GeoJSON function (later):** trigger from that manifest. Read it once and
    follow its exact Object references instead of listing Objects by wildcard.
@@ -200,8 +202,12 @@ Deployment builds `PREPROCESSING_SETTINGS` from the existing retrieval settings,
 The shared `PreprocessingFunction` supports all current datasource IDs. NIM has
 an initial explicit scope of `[2022]`; other sources require their own expected
 years before invoking this stage. The scope may expand. Reducing the scope or changing input Object names for
-an existing dataset requires a new `datasetId`. Every scoped year must contain
-at least one parsed record, and records outside the scope fail validation.
+an existing dataset requires a new `datasetId`. Records outside the configured
+scope are skipped, with their distinct years logged at INFO level. Configured
+years with no records are also logged as a set at INFO level and do not prevent
+publication. Such years retain their previous Object references, if any; no empty
+yearly Objects are written. A first publication with no in-scope records can have
+an empty manifest `years` map, while the dataset retains its configured scope.
 NIM's established hourly aggregation, 1970 exclusion and conflicting-hour policy
 apply. Other sources retain their existing parser's annual/campaign semantics.
 No OSM enrichment or GeoJSON filtering occurs during preprocessing.

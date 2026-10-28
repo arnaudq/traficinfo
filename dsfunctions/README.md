@@ -123,6 +123,10 @@ all datasource IDs. It reads source Objects from the datasource bucket, checks
 headers and expected years, and publishes immutable yearly arrays followed by
 `<datasourceId>_Manifest.json`. It preserves years belonging to inactive
 datasets and reuses unchanged yearly Objects. It performs no OSM enrichment.
+Records outside the configured year scope are skipped and their distinct years
+are logged at INFO level. Configured years without records are also logged at
+INFO level; existing yearly Objects for those years are retained. With no prior
+records, the manifest can contain an empty `years` map.
 See the [storage contract](../specs/datasource-storage-contract.md) for the JSON
 format, validation rules and failure behavior.
 

@@ -82,18 +82,51 @@ public class PreprocessingPublisherTest {
     }
 
     @Test
-    public void missingYearsAndYearsOutsideScopeLeavePreviousManifestUntouched() throws Exception {
+    public void logsDistinctYearsOutsideScopeAndConfiguredYearsWithoutRecordsAtInfoLevel() throws Exception {
+        Store store = new Store();
+        List<String> messages = new ArrayList<>();
+        PreprocessingSettings settings = settings("initial", List.of(2022, 2023, 2024));
+        store.source(settings, HEADER + row("52", 2025, 10) + row("53", 2025, 20)
+                + row("52", 2022, 30) + row("52", 2021, 40));
+        DataManifest manifest = new PreprocessingPublisher(store, infoLogger(messages)).publish(settings);
+        assertEquals(java.util.Set.of(2022), manifest.years().keySet());
+        assertEquals(settings.years(), manifest.datasets().get("initial").years());
+        assertTrue(messages.contains("Skipping records outside configured years: dataSourceId=NIM, datasetId=initial, years=[2021, 2025]"));
+        assertTrue(messages.contains("Configured years with no records: dataSourceId=NIM, datasetId=initial, years=[2023, 2024]"));
+    }
+
+    @Test
+    public void missingYearsRetainPublishedRecordsWhilePresentYearsCanChange() throws Exception {
         Store store = new Store();
         PreprocessingSettings settings = settings("initial", List.of(2022, 2023));
         store.source(settings, HEADER + row("52", 2022, 10) + row("52", 2023, 20));
         PreprocessingPublisher publisher = new PreprocessingPublisher(store);
-        publisher.publish(settings);
-        byte[] manifest = store.objects.get("NIM_Manifest.json");
-        for (String csv : List.of(HEADER + row("52", 2022, 10), HEADER + row("52", 2024, 10), HEADER)) {
+        DataManifest first = publisher.publish(settings);
+        store.source(settings, HEADER + row("52", 2022, 30) + row("52", 2024, 40));
+        DataManifest next = publisher.publish(settings);
+        assertEquals(first.years().get(2023), next.years().get(2023));
+        assertNotEquals(first.years().get(2022).object(), next.years().get(2022).object());
+        assertFalse(next.years().containsKey(2024));
+        for (String csv : List.of(HEADER, HEADER + row("52", 2024, 10))) {
+            store.writes.clear();
             store.source(settings, csv);
-            expectFailure(store, settings, "year");
-            assertArrayEquals(manifest, store.objects.get("NIM_Manifest.json"));
+            assertEquals(next, publisher.publish(settings));
+            assertTrue(store.publications().isEmpty());
         }
+    }
+
+    @Test
+    public void noRecordsCanBootstrapAnEmptyPublicationAndLaterAddRecords() throws Exception {
+        Store store = new Store();
+        PreprocessingSettings settings = settings("initial", List.of(2022, 2023));
+        store.source(settings, HEADER);
+        PreprocessingPublisher publisher = new PreprocessingPublisher(store);
+        DataManifest empty = publisher.publish(settings);
+        assertTrue(empty.years().isEmpty());
+        assertEquals(settings.years(), empty.datasets().get("initial").years());
+        assertEquals(empty, publisher.publish(settings));
+        store.source(settings, HEADER + row("52", 2022, 10));
+        assertEquals(java.util.Set.of(2022), publisher.publish(settings).years().keySet());
     }
 
     @Test
@@ -241,6 +274,19 @@ public class PreprocessingPublisherTest {
         var counts = new ComptageJson().read(new ByteArrayInputStream(bytes), org.traficinfo.parsers.m3m.M3MComptage.class);
         assertEquals(new org.geojson.Point(3.8, 43.6), counts.get(0).getGeometry());
         assertNull(manifest.datasets().get("current").inputs().get("legacy.json").headers());
+    }
+
+    private static org.slf4j.Logger infoLogger(List<String> messages) {
+        return (org.slf4j.Logger) java.lang.reflect.Proxy.newProxyInstance(
+                org.slf4j.Logger.class.getClassLoader(), new Class<?>[]{org.slf4j.Logger.class},
+                (proxy, method, args) -> {
+                    if (method.getName().equals("info")) {
+                        Object[] values = args.length == 2 && args[1] instanceof Object[] array
+                                ? array : java.util.Arrays.copyOfRange(args, 1, args.length);
+                        messages.add(org.slf4j.helpers.MessageFormatter.arrayFormat((String) args[0], values).getMessage());
+                    }
+                    return method.getReturnType() == boolean.class ? true : null;
+                });
     }
 
     private static PreprocessingSettings settings(String dataset, List<Integer> years) {

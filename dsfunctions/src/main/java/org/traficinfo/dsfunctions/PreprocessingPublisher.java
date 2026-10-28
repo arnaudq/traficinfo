@@ -36,6 +36,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.UUID;
 
 /** Publishes a complete manifest last, while retaining immutable Objects for unchanged years. */
@@ -139,16 +140,31 @@ public final class PreprocessingPublisher {
             try (Reader reader = reader(files.get(csv.objectName()))) {
                 counts = parser.parser.getParser().parseComptages(reader, new Properties());
             }
-            if (parser == PreprocessingSource.MMM) attachGeometry(counts, source, files);
+            if (parser == PreprocessingSource.MMM) {
+                attachGeometry(counts.stream().filter(count -> settings.years().contains(count.getAnnee())).toList(), source, files);
+            }
 
-            // Validate counter identities and expected years before preparing the yearly arrays.
+            // Group records within the configured scope and report years outside it or without records.
             Map<Integer, List<byte[]>> byYear = new TreeMap<>();
+            Set<Integer> yearsOutsideScope = new TreeSet<>();
             for (Comptage count : counts) {
-                if (!settings.years().contains(count.getAnnee())) throw new IOException("Unexpected year: " + count.getAnnee());
+                if (!settings.years().contains(count.getAnnee())) {
+                    yearsOutsideScope.add(count.getAnnee());
+                    continue;
+                }
                 if (count.getCodeCentrale() == null || count.getCodeCentrale().isBlank()) throw new IOException("Missing counter ID");
                 byYear.computeIfAbsent(count.getAnnee(), ignored -> new ArrayList<>()).add(countsJson.write(count));
             }
-            if (!byYear.keySet().equals(new HashSet<>(settings.years()))) throw new IOException("Missing expected years: " + settings.years());
+            if (!yearsOutsideScope.isEmpty()) {
+                logger.info("Skipping records outside configured years: dataSourceId={}, datasetId={}, years={}",
+                        source.dataSourceId(), source.datasetId(), yearsOutsideScope);
+            }
+            Set<Integer> yearsWithoutRecords = new TreeSet<>(settings.years());
+            yearsWithoutRecords.removeAll(byYear.keySet());
+            if (!yearsWithoutRecords.isEmpty()) {
+                logger.info("Configured years with no records: dataSourceId={}, datasetId={}, years={}",
+                        source.dataSourceId(), source.datasetId(), yearsWithoutRecords);
+            }
 
             // Retain existing year references; upload only changed years under a fresh immutable path.
             String revision = UUID.randomUUID().toString();
@@ -282,14 +298,13 @@ public final class PreprocessingPublisher {
     private void validateManifest(DataManifest manifest, String dataSourceId) throws IOException {
         if (!dataSourceId.equals(manifest.dataSourceId()) || manifest.revision() == null || manifest.revision().isBlank()
                 || manifest.publishedAt() == null || !manifest.publishedAt().endsWith("Z")
-                || !manifest.datasets().containsKey(manifest.activeDatasetId()) || manifest.years().isEmpty()) {
+                || !manifest.datasets().containsKey(manifest.activeDatasetId())) {
             throw new IOException("Invalid manifest identity");
         }
         try { Instant.parse(manifest.publishedAt()); }
         catch (RuntimeException invalid) { throw new IOException("Invalid manifest timestamp", invalid); }
         for (DataManifest.Dataset dataset : manifest.datasets().values()) {
-            if (dataset.years().isEmpty() || dataset.inputs().isEmpty()
-                    || !manifest.years().keySet().containsAll(dataset.years())) {
+            if (dataset.years().isEmpty() || dataset.inputs().isEmpty()) {
                 throw new IOException("Incomplete manifest dataset scope");
             }
         }
