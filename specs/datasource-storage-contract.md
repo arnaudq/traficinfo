@@ -88,11 +88,13 @@ list order, so MMM's geometry JSON precedes its counts CSV. Source Objects retai
 the existing names and archive convention. A failure stops later inputs; this
 stage does not create an atomic snapshot of multiple inputs.
 
-Successful retrieval stores the datasource ID, dataset ID, source URL and UTC
-download time in Object metadata. Conditional downloads reuse validators only
-for the same source URL, dataset and datasource. Older Objects without these
-fields are refreshed once. Switching datasets therefore cannot reuse the old
-dataset's validator. All datasource handlers require `DATA_SOURCE_SETTINGS`
+Successful retrieval stores the datasource ID, source URL and UTC download time
+in Object metadata. The stored dataset ID identifies the dataset selected when
+the file was downloaded; it is informational, not part of the input's identity.
+Conditional downloads reuse validators for the same datasource and source URL.
+Older Objects without that identity are refreshed once. Switching dataset IDs
+alone can reuse the same CSV and validator; changing the input URL requires a
+fresh download. All datasource handlers require `DATA_SOURCE_SETTINGS`
 and `BUCKETNAME`; missing settings fail before any clients are created. Retrieval
 URLs and dataset IDs are configured only in `dsconfig.json`, with no Java
 fallbacks. Each handler supplies only its datasource ID to the shared retrieval
@@ -212,9 +214,10 @@ NIM's established hourly aggregation, 1970 exclusion and conflicting-hour policy
 apply. Other sources retain their existing parser's annual/campaign semantics.
 No OSM enrichment or GeoJSON filtering occurs during preprocessing.
 
-All inputs must carry matching downloader metadata (datasource ID, dataset ID,
-source URL and download time). Legacy inputs must be refreshed by the datasource
-function first. Inputs are staged locally and their metadata is checked again
+All inputs must carry matching downloader metadata (datasource ID and source
+URL) and a download time. Dataset ID metadata is not checked: the same downloaded
+CSV can be processed under multiple datasets with different year scopes. Legacy
+inputs must be refreshed by the datasource function first. Inputs are staged locally and their metadata is checked again
 before publication; a concurrent replacement aborts publication. This detects
 changes during a run, but does not turn multi-input retrieval into an atomic
 upstream snapshot.

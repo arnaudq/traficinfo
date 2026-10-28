@@ -236,7 +236,7 @@ public final class PreprocessingPublisher {
         if (metadata == null) throw new IOException("Missing input: " + input.objectName());
         Map<String, String> values = metadata.getMetadata();
         if (!source.dataSourceId().equals(values.get("datasource-id"))
-                || !source.datasetId().equals(values.get("dataset-id")) || !input.url().equals(values.get("source-url"))
+                || !input.url().equals(values.get("source-url"))
                 || values.get("downloaded-at") == null) {
             throw new IOException("Input does not match configured source: " + input.objectName());
         }

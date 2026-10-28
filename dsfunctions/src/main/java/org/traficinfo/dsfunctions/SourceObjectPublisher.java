@@ -34,10 +34,9 @@ public final class SourceObjectPublisher {
 
     private void publish(DataSourceSettings settings, DataSourceSettings.Input input) throws IOException {
         OOSResourceMetadata previous = storage.getResourceMetadata(input.objectName());
-        // A validator belongs to a URL and dataset, not to the destination Object name.
+        // A validator belongs to the datasource and input URL; multiple datasets can share that input.
         boolean sameSource = previous != null
                 && input.url().equals(previous.getMetadata().get("source-url"))
-                && settings.datasetId().equals(previous.getMetadata().get("dataset-id"))
                 && settings.dataSourceId().equals(previous.getMetadata().get("datasource-id"));
         try (HttpClient.EntityBody body = http.get(URI.create(input.url()),
                 sameSource ? previous.getETag() : null)) {

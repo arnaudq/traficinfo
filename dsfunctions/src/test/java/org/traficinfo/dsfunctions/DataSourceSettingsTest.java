@@ -56,9 +56,36 @@ public class DataSourceSettingsTest {
         publisher.publish(settings("dataset-2022", next));
         assertNull(stub.validators.get(2));
         publisher.publish(settings("dataset-2023", next));
-        assertNull(stub.validators.get(3));
+        assertEquals("\"validator\"", stub.validators.get(3));
         assertTrue(stub.writes.stream().anyMatch(name -> name.startsWith("custom-counts_")));
         assertEquals("dataset-2023", stub.metadata.get(CSV.objectName()).getMetadata().get("dataset-id"));
+    }
+
+    @Test
+    public void datasetSwitchReusesUnchangedCsvEvenWithOldOrAbsentDatasetMetadata() {
+        Stub stub = new Stub();
+        SourceObjectPublisher publisher = new SourceObjectPublisher(stub.http, stub.storage);
+        publisher.publish(settings("dataset-2022", CSV));
+        stub.writes.clear();
+        stub.unchanged = true;
+        publisher.publish(settings("dataset-2023", CSV));
+        assertEquals("\"validator\"", stub.validators.get(1));
+        assertTrue(stub.writes.isEmpty());
+        assertEquals("dataset-2022", stub.metadata.get(CSV.objectName()).getMetadata().get("dataset-id"));
+        stub.metadata.get(CSV.objectName()).getMetadata().remove("dataset-id");
+        publisher.publish(settings("dataset-2024", CSV));
+        assertEquals("\"validator\"", stub.validators.get(2));
+        assertTrue(stub.writes.isEmpty());
+    }
+
+    @Test
+    public void wrongDatasourceMetadataDoesNotReuseTheValidator() {
+        Stub stub = new Stub();
+        SourceObjectPublisher publisher = new SourceObjectPublisher(stub.http, stub.storage);
+        publisher.publish(settings("current", CSV));
+        stub.metadata.get(CSV.objectName()).getMetadata().put("datasource-id", "wrong");
+        publisher.publish(settings("current", CSV));
+        assertNull(stub.validators.get(1));
     }
 
     @Test

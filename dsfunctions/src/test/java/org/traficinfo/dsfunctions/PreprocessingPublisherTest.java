@@ -114,8 +114,9 @@ public class PreprocessingPublisherTest {
         first.years().forEach((year, data) -> originalYears.put(year, store.objects.get(data.object())));
         var current = new PreprocessingSettings(new DataSourceSettings("DPT34", "dpt34-2020-2025", List.of(input)),
                 "https://example.invalid/dpt34", later);
-        store.source(current, csv.toString());
+        // Reuse the same downloaded CSV, whose metadata still names the earlier dataset.
         DataManifest next = publisher.publish(current);
+        assertEquals("dpt34-2014-2019", store.metadata.get(input.objectName()).get("dataset-id"));
         assertEquals("dpt34-2020-2025", next.activeDatasetId());
         assertEquals(12, next.years().size());
         assertEquals(2, next.datasets().size());
@@ -229,9 +230,12 @@ public class PreprocessingPublisherTest {
         PreprocessingSettings settings = settings("initial", List.of(2022));
         expectFailure(store, settings, "Missing input");
         store.source(settings, HEADER + row("52", 2022, 10));
-        store.metadata.get("NIM_Comptage.csv").put("dataset-id", "wrong");
-        expectFailure(store, settings, "configured source");
-        store.source(settings, HEADER + row("52", 2022, 10));
+        for (String field : List.of("datasource-id", "source-url")) {
+            store.metadata.get("NIM_Comptage.csv").put(field, "wrong");
+            expectFailure(store, settings, "configured source");
+            store.source(settings, HEADER + row("52", 2022, 10));
+        }
+        store.metadata.get("NIM_Comptage.csv").remove("dataset-id");
         new PreprocessingPublisher(store).publish(settings);
         expectFailure(store, settings("initial", List.of(2023)), "scope");
     }

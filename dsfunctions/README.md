@@ -39,9 +39,13 @@ See [OCI configuration limits](https://docs.oracle.com/en-us/iaas/tools/oci-cli/
 `SourceObjectPublisher` streams changed inputs to the existing current Object
 names, with gzip storage and copy-before-replace archival. Each upload records
 `datasource-id`, `dataset-id`, `source-url`, `downloaded-at` and the validator.
-A validator is reused only when its source identity matches. Legacy Objects
-without source identity are downloaded once to establish it. Changing a URL or
-dataset ID forces a fresh download. Empty downloads and archive failures stop
+A validator is reused only when datasource ID and source URL match. Legacy
+Objects without that identity are downloaded once to establish it. Changing a
+URL forces a fresh download; changing only the dataset ID reuses the same input.
+The stored `dataset-id` records which dataset was selected at download time and
+is informational. Preprocessing does not require it or compare it to settings,
+so a single downloaded CSV can serve several datasets with different year scopes.
+Empty downloads and archive failures stop
 the invocation before replacement. MMM still publishes its JSON before CSV;
 a failure stops subsequent inputs but does not roll back earlier uploads.
 Archive dates use the previous download date, including for MMM.
