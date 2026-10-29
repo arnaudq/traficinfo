@@ -78,7 +78,7 @@ supplies only its datasource ID; the superclass reads retrieval settings and the
 bucket from function configuration and delegates to `SourceObjectPublisher`.
 MMM's companion inputs use the same lifecycle as single-CSV sources.
 
-DPT30, DPT34 and MRN GeoJSON handlers use `AbstractCsvGeoJsonOutFunction` and
+DPT30, DPT34 and MRN GeoJSON handlers use `AbstractGeoJsonOutFunction` and
 `CsvDataSource`. That enum contains only parser selection and the naming
 conventions needed by GeoJSON generation. Download URLs and archive naming are
 not part of it. NIM does not need a GeoJSON parser entry to retrieve data.

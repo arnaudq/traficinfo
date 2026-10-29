@@ -4,7 +4,7 @@ import org.traficinfo.parsers.GeoJsonParser;
 
 import java.util.Locale;
 
-/** Sources supported by the existing CSV-to-GeoJSON handlers and their naming conventions. */
+/** Sources supported by the manifest-to-GeoJSON handlers and their naming conventions. */
 public enum CsvDataSource {
     DPT30(GeoJsonParser.DataSource.DPT30),
     DPT34(GeoJsonParser.DataSource.DPT34),

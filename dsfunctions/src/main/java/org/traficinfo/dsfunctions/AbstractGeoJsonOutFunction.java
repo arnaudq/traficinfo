@@ -2,21 +2,20 @@ package org.traficinfo.dsfunctions;
 
 import com.fnproject.fn.api.FnConfiguration;
 import com.fnproject.fn.api.RuntimeContext;
+import org.geojson.FeatureCollection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.traficinfo.parsers.GeoJsonParser;
 
 import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
 
-/** Shared CSV-to-GeoJSON publication with cached OSM enrichment. */
-public abstract class AbstractCsvGeoJsonOutFunction {
+/** Shared manifest-to-GeoJSON publication with cached OSM enrichment. */
+public abstract class AbstractGeoJsonOutFunction {
 
     public static final String CONFIG_KEY_NAMESPACE = "NAMESPACE";
     public static final String CONFIG_KEY_IN_BUCKET = "BUCKETNAME_IN";
@@ -24,7 +23,7 @@ public abstract class AbstractCsvGeoJsonOutFunction {
     public static final String CONFIG_KEY_USE_RESOURCE_PRINCIPAL = "USE_RESOURCE_PRINCIPAL";
     public static final String DEFAULT_OUTPUT_BUCKET = "traficinfo";
 
-    private static final Logger LOG = LoggerFactory.getLogger(AbstractCsvGeoJsonOutFunction.class);
+    private static final Logger LOG = LoggerFactory.getLogger(AbstractGeoJsonOutFunction.class);
 
     private final CsvDataSource source;
 
@@ -32,12 +31,12 @@ public abstract class AbstractCsvGeoJsonOutFunction {
     private ObjectStoreClient outputClient;
     private OSMInfoProviderImpl osmInfoProvider;
 
-    protected AbstractCsvGeoJsonOutFunction(CsvDataSource source) {
+    protected AbstractGeoJsonOutFunction(CsvDataSource source) {
         this.source = Objects.requireNonNull(source);
         LOG.info("GeoJSON {} function booting", source.getDataSourceId());
     }
 
-    protected AbstractCsvGeoJsonOutFunction(CsvDataSource source, ObjectStoreClient inputClient,
+    protected AbstractGeoJsonOutFunction(CsvDataSource source, ObjectStoreClient inputClient,
                                            ObjectStoreClient outputClient, OSMInfoProviderImpl osmInfoProvider) {
         this(source);
         this.inputClient = Objects.requireNonNull(inputClient);
@@ -72,13 +71,13 @@ public abstract class AbstractCsvGeoJsonOutFunction {
 
     public final String handleRequest(String input) {
         try {
+            var comptages = new ManifestComptageReader(inputClient).read(source.getDataSourceId());
             osmInfoProvider.loadCache();
             Path mergedFile = Files.createTempFile(source.getDataSourceId() + "-geojson-", ".geojson");
             try {
-                try (Reader csvReader = new InputStreamReader(
-                        inputClient.getResource(source.getCsvObjectName()), StandardCharsets.UTF_8);
-                     Writer writer = Files.newBufferedWriter(mergedFile, StandardCharsets.UTF_8)) {
-                    GeoJsonParser.parseAndMerge(source.getParserDataSource(), csvReader, writer, osmInfoProvider);
+                try (Writer geojsonMergedWriter = Files.newBufferedWriter(mergedFile, StandardCharsets.UTF_8)) {
+                    GeoJsonParser.writeGeoJson(source.getParserDataSource(), comptages,
+                            new FeatureCollection(), geojsonMergedWriter, osmInfoProvider);
                 }
                 try (InputStream mergedInput = Files.newInputStream(mergedFile)) {
                     outputClient.putResource(source.getGeoJsonObjectName(), "application/geo+json",

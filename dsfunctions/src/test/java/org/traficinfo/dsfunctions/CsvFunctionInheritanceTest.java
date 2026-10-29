@@ -47,7 +47,7 @@ public class CsvFunctionInheritanceTest {
                 Class<?> type = Class.forName("org.traficinfo.dsfunctions." + name + "." + handler);
                 MethodWrapper wrapper = new FunctionLoader().loadClass(type.getName(), "handleRequest");
                 Class<?> base = handler.equals("DataSourceFunction")
-                        ? AbstractDataSourceFunction.class : AbstractCsvGeoJsonOutFunction.class;
+                        ? AbstractDataSourceFunction.class : AbstractGeoJsonOutFunction.class;
                 assertEquals(base, wrapper.getTargetMethod().getDeclaringClass());
                 assertTrue(Modifier.isFinal(wrapper.getTargetMethod().getModifiers()));
                 var config = type.getMethod("config", com.fnproject.fn.api.RuntimeContext.class);
@@ -130,9 +130,10 @@ public class CsvFunctionInheritanceTest {
                     "false:testns:custom-osm") : List.of("true::dsmrn", "true::traficinfo", "true::osminfo"),
                     function.clients);
             assertEquals("OK", runtime.getMethod().getTargetMethod().invoke(function, ""));
-            assertEquals(List.of(overrides ? "tags.json" : "MRN_OSMInfo.json",
-                    overrides ? "mapping.json" : "MRN_OSMWayMapping.json",
-                    "MRN_Comptage.csv"), function.reads);
+            assertEquals(List.of("MRN_Manifest.json",
+                    ManifestTestPublication.yearObjectName(CsvDataSource.MRN, Year.now().getValue()),
+                    overrides ? "tags.json" : "MRN_OSMInfo.json",
+                    overrides ? "mapping.json" : "MRN_OSMWayMapping.json"), function.reads);
             assertEquals(List.of("MRN_TraficInfo.geojson",
                     overrides ? "mapping.json" : "MRN_OSMWayMapping.json"), function.writes);
             JsonNode output = new ObjectMapper().readTree(function.output);
@@ -144,6 +145,13 @@ public class CsvFunctionInheritanceTest {
             JsonNode mapping = new ObjectMapper().readTree(function.mapping).get("MRN_A_3");
             assertTrue(mapping.get("sourceRoadReference").isNull());
             assertEquals(49.2, mapping.get("latitude").asDouble(), 0);
+            byte[] previousOutput = function.output;
+            int previousWrites = function.writes.size();
+            function.invalidManifest = true;
+            assertEquals("KO", function.handleRequest(""));
+            assertSame(previousOutput, function.output);
+            assertEquals(previousWrites, function.writes.size());
+            function.invalidManifest = false;
             function.failUpload = true;
             assertEquals("KO", function.handleRequest(""));
         }
@@ -216,18 +224,27 @@ public class CsvFunctionInheritanceTest {
         byte[] output;
         byte[] mapping;
         boolean failUpload;
+        boolean invalidManifest;
+        Map<String, byte[]> publication;
 
         @Override
         protected ObjectStoreClient createObjectStoreClient(boolean principal, String namespace, String bucket) {
             clients.add(principal + ":" + namespace + ":" + bucket);
             return new ObjectStoreClient(null, namespace, bucket) {
-                @Override public InputStream getResource(String name) {
+                @Override public InputStream getResource(String name) throws IOException {
                     reads.add(name);
-                    String text = name.endsWith(".csv") ? "Type de Campagne;Id_SIG;Année;Rue;Commune;"
-                            + "Nombre de Sens;TV_TMJA;TV_HPM;TV_HPM (heure);X_84;Y_84\n"
-                            + "Comptage ponctuel en section;A_3;" + Year.now().getValue()
-                            + ";D921;Rouen;2 sens;120;15;[08h-09h];1.1;49.2\n" : "{}";
-                    return new ByteArrayInputStream(text.getBytes(StandardCharsets.UTF_8));
+                    assertFalse("Raw CSV must not be read by the GeoJSON handler", name.endsWith(".csv"));
+                    if (publication == null) {
+                        publication = ManifestTestPublication.fromCsv(CsvDataSource.MRN,
+                                "Type de Campagne;Id_SIG;Année;Rue;Commune;"
+                                + "Nombre de Sens;TV_TMJA;TV_HPM;TV_HPM (heure);X_84;Y_84\n"
+                                + "Comptage ponctuel en section;A_3;" + Year.now().getValue()
+                                + ";D921;Rouen;2 sens;120;15;[08h-09h];1.1;49.2\n");
+                    }
+                    if (name.equals("MRN_Manifest.json") && invalidManifest) {
+                        return new ByteArrayInputStream("invalid JSON".getBytes(StandardCharsets.UTF_8));
+                    }
+                    return new ByteArrayInputStream(publication.getOrDefault(name, "{}".getBytes(StandardCharsets.UTF_8)));
                 }
                 @Override public void putResource(String name, String type, OOSResourceMetadata meta,
                                                   InputStream body) throws IOException {

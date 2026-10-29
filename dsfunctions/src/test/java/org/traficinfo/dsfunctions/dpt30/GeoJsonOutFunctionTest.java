@@ -1,6 +1,7 @@
 package org.traficinfo.dsfunctions.dpt30;
 
 import org.traficinfo.dsfunctions.CsvDataSource;
+import org.traficinfo.dsfunctions.ManifestTestPublication;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oracle.bmc.objectstorage.ObjectStorage;
@@ -38,11 +39,13 @@ public class GeoJsonOutFunctionTest {
             + "1_0_3_0_" + YEAR + "," + YEAR + ",D6086,PONT-SAINT-ESPRIT,500,43.3,3.3\n";
 
     @Test
-    public void buildsPointsFromPlainAndGzipCsvAndUploadsGzipGeoJson() throws Exception {
+    public void buildsPointsFromPlainAndGzipManifestPublicationsAndUploadsGzipGeoJson() throws Exception {
         for (boolean gzip : new boolean[]{false, true}) {
             StorageStub stub = new StorageStub(gzip);
             assertEquals("OK", stub.function().handleRequest(""));
-            assertEquals(List.of(CsvDataSource.DPT30.getCsvObjectName()), stub.downloads);
+            assertEquals(List.of("DPT30_Manifest.json",
+                    ManifestTestPublication.yearObjectName(CsvDataSource.DPT30, YEAR - 1),
+                    ManifestTestPublication.yearObjectName(CsvDataSource.DPT30, YEAR)), stub.downloads);
             assertEquals(1, stub.uploads);
             JsonNode result = new ObjectMapper().readTree(stub.output);
             assertEquals("FeatureCollection", result.get("type").asText());
@@ -77,7 +80,7 @@ public class GeoJsonOutFunctionTest {
     }
 
     @Test
-    public void returnsKoWithoutUploadWhenDownloadFails() {
+    public void returnsKoWithoutUploadWhenDownloadFails() throws Exception {
         StorageStub stub = new StorageStub(false);
         stub.failDownload = true;
         assertEquals("KO", stub.function().handleRequest(""));
@@ -85,16 +88,16 @@ public class GeoJsonOutFunctionTest {
     }
 
     @Test
-    public void returnsKoWithoutUploadWhenCsvIsInvalid() {
+    public void returnsKoWithoutUploadWhenManifestIsInvalid() throws Exception {
         StorageStub stub = new StorageStub(false);
-        stub.csv = "id_tmja,annee\n,2026\n";
+        stub.invalidManifest = true;
         assertEquals("KO", stub.function().handleRequest(""));
         assertEquals(0, stub.uploads);
         stub.assertStreamsClosed();
     }
 
     @Test
-    public void returnsKoWhenUploadFails() {
+    public void returnsKoWhenUploadFails() throws Exception {
         StorageStub stub = new StorageStub(true);
         stub.failUpload = true;
         assertEquals("KO", stub.function().handleRequest(""));
@@ -119,12 +122,29 @@ public class GeoJsonOutFunctionTest {
     }
 
     @Test
-    public void reportsMappingWriteFailureAfterPublishingGeoJson() {
+    public void reportsMappingWriteFailureAfterPublishingGeoJson() throws Exception {
         StorageStub stub = new StorageStub(false);
         stub.failMappingUpload = true;
         assertEquals("KO", stub.function().handleRequest(""));
         assertEquals(1, stub.uploads);
         assertEquals(1, stub.mappingUploads);
+    }
+
+    @Test
+    public void invalidPublicationsPreservePreviousOutputAndDoNotRefreshCaches() throws Exception {
+        for (String failure : List.of("manifest", "missingYear", "corruptYear")) {
+            StorageStub stub = new StorageStub(false);
+            stub.invalidManifest = failure.equals("manifest");
+            stub.missingYear = failure.equals("missingYear");
+            stub.corruptYear = failure.equals("corruptYear");
+            byte[] previousOutput = "previous output".getBytes(StandardCharsets.UTF_8);
+            stub.output = previousOutput;
+            assertEquals("KO", stub.function().handleRequest(""));
+            assertSame(previousOutput, stub.output);
+            assertEquals(0, stub.uploads);
+            assertEquals(0, stub.mappingUploads);
+            stub.assertStreamsClosed();
+        }
     }
 
     private static class StorageStub {
@@ -133,6 +153,9 @@ public class GeoJsonOutFunctionTest {
         final List<TrackedStream> streams = new ArrayList<>();
         String csv = CSV;
         boolean failDownload;
+        boolean invalidManifest;
+        boolean missingYear;
+        boolean corruptYear;
         boolean failUpload;
         boolean failMappingUpload;
         int mappingUploads;
@@ -144,7 +167,12 @@ public class GeoJsonOutFunctionTest {
             this.gzip = gzip;
         }
 
-        GeoJsonOutFunction function() {
+        GeoJsonOutFunction function() throws IOException {
+            Map<String, byte[]> objects = ManifestTestPublication.fromCsv(CsvDataSource.DPT30, csv);
+            if (invalidManifest) objects.put("DPT30_Manifest.json", "invalid JSON".getBytes(StandardCharsets.UTF_8));
+            String latestYear = ManifestTestPublication.yearObjectName(CsvDataSource.DPT30, YEAR);
+            if (missingYear) objects.remove(latestYear);
+            if (corruptYear) objects.put(latestYear, "[]".getBytes(StandardCharsets.UTF_8));
             ObjectStorage storage = (ObjectStorage) Proxy.newProxyInstance(
                     ObjectStorage.class.getClassLoader(), new Class<?>[]{ObjectStorage.class},
                     (proxy, method, args) -> {
@@ -152,12 +180,12 @@ public class GeoJsonOutFunctionTest {
                             GetObjectRequest request = (GetObjectRequest) args[0];
                             assertEquals("namespace", request.getNamespaceName());
                             assertEquals("dsdpt30", request.getBucketName());
-                            assertEquals(CsvDataSource.DPT30.getCsvObjectName(), request.getObjectName());
                             downloads.add(request.getObjectName());
                             if (failDownload) {
                                 throw new IllegalStateException("Download failed");
                             }
-                            byte[] bytes = csv.getBytes(StandardCharsets.UTF_8);
+                            byte[] bytes = objects.get(request.getObjectName());
+                            if (bytes == null) throw new IllegalStateException("Missing Object: " + request.getObjectName());
                             if (gzip) {
                                 ByteArrayOutputStream compressed = new ByteArrayOutputStream();
                                 try (GZIPOutputStream stream = new GZIPOutputStream(compressed)) {
@@ -218,7 +246,7 @@ public class GeoJsonOutFunctionTest {
 
         void assertStreamsClosed() {
             for (TrackedStream stream : streams) {
-                assertTrue("CSV stream must be closed", stream.closed);
+                assertTrue("Manifest and yearly streams must be closed", stream.closed);
             }
         }
     }
