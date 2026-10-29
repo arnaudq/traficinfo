@@ -66,8 +66,7 @@ latitude within the segment containing half that length. This keeps the Point on
 the original segment; vertices are not averaged. Repeated positions are skipped,
 and a zero-length line becomes its repeated position. Lines with fewer than two
 positions or invalid longitude/latitude fail preprocessing. Other geometry types
-are preserved. MMM uses parser version `2` for this stored interpretation;
-reprocessing configured years republishes their versioned Objects as needed.
+are preserved.
 There is no additional count model or separate retrieval provenance Object.
 
 Properties and array records use deterministic ordering. Header order is retained

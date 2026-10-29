@@ -7,6 +7,7 @@ import com.opencsv.CSVReaderBuilder;
 import com.opencsv.exceptions.CsvValidationException;
 import org.geojson.FeatureCollection;
 import org.geojson.GeoJsonObject;
+import org.geojson.LineString;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.traficinfo.parsers.Comptage;
@@ -293,7 +294,8 @@ public final class PreprocessingPublisher {
         for (Comptage count : counts) {
             GeoJsonObject location = locations.get(count.getCodeCentrale());
             if (location == null) throw new IOException("Missing MMM geometry for " + count.getCodeCentrale());
-            ((M3MComptage) count).setGeometry(location);
+            ((M3MComptage) count).setGeometry(location instanceof LineString line
+                    ? LineStringMidpoint.of(line) : location);
         }
     }
 

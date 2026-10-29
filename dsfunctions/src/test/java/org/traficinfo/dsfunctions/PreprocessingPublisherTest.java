@@ -331,6 +331,41 @@ public class PreprocessingPublisherTest {
         assertNull(manifest.datasets().get("current").inputs().get("legacy.json").headers());
     }
 
+    @Test
+    public void mmmStoresLineStringAsHalfLengthPointAndRetryIsUnchanged() throws Exception {
+        Store store = new Store();
+        var csv = new DataSourceSettings.Input("https://example.invalid/counts", "counts.csv", "text/csv");
+        var geometry = new DataSourceSettings.Input("https://example.invalid/geometry", "geometry.json", "application/json");
+        var settings = new PreprocessingSettings(new DataSourceSettings("MMM", "current", List.of(csv, geometry)),
+                "https://example.invalid/dataset", List.of(2024));
+        store.source(settings, "code_centrale,annee,mja_jo,type_compteur\n52,2024,100,compteur feux\n");
+        byte[] sourceGeometry = ("""
+                {"type":"FeatureCollection","features":[
+                  {"type":"Feature","properties":{"code_centrale":"52"},
+                   "geometry":{"type":"LineString","coordinates":[
+                     [3.8573825,43.5437209004],[3.8574632002,43.5436672001],
+                     [3.8575921997,43.5436328999],[3.8578776002,43.5435674998],
+                     [3.8584747001,43.5434100997],[3.8590470995,43.5432105004],
+                     [3.8611508005,43.5422790999],[3.8626569995,43.5415695]]}}]}
+                """).getBytes(StandardCharsets.UTF_8);
+        store.objects.put(geometry.objectName(), sourceGeometry);
+        store.metadata.put(geometry.objectName(), Map.of("datasource-id", "MMM", "source-url", geometry.url(),
+                "downloaded-at", "2026-01-01T00:00:00Z"));
+
+        var publisher = new PreprocessingPublisher(store);
+        DataManifest manifest = publisher.publish(settings);
+        assertEquals("1", manifest.years().get(2024).parserVersion());
+        var stored = JSON.readTree(store.objects.get(manifest.years().get(2024).object())).get(0).get("geometry");
+        assertEquals("Point", stored.get("type").asText());
+        var point = (org.geojson.Point) new ManifestComptageReader(store).read("MMM").get(0).getGeometry();
+        assertEquals(3.860090240883822, point.getCoordinates().getLongitude(), 1e-10);
+        assertEquals(43.54274865605688, point.getCoordinates().getLatitude(), 1e-10);
+        assertArrayEquals(sourceGeometry, store.objects.get(geometry.objectName()));
+        store.writes.clear();
+        assertEquals(manifest, publisher.publish(settings));
+        assertTrue(store.publications().isEmpty());
+    }
+
     private static org.slf4j.Logger infoLogger(List<String> messages) {
         return (org.slf4j.Logger) java.lang.reflect.Proxy.newProxyInstance(
                 org.slf4j.Logger.class.getClassLoader(), new Class<?>[]{org.slf4j.Logger.class},
