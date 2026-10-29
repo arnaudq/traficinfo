@@ -151,6 +151,47 @@ Normal runs wait for each operation to succeed and verify timing, filters, and
 absence of static targets. OCI permits duplicate names; avoid simultaneous runs,
 as the pre-creation recheck cannot make creation atomic.
 
+## Function failure emails
+
+See the [monitoring and alerts specification](specs/monitoring.md) for the
+alert flow, failure coverage, limits and monitoring extensions.
+
+Use the `TraficInfoMonitoring` Notifications topic with a confirmed email
+subscription:
+
+```sh
+./scripts/setup-function-alerts.sh arnaudq@quillaud.org --dry-run
+./scripts/setup-function-alerts.sh arnaudq@quillaud.org
+```
+
+Run after `source ./scripts/setup.sh`. Set `OCI_FN_ALERT_TOPIC_NAME` to use
+another existing topic in the selected compartment. The script checks that the
+supplied address has an active EMAIL subscription; it does not create a topic
+or subscription or change existing bucket Events rules. All subscribers to the
+chosen topic receive the alarm notifications.
+
+The `3MOpenDataProcessor-FunctionErrors` alarm monitors
+`oci_faas.FunctionResponseCount` with `responseType = "Error"`, filtered to the
+application and grouped by function OCID and display name. Emails show the
+function name, alarm state, time and a link to the alarm. One or more errors in a one-minute
+interval trigger an alert, with separate notifications for each function.
+New functions in the application are covered automatically. Delivery takes
+several minutes because OCI must ingest and evaluate the metrics. Repeated
+failures while a function's alarm remains firing are grouped; this is not one
+email per failed invocation. OCI also sends alarm recovery notifications.
+
+Repeated setup runs skip matching alarms or reconcile the dedicated alarm's
+settings. Duplicate names, failed lookups, missing confirmed subscriptions and
+existing alarm suppression stop setup. Credentials need access to read Functions
+applications and Notifications topics/subscriptions and manage Monitoring alarms.
+
+GeoJSON and OSM handlers throw on invocation failure so OCI records an error,
+instead of returning a successful response containing `KO`. Deploy the updated
+handlers to cover these failures. Download and preprocessing handlers already
+throw on failures; runtime errors and timeouts are also monitored. Successful
+invocations with recoverable OSM lookup warnings do not trigger this alarm.
+See [OCI function metrics](https://docs.oracle.com/en-us/iaas/Content/Functions/Reference/functionsmetrics.htm).
+
 ## Shell script checks
 
 Run `python3 -m unittest discover -s tests -v` for the shell integration tests.

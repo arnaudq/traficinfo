@@ -210,6 +210,9 @@ public class OSMInfoFunction {
             LOG.warn("Preserving existing OSM review document because not all mapping caches were loaded and saved successfully");
         }
         LOG.info("OSM mapping report: {} caches processed, {} failures", caches, failures);
-        return failures == 0 ? "OK" : "KO";
+        if (failures > 0) {
+            throw new IllegalStateException("OSM mapping refresh failed with " + failures + " failure(s); see invocation logs");
+        }
+        return "OK";
     }
 }

@@ -29,6 +29,7 @@ import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
 import static org.junit.Assert.*;
+import static org.traficinfo.dsfunctions.FunctionFailureAssertions.assertFunctionFailure;
 
 public class GeoJsonOutFunctionTest {
 
@@ -83,7 +84,7 @@ public class GeoJsonOutFunctionTest {
     public void throwsWithoutUploadWhenDownloadFails() throws Exception {
         StorageStub stub = new StorageStub(false);
         stub.failDownload = true;
-        assertThrows(IllegalStateException.class, () -> stub.function().handleRequest(""));
+        assertFunctionFailure(() -> stub.function().handleRequest(""));
         assertEquals(0, stub.uploads);
     }
 
@@ -91,7 +92,7 @@ public class GeoJsonOutFunctionTest {
     public void throwsWithoutUploadWhenManifestIsInvalid() throws Exception {
         StorageStub stub = new StorageStub(false);
         stub.invalidManifest = true;
-        assertThrows(IllegalStateException.class, () -> stub.function().handleRequest(""));
+        assertFunctionFailure(() -> stub.function().handleRequest(""));
         assertEquals(0, stub.uploads);
         stub.assertStreamsClosed();
     }
@@ -100,7 +101,7 @@ public class GeoJsonOutFunctionTest {
     public void throwsWhenUploadFails() throws Exception {
         StorageStub stub = new StorageStub(true);
         stub.failUpload = true;
-        assertThrows(IllegalStateException.class, () -> stub.function().handleRequest(""));
+        assertFunctionFailure(() -> stub.function().handleRequest(""));
         assertEquals(1, stub.uploads);
         stub.assertStreamsClosed();
     }
@@ -125,7 +126,7 @@ public class GeoJsonOutFunctionTest {
     public void reportsMappingWriteFailureAfterPublishingGeoJson() throws Exception {
         StorageStub stub = new StorageStub(false);
         stub.failMappingUpload = true;
-        assertThrows(IllegalStateException.class, () -> stub.function().handleRequest(""));
+        assertFunctionFailure(() -> stub.function().handleRequest(""));
         assertEquals(1, stub.uploads);
         assertEquals(1, stub.mappingUploads);
     }
@@ -139,7 +140,7 @@ public class GeoJsonOutFunctionTest {
             stub.corruptYear = failure.equals("corruptYear");
             byte[] previousOutput = "previous output".getBytes(StandardCharsets.UTF_8);
             stub.output = previousOutput;
-            assertThrows(IllegalStateException.class, () -> stub.function().handleRequest(""));
+            assertFunctionFailure(() -> stub.function().handleRequest(""));
             assertSame(previousOutput, stub.output);
             assertEquals(0, stub.uploads);
             assertEquals(0, stub.mappingUploads);

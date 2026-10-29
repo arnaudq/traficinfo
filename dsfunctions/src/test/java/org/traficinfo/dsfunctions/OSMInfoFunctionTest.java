@@ -22,6 +22,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import static org.junit.Assert.*;
+import static org.traficinfo.dsfunctions.FunctionFailureAssertions.assertFunctionFailure;
 
 public class OSMInfoFunctionTest {
     @Test
@@ -76,7 +77,7 @@ public class OSMInfoFunctionTest {
             store.objects.put("bad_OSMInfo.json", "{}");
             store.objects.put("good_OSMWayMapping.json", "{}");
             store.objects.put("good_OSMInfo.json", "{}");
-            assertEquals("KO", new OSMInfoFunction(store).handleRequest(""));
+            assertFunctionFailure(() -> new OSMInfoFunction(store).handleRequest(""));
             assertEquals(5, store.read.size());
             assertEquals(store.read.stream().filter(name -> !name.equals(OSMWayMappingReviewStore.OBJECT_NAME)).toList(), store.closed);
         }
@@ -84,10 +85,10 @@ public class OSMInfoFunctionTest {
         unreadable.objects.put("denied_OSMWayMapping.json", null);
         unreadable.objects.put("denied_OSMInfo.json", "{}");
         unreadable.objects.put("good_OSMWayMapping.json", "{}");
-        assertEquals("KO", new OSMInfoFunction(unreadable).handleRequest(""));
+        assertFunctionFailure(() -> new OSMInfoFunction(unreadable).handleRequest(""));
         assertEquals(5, unreadable.read.size());
         assertEquals("OK", new OSMInfoFunction(new Store()).handleRequest(""));
-        assertEquals("KO", new OSMInfoFunction(new Store() {
+        assertFunctionFailure(() -> new OSMInfoFunction(new Store() {
             @Override public List<String> listResources() {
                 throw new BmcException(403, "Forbidden", "Denied", "request");
             }
@@ -106,7 +107,7 @@ public class OSMInfoFunctionTest {
             store.objects.put("bad_OSMInfo.json", info);
             store.objects.put("good_OSMWayMapping.json", "{}");
             store.objects.put("good_OSMInfo.json", "{}");
-            assertEquals("KO", new OSMInfoFunction(store).handleRequest(""));
+            assertFunctionFailure(() -> new OSMInfoFunction(store).handleRequest(""));
             assertEquals(List.of(OSMWayMappingReviewStore.OBJECT_NAME, "bad_OSMInfo.json", "good_OSMInfo.json", "good_OSMWayMapping.json"),
                     store.read.stream().sorted().toList());
             assertTrue(store.closed.contains("good_OSMInfo.json"));
@@ -291,7 +292,7 @@ public class OSMInfoFunctionTest {
             Store store = new Store();
             store.objects.put(OSMWayMappingReviewStore.OBJECT_NAME, document);
             store.objects.put("DPT30_OSMWayMapping.json", "{}");
-            assertEquals("KO", new OSMInfoFunction(store).handleRequest(""));
+            assertFunctionFailure(() -> new OSMInfoFunction(store).handleRequest(""));
             assertEquals(document, store.objects.get(OSMWayMappingReviewStore.OBJECT_NAME));
             assertEquals(0, store.writes);
         }
@@ -299,7 +300,7 @@ public class OSMInfoFunctionTest {
         String review = "{\"DPT30\":{\"counter\":{\"status\":\"NEEDS_REVIEW\"}}}";
         store.objects.put(OSMWayMappingReviewStore.OBJECT_NAME, review);
         store.objects.put("DPT30_OSMWayMapping.json", "invalid");
-        assertEquals("KO", new OSMInfoFunction(store).handleRequest(""));
+        assertFunctionFailure(() -> new OSMInfoFunction(store).handleRequest(""));
         assertEquals(review, store.objects.get(OSMWayMappingReviewStore.OBJECT_NAME));
         assertEquals(0, store.writes);
     }

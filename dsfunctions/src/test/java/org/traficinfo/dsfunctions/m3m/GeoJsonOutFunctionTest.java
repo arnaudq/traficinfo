@@ -42,6 +42,7 @@ import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
 import static org.junit.Assert.*;
+import static org.traficinfo.dsfunctions.FunctionFailureAssertions.assertFunctionFailure;
 
 public class GeoJsonOutFunctionTest {
     private static final String CSV = "code_centrale,name,nom_commune,annee,type_compteur,code_canal,"
@@ -76,7 +77,7 @@ public class GeoJsonOutFunctionTest {
     public void throwsWithoutUploadWhenDownloadFails() throws Exception {
         StorageStub stub = new StorageStub(false);
         stub.failDownload = true;
-        assertThrows(IllegalStateException.class, () -> stub.function().handleRequest(""));
+        assertFunctionFailure(() -> stub.function().handleRequest(""));
         assertEquals(0, stub.uploads);
         stub.assertStreamsClosed();
     }
@@ -85,7 +86,7 @@ public class GeoJsonOutFunctionTest {
     public void throwsWithoutUploadWhenManifestIsInvalid() throws Exception {
         StorageStub stub = new StorageStub(false);
         stub.invalidManifest = true;
-        assertThrows(IllegalStateException.class, () -> stub.function().handleRequest(""));
+        assertFunctionFailure(() -> stub.function().handleRequest(""));
         assertEquals(0, stub.uploads);
         stub.assertStreamsClosed();
     }
@@ -94,7 +95,7 @@ public class GeoJsonOutFunctionTest {
     public void throwsWhenUploadFails() throws Exception {
         StorageStub stub = new StorageStub(true);
         stub.failUpload = true;
-        assertThrows(IllegalStateException.class, () -> stub.function().handleRequest(""));
+        assertFunctionFailure(() -> stub.function().handleRequest(""));
         assertEquals(1, stub.uploads);
         stub.assertStreamsClosed();
     }
@@ -172,12 +173,12 @@ public class GeoJsonOutFunctionTest {
     public void refusesToOverwriteUnreadableCache() throws Exception {
         StorageStub stub = new StorageStub(false);
         stub.failCacheDownload = true;
-        assertThrows(IllegalStateException.class, () -> stub.function().handleRequest(""));
+        assertFunctionFailure(() -> stub.function().handleRequest(""));
         assertEquals(0, stub.uploads);
         assertEquals(0, stub.cacheUploads);
         stub.failCacheDownload = false;
         stub.cache = "invalid JSON".getBytes(StandardCharsets.UTF_8);
-        assertThrows(IllegalStateException.class, () -> stub.function().handleRequest(""));
+        assertFunctionFailure(() -> stub.function().handleRequest(""));
         assertEquals(0, stub.cacheUploads);
         stub.assertStreamsClosed();
     }
@@ -187,7 +188,7 @@ public class GeoJsonOutFunctionTest {
         StorageStub stub = new StorageStub(false);
         stub.csv = csvWithWays(1);
         stub.failCacheUpload = true;
-        assertThrows(IllegalStateException.class, () -> stub.function().handleRequest(""));
+        assertFunctionFailure(() -> stub.function().handleRequest(""));
         assertEquals(1, stub.uploads);
         assertEquals(1, stub.cacheUploads);
     }
@@ -266,7 +267,7 @@ public class GeoJsonOutFunctionTest {
             stub.corruptYear = failure.equals("corruptYear");
             byte[] previousOutput = "previous output".getBytes(StandardCharsets.UTF_8);
             stub.output = previousOutput;
-            assertThrows(IllegalStateException.class, () -> stub.function().handleRequest(""));
+            assertFunctionFailure(() -> stub.function().handleRequest(""));
             assertSame(previousOutput, stub.output);
             assertEquals(0, stub.uploads);
             assertEquals(0, stub.cacheUploads);

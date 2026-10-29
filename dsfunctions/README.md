@@ -323,7 +323,7 @@ with content type `application/geo+json`. Configure `NAMESPACE`,
 `USE_RESOURCE_PRINCIPAL` defaults to `true`. OSM enrichment uses
 `DPT30_OSMInfo.json` and `DPT30_OSMWayMapping.json` in bucket `osminfo`, with
 configuration overrides `OSM_CACHE_OBJECT`, `OSM_WAY_MAPPING_OBJECT` and
-`BUCKETNAME_OSM`. The output handler returns `OK` on success and `KO` on errors,
+`BUCKETNAME_OSM`. The output handler returns `OK` on success and throws on errors,
 including cache failures. Temporary output files are deleted on success and
 failure. CSV coordinates supply geometry; no companion GeoJSON is downloaded.
 
@@ -390,7 +390,7 @@ parser's filtering, latest geometry selection, annual history and map styling.
 No companion GeoJSON is needed: the CSV supplies coordinates. Cached way IDs
 from `DPT34_OSMWayMapping.json` allow speed-limit enrichment through
 `DPT34_OSMInfo.json`. Both objects are stored in `osminfo`. Temporary output files are removed on success and failure.
-The handler returns `OK` on success and `KO` on download, parsing or upload failure,
+The handler returns `OK` on success and throws on download, parsing or upload failure,
 matching the M3M output function.
 
 `scripts/deploy-functions.sh` registers it as `DPT34GeoJsonOut` using
@@ -427,7 +427,7 @@ configuration retains the companion input. Event routing is migrated separately.
 The function supports both plain and gzip-compressed input objects and writes
 `MMM_TraficInfo.geojson` to the output bucket with content type
 `application/geo+json` and `Content-Encoding: gzip`. It returns `OK` on success
-or `KO` when downloading, parsing, or uploading fails. Build both modules from
+and throws when downloading, parsing, or uploading fails. Build both modules from
 the repository root with `mvn -pl dsfunctions -am package`.
 
 ### OpenStreetMap cache
@@ -438,7 +438,7 @@ bucket `osminfo`, object `<sourceId>_OSMInfo.json`, in `NAMESPACE` (for example,
 with function configuration keys `BUCKETNAME_OSM` and `OSM_CACHE_OBJECT`.
 The bucket must exist and the function must have permission to read and write
 its objects. A missing cache object starts an empty cache; other storage errors
-or invalid JSON return `KO` without overwriting the cache.
+or invalid JSON throw an invocation error without overwriting the cache.
 
 `org.traficinfo.dsfunctions.OSMInfoProviderImpl` handles cache loading, refreshing,
 and persistence using `org.traficinfo.dsfunctions.OpenStreetMapClient` for OSM
@@ -476,7 +476,7 @@ and uploading the GeoJSON, the function makes at most 100 sequential requests
 to `https://api.openstreetmap.org/api/0.6/way/{id}.json`, then uploads the updated
 cache as gzip JSON. Newly fetched tags affect the next invocation. Failed
 requests count toward the limit, leave existing entries unchanged, and do not
-fail the invocation. A cache upload failure returns `KO` even though the
+fail the invocation. A cache upload failure throws an invocation error even though the
 GeoJSON has already been published. Unprocessed ways are queued again on the
 next run; the cache is written only when at least one fetch succeeds.
 
@@ -513,7 +513,7 @@ After GeoJSON publication, `refreshCache()` saves the entire mapping cache,
 including unresolved counters, before performing the existing way-tag refresh.
 INFO logs show entries loaded, unique counters missing a usable ID, and entries
 saved. Missing objects start empty; other storage errors or invalid JSON fail
-without overwriting that cache. A failed mapping upload returns `KO` after the
+without overwriting that cache. A failed mapping upload throws an invocation error after the
 GeoJSON has been published.
 
 GeoJSON functions perform no reverse HTTP calls. The hourly `OSMInfoFunction`
@@ -541,7 +541,7 @@ then for all records in loaded caches, including records not attempted. Each
 summary covers only that data source. All source caches are loaded and manual
 approvals saved before the bounded API loop, so sources skipped by the API time
 budget still appear in the totals and global review document.
-A missing cache starts empty; other load/save errors return `KO` after processing
+A missing cache starts empty; other load/save errors throw after processing
 the remaining resources. An empty bucket returns `OK`.
 
 `OSMWayMapping_NEEDS_REVIEW.json` in the same bucket is a pretty-printed global
@@ -772,3 +772,11 @@ defines the manifest, yearly file layout and retrieval configuration for all
 sources. The shared preprocessing function implements yearly publication.
 Existing event rules continue to use their current CSV inputs until the separate
 GeoJSON migration.
+
+### Failure monitoring
+
+GeoJSON and OSM handlers return `OK` on success and throw on invocation
+failure so OCI records an error for the function failure alarm. OSM refresh
+continues processing other caches before throwing if any cache failed.
+Recoverable OSM HTTP lookup failures keep their retry behavior. Set up email
+alerts using `scripts/setup-function-alerts.sh` as described in the root README.

@@ -148,12 +148,12 @@ public class CsvFunctionInheritanceTest {
             byte[] previousOutput = function.output;
             int previousWrites = function.writes.size();
             function.invalidManifest = true;
-            assertEquals("KO", function.handleRequest(""));
+            FunctionFailureAssertions.assertFunctionFailure(() -> function.handleRequest(""));
             assertSame(previousOutput, function.output);
             assertEquals(previousWrites, function.writes.size());
             function.invalidManifest = false;
             function.failUpload = true;
-            assertEquals("KO", function.handleRequest(""));
+            FunctionFailureAssertions.assertFunctionFailure(() -> function.handleRequest(""));
         }
     }
 
