@@ -48,11 +48,11 @@
     "name": "Comptages véhicules et vélos - Métropole Rouen Normandie",
     "schedule": "Daily",
     "preprocessing": {
-      "years": [2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019]
+      "years": [2020,2021,2022, 2023, 2024, 2025]
     },
     "dataSourceLogoUrl": "https://data.metropole-rouen-normandie.fr/assets/theme_image/logo.png",
     "source": {
-      "datasetId": "mrn-2012-2019",
+      "datasetId": "mrn-2020-2025",
       "datasetInfoUrl": "https://data.metropole-rouen-normandie.fr/explore/assets/comptages-et-enquetes-sur-le-reseau-routier/",
       "inputs": [
         {
