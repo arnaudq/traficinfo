@@ -16,13 +16,10 @@ Rue de la Thériaque : le libellé devient « RM986-E2 » et la commune passe de
 ## Redundancy of some of the CsvDataSource fields
 things have moved to dsconfig.json
 
-## unecessary WARNINGs
+## Issue with NIM - 2 datasets - 
+what should be the url for the dataset given that only oen CSV file is stored with same name
 
-at the end of OSM lookup although there was no change:
-```
-[main] INFO org.traficinfo.dsfunctions.ObjectStoreClient - OOS PUT response = (super=com.oracle.bmc.objectstorage.responses.PutObjectResponse@7d8bd8a1,opcClientRequestId=null,opcRequestId=fra-1:Pb_Wzm4jD4BhAdoZ0FZnD8HlpetnHH5b1TrxK3HZfPDHQdUj5rjrFzszd8F6BEbp,opcContentMd5=2Trhj90oME4cpvsAT//2+A==,eTag=8d7dd99a-3041-4aa3-9a44-566a08f9c697,lastModified=Wed Oct 28 04:01:56 UTC 2026,versionId=1baf254a-780d-4dfc-9d33-d9a73a276bfd) 
-[5:54 AM]WARNING: [main] WARN com.oracle.bmc.retrier.Retriers - stream does not support mark/reset or is a FileInputStream that doesn't allow changing the position, buffering in memory!
-```
+
 ## displayname strategy
 For Nimes for example, we use a location that does not correspond to any street name
 

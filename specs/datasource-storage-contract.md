@@ -202,8 +202,8 @@ Deployment builds `PREPROCESSING_SETTINGS` from the existing retrieval settings,
 ```
 
 The shared `PreprocessingFunction` supports all current datasource IDs. NIM has
-an initial explicit scope of `[2022]`; other sources require their own expected
-years before invoking this stage. The scope may expand. Reducing the scope or changing input Object names for
+an initial explicit scope of `[2022]`; DPT30 uses `[2021, 2022, 2023, 2024, 2025]`.
+Other sources require their own expected years before invoking this stage. The scope may expand. Reducing the scope or changing input Object names for
 an existing dataset requires a new `datasetId`. Records outside the configured
 scope are skipped, with their distinct years logged at INFO level. Configured
 years with no records are also logged as a set at INFO level and do not prevent

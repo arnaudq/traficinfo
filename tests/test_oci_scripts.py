@@ -356,20 +356,23 @@ class OciScriptsTest(unittest.TestCase):
                 self.config_file.write_text(json.dumps(config))
                 self.deployment_common('main preprocess NIM', success=False)
                 self.assertFalse(self.state.get('calls', []))
-        self.deployment_common('main preprocess DPT30', success=False)
+        self.deployment_common('main preprocess MRN', success=False)
         self.assertFalse(self.state.get('calls', []))
 
-    def test_preprocessing_supports_another_source_without_a_new_handler(self):
-        config = json.loads(self.config_file.read_text())
-        config['DPT30']['preprocessing'] = {'years': [2025]}
-        self.config_file.write_text(json.dumps(config))
+    def test_dpt30_preprocessing_uses_configured_years_and_shared_handler(self):
         self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main preprocess DPT30')
         function = next(f for f in self.state['functions'] if f['display-name'] == 'DPT30Preprocessing')
         settings = json.loads(function['config']['PREPROCESSING_SETTINGS'])
         self.assertEqual(settings['source']['dataSourceId'], 'DPT30')
-        self.assertEqual(settings['years'], [2025])
+        self.assertEqual(settings['years'], [2021, 2022, 2023, 2024, 2025])
+        self.assertEqual(function['config']['BUCKETNAME'], 'dsdpt30')
+        self.assertEqual(function['timeout-in-seconds'], 300)
         self.assertTrue(any('org.traficinfo.dsfunctions.PreprocessingFunction::handleRequest' in call
                             for call in self.state['calls']))
+        self.script('invoke.sh', 'preprocess', 'DPT30')
+        call = self.state['calls'][-1]
+        self.assertEqual(call[call.index('--function-id') + 1], function['id'])
+        self.assertEqual(call[call.index('--read-timeout') + 1], '360')
 
     def test_nim_invocation_has_matching_client_timeout(self):
         self.script('invoke.sh', 'ds', 'NIM')

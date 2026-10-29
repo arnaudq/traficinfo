@@ -145,7 +145,8 @@ The downloader must have populated the source Objects first. No remote download
 is performed by preprocessing. Deployment builds `PREPROCESSING_SETTINGS` from
 `source`, `source.datasetInfoUrl` and `preprocessing.years` in `dsconfig.json`, applies
 the 4096-byte configuration limit, and sets a 300-second runtime timeout.
-NIM starts with `[2022]`. Other sources need an explicit expected year scope;
+NIM starts with `[2022]`; DPT30 uses `[2021, 2022, 2023, 2024, 2025]`, matching
+the available annual records. Other sources need an explicit expected year scope;
 MMM also requires its companion geometry input. Input names are used as named
 manifest inputs. A dataset may expand its year scope;
 use a new `datasetId` to reduce the scope or change input Object names.
@@ -327,6 +328,10 @@ Names, the `Monthly` schedule tag and default bucket `dsdpt30` come from the
 DPT30 entry in `dsconfig.json`; `BUCKETNAME_DPT30` overrides the deployment input
 bucket. After deployment, invoke with `./scripts/invoke.sh ds DPT30` or
 `./scripts/invoke.sh geojson DPT30`. Run `source ./scripts/setup.sh` before these scripts.
+
+DPT30 preprocessing is configured for 2021–2025. Deploy it with
+`./scripts/deploy-functions.sh preprocess DPT30`, then invoke with
+`./scripts/invoke.sh preprocess DPT30` after the datasource input has been stored.
 
 Tests cover first/unchanged/changed downloads, archive and upload failures,
 empty downloads, plain/gzip CSV-to-GeoJSON output, annual history, OSM cache
