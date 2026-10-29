@@ -5,15 +5,25 @@ import org.traficinfo.parsers.GeoJsonParser;
 import java.util.Locale;
 
 /** Sources supported by the manifest-to-GeoJSON handlers and their naming conventions. */
-public enum CsvDataSource {
+public enum GeoJsonDataSource {
+    MMM(GeoJsonParser.DataSource.M3MV2, "ds3mbucket", "MMM_MMM_Comptage.csv"),
     DPT30(GeoJsonParser.DataSource.DPT30),
     DPT34(GeoJsonParser.DataSource.DPT34),
     MRN(GeoJsonParser.DataSource.MRN);
 
     private final GeoJsonParser.DataSource parserDataSource;
+    private final String defaultInputBucket;
+    private final String csvObjectName;
 
-    CsvDataSource(GeoJsonParser.DataSource parserDataSource) {
+    GeoJsonDataSource(GeoJsonParser.DataSource parserDataSource) {
+        this(parserDataSource, "ds" + parserDataSource.getId().toLowerCase(Locale.ROOT),
+                parserDataSource.getId() + "_Comptage.csv");
+    }
+
+    GeoJsonDataSource(GeoJsonParser.DataSource parserDataSource, String defaultInputBucket, String csvObjectName) {
         this.parserDataSource = parserDataSource;
+        this.defaultInputBucket = defaultInputBucket;
+        this.csvObjectName = csvObjectName;
     }
 
     public String getDataSourceId() {
@@ -25,11 +35,11 @@ public enum CsvDataSource {
     }
 
     public String getDefaultInputBucket() {
-        return "ds" + getDataSourceId().toLowerCase(Locale.ROOT);
+        return defaultInputBucket;
     }
 
     public String getCsvObjectName() {
-        return getDataSourceId() + "_Comptage.csv";
+        return csvObjectName;
     }
 
     public String getGeoJsonObjectName() {

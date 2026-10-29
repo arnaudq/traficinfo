@@ -28,12 +28,12 @@ import static org.junit.Assert.*;
 public class CsvFunctionInheritanceTest {
     @Test
     public void enumDefinesGeoJsonSourcesAndTheirResourceNames() {
-        for (CsvDataSource source : CsvDataSource.values()) {
+        for (GeoJsonDataSource source : GeoJsonDataSource.values()) {
             String id = source.getDataSourceId();
             assertEquals(source.name(), id);
-            assertEquals(GeoJsonParser.DataSource.valueOf(id), source.getParserDataSource());
-            assertEquals("ds" + id.toLowerCase(java.util.Locale.ROOT), source.getDefaultInputBucket());
-            assertEquals(id + "_Comptage.csv", source.getCsvObjectName());
+            assertEquals(id.equals("MMM") ? GeoJsonParser.DataSource.M3MV2 : GeoJsonParser.DataSource.valueOf(id), source.getParserDataSource());
+            assertEquals(id.equals("MMM") ? "ds3mbucket" : "ds" + id.toLowerCase(java.util.Locale.ROOT), source.getDefaultInputBucket());
+            assertEquals(id.equals("MMM") ? "MMM_MMM_Comptage.csv" : id + "_Comptage.csv", source.getCsvObjectName());
             assertEquals(id + "_TraficInfo.geojson", source.getGeoJsonObjectName());
             assertEquals(id + "_OSMInfo.json", source.getOsmCacheObjectName());
             assertEquals(id + "_OSMWayMapping.json", source.getOsmWayMappingObjectName());
@@ -41,8 +41,8 @@ public class CsvFunctionInheritanceTest {
     }
 
     @Test
-    public void fnLoadsInheritedMethodsForAllSixConcreteHandlers() throws Exception {
-        for (String name : List.of("dpt30", "dpt34", "mrn")) {
+    public void fnLoadsInheritedMethodsForAllEightConcreteHandlers() throws Exception {
+        for (String name : List.of("dpt30", "dpt34", "mrn", "m3m")) {
             for (String handler : List.of("DataSourceFunction", "GeoJsonOutFunction")) {
                 Class<?> type = Class.forName("org.traficinfo.dsfunctions." + name + "." + handler);
                 MethodWrapper wrapper = new FunctionLoader().loadClass(type.getName(), "handleRequest");
@@ -131,7 +131,7 @@ public class CsvFunctionInheritanceTest {
                     function.clients);
             assertEquals("OK", runtime.getMethod().getTargetMethod().invoke(function, ""));
             assertEquals(List.of("MRN_Manifest.json",
-                    ManifestTestPublication.yearObjectName(CsvDataSource.MRN, Year.now().getValue()),
+                    ManifestTestPublication.yearObjectName(GeoJsonDataSource.MRN, Year.now().getValue()),
                     overrides ? "tags.json" : "MRN_OSMInfo.json",
                     overrides ? "mapping.json" : "MRN_OSMWayMapping.json"), function.reads);
             assertEquals(List.of("MRN_TraficInfo.geojson",
@@ -154,6 +154,26 @@ public class CsvFunctionInheritanceTest {
             function.invalidManifest = false;
             function.failUpload = true;
             assertEquals("KO", function.handleRequest(""));
+        }
+    }
+
+    @Test
+    public void fnConfiguresAndInvokesInheritedMmmGeoJsonWithDefaultsAndOverrides() throws Exception {
+        for (boolean overrides : new boolean[]{false, true}) {
+            Map<String, String> config = overrides ? Map.of("NAMESPACE", "testns",
+                    "BUCKETNAME_IN", "custom-in", "BUCKETNAME_OUT", "custom-out",
+                    "BUCKETNAME_OSM", "custom-osm", "OSM_CACHE_OBJECT", "tags.json",
+                    "OSM_WAY_MAPPING_OBJECT", "mapping.json", "USE_RESOURCE_PRINCIPAL", "false") : Map.of();
+            FunctionRuntimeContext runtime = configuredRuntime(MmmGeoJsonProbe.class, config);
+            MmmGeoJsonProbe function = (MmmGeoJsonProbe) runtime.getInvokeInstance().orElseThrow();
+            assertEquals(overrides ? List.of("false:testns:custom-in", "false:testns:custom-out",
+                    "false:testns:custom-osm") : List.of("true::ds3mbucket", "true::traficinfo", "true::osminfo"),
+                    function.clients);
+            assertEquals("OK", runtime.getMethod().getTargetMethod().invoke(function, ""));
+            assertEquals(List.of("MMM_Manifest.json", overrides ? "tags.json" : "MMM_OSMInfo.json",
+                    overrides ? "mapping.json" : "MMM_OSMWayMapping.json"), function.reads);
+            assertEquals(List.of("MMM_TraficInfo.geojson", overrides ? "mapping.json" : "MMM_OSMWayMapping.json"),
+                    function.writes);
         }
     }
 
@@ -235,7 +255,7 @@ public class CsvFunctionInheritanceTest {
                     reads.add(name);
                     assertFalse("Raw CSV must not be read by the GeoJSON handler", name.endsWith(".csv"));
                     if (publication == null) {
-                        publication = ManifestTestPublication.fromCsv(CsvDataSource.MRN,
+                        publication = ManifestTestPublication.fromCsv(GeoJsonDataSource.MRN,
                                 "Type de Campagne;Id_SIG;Année;Rue;Commune;"
                                 + "Nombre de Sens;TV_TMJA;TV_HPM;TV_HPM (heure);X_84;Y_84\n"
                                 + "Comptage ponctuel en section;A_3;" + Year.now().getValue()
@@ -257,6 +277,32 @@ public class CsvFunctionInheritanceTest {
                         assertNotNull("GeoJSON must be uploaded before refreshing mappings", output);
                         mapping = body.readAllBytes();
                     }
+                }
+            };
+        }
+    }
+
+    public static class MmmGeoJsonProbe extends org.traficinfo.dsfunctions.m3m.GeoJsonOutFunction {
+        final List<String> clients = new ArrayList<>();
+        final List<String> reads = new ArrayList<>();
+        final List<String> writes = new ArrayList<>();
+
+        @Override
+        protected ObjectStoreClient createObjectStoreClient(boolean principal, String namespace, String bucket) {
+            clients.add(principal + ":" + namespace + ":" + bucket);
+            return new ObjectStoreClient(null, namespace, bucket) {
+                @Override public InputStream getResource(String name) throws IOException {
+                    reads.add(name);
+                    byte[] bytes = name.equals("MMM_Manifest.json")
+                            ? ManifestTestPublication.fromRecords(GeoJsonDataSource.MMM, List.of()).get(name)
+                            : "{}".getBytes(StandardCharsets.UTF_8);
+                    return new ByteArrayInputStream(bytes);
+                }
+
+                @Override public void putResource(String name, String type, OOSResourceMetadata meta,
+                                                  InputStream body) throws IOException {
+                    assertTrue(body.readAllBytes().length > 0);
+                    writes.add(name);
                 }
             };
         }

@@ -1,6 +1,7 @@
 package org.traficinfo.dsfunctions;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.traficinfo.parsers.Comptage;
 import org.traficinfo.parsers.storage.ComptageJson;
 import org.traficinfo.parsers.storage.DataManifest;
 
@@ -20,15 +21,19 @@ import java.util.TreeMap;
 public final class ManifestTestPublication {
     private ManifestTestPublication() {}
 
-    public static String yearObjectName(CsvDataSource source, int year) {
+    public static String yearObjectName(GeoJsonDataSource source, int year) {
         return "data/revision-" + year + "/" + source.getDataSourceId() + "_Comptage_" + year + ".json";
     }
 
-    public static Map<String, byte[]> fromCsv(CsvDataSource source, String csv) throws IOException {
+    public static Map<String, byte[]> fromCsv(GeoJsonDataSource source, String csv) throws IOException {
+        return fromRecords(source, source.getParserDataSource().getParser().parseComptages(
+                new StringReader(csv.startsWith("\uFEFF") ? csv.substring(1) : csv)));
+    }
+
+    public static Map<String, byte[]> fromRecords(GeoJsonDataSource source, List<? extends Comptage> counts) throws IOException {
         ComptageJson json = new ComptageJson();
         Map<Integer, List<byte[]>> byYear = new TreeMap<>();
-        for (var count : source.getParserDataSource().getParser().parseComptages(
-                new StringReader(csv.startsWith("\uFEFF") ? csv.substring(1) : csv))) {
+        for (var count : counts) {
             byYear.computeIfAbsent(count.getAnnee(), ignored -> new ArrayList<>()).add(json.write(count));
         }
         Map<String, byte[]> objects = new HashMap<>();

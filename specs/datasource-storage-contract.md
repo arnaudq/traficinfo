@@ -60,6 +60,14 @@ Each yearly Object contains an array of Comptage records for its named year.
 field name, including null values. Derived getter aliases such as NIM's
 `moyenneJourAnnuelle` are excluded, preserving the distinction between a null
 `dailyAverage` and zero. MMM records include geometry from the companion input.
+Before storage, a LineString becomes a Point halfway along its total horizontal
+geographic length: sum haversine segment lengths, then interpolate longitude and
+latitude within the segment containing half that length. This keeps the Point on
+the original segment; vertices are not averaged. Repeated positions are skipped,
+and a zero-length line becomes its repeated position. Lines with fewer than two
+positions or invalid longitude/latitude fail preprocessing. Other geometry types
+are preserved. MMM uses parser version `2` for this stored interpretation;
+reprocessing configured years republishes their versioned Objects as needed.
 There is no additional count model or separate retrieval provenance Object.
 
 Properties and array records use deterministic ordering. Header order is retained
@@ -98,7 +106,7 @@ fresh download. All datasource handlers require `DATA_SOURCE_SETTINGS`
 and `BUCKETNAME`; missing settings fail before any clients are created. Retrieval
 URLs and dataset IDs are configured only in `dsconfig.json`, with no Java
 fallbacks. Each handler supplies only its datasource ID to the shared retrieval
-superclass. `CsvDataSource` retains only GeoJSON parser selection and naming.
+superclass. `GeoJsonDataSource` retains only GeoJSON parser selection and naming.
 
 The optional `source.timeoutSeconds` sets the download function's synchronous
 runtime timeout (1–300 seconds). Deployment applies it on creation and updates;

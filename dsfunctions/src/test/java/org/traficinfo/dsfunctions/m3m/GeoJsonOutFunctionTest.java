@@ -1,6 +1,13 @@
 package org.traficinfo.dsfunctions.m3m;
 
 import org.traficinfo.dsfunctions.ObjectStoreClient;
+import org.traficinfo.dsfunctions.GeoJsonDataSource;
+import org.traficinfo.dsfunctions.ManifestTestPublication;
+import org.traficinfo.parsers.GeoJsonParser;
+import org.traficinfo.parsers.m3m.M3MComptage;
+import org.geojson.GeoJsonObject;
+import org.geojson.Point;
+import java.io.StringReader;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -41,16 +48,14 @@ public class GeoJsonOutFunctionTest {
             + "mja_jo,hp_johvs_matin,hp_johvs_soir,v85ma_tcj,vtma_tcj\n"
             + "100457,Rue de l'École,Montpellier," + Year.now().getValue()
             + ",compteur feux,1,577,72,43,30,28\n";
-    private static final String GEOJSON = "{\"type\":\"FeatureCollection\",\"features\":["
-            + "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[3.88,43.60]},"
-            + "\"properties\":{\"code_centrale\":\"100457\"}}]}";
-
     @Test
-    public void mergesPlainAndGzipSourcesAndUploadsToOutputBucket() throws Exception {
+    public void rendersPlainAndGzipManifestPublicationsWithoutRawCompanionAndUploadsToOutputBucket() throws Exception {
         for (boolean gzip : new boolean[]{false, true}) {
             StorageStub stub = new StorageStub(gzip);
             assertEquals("OK", stub.function().handleRequest(""));
-            assertEquals(Arrays.asList("MMM_OSMInfo.json", "MMM_MMM_Comptage.csv", "MMM_MMM_Comptage.json"), stub.downloads);
+            assertEquals(List.of("MMM_Manifest.json",
+                    ManifestTestPublication.yearObjectName(GeoJsonDataSource.MMM, Year.now().getValue()),
+                    "MMM_OSMInfo.json"), stub.downloads);
             assertEquals(1, stub.uploads);
             JsonNode result = new ObjectMapper().readTree(stub.output);
             assertEquals("FeatureCollection", result.get("type").asText());
@@ -68,28 +73,28 @@ public class GeoJsonOutFunctionTest {
     }
 
     @Test
-    public void returnsKoWithoutUploadWhenDownloadFails() {
+    public void throwsWithoutUploadWhenDownloadFails() throws Exception {
         StorageStub stub = new StorageStub(false);
         stub.failDownload = true;
-        assertEquals("KO", stub.function().handleRequest(""));
+        assertThrows(IllegalStateException.class, () -> stub.function().handleRequest(""));
         assertEquals(0, stub.uploads);
         stub.assertStreamsClosed();
     }
 
     @Test
-    public void returnsKoWithoutUploadWhenParsingFails() {
+    public void throwsWithoutUploadWhenManifestIsInvalid() throws Exception {
         StorageStub stub = new StorageStub(false);
-        stub.geojson = "invalid JSON";
-        assertEquals("KO", stub.function().handleRequest(""));
+        stub.invalidManifest = true;
+        assertThrows(IllegalStateException.class, () -> stub.function().handleRequest(""));
         assertEquals(0, stub.uploads);
         stub.assertStreamsClosed();
     }
 
     @Test
-    public void returnsKoWhenUploadFails() {
+    public void throwsWhenUploadFails() throws Exception {
         StorageStub stub = new StorageStub(true);
         stub.failUpload = true;
-        assertEquals("KO", stub.function().handleRequest(""));
+        assertThrows(IllegalStateException.class, () -> stub.function().handleRequest(""));
         assertEquals(1, stub.uploads);
         stub.assertStreamsClosed();
     }
@@ -164,27 +169,110 @@ public class GeoJsonOutFunctionTest {
     }
 
     @Test
-    public void refusesToOverwriteUnreadableCache() {
+    public void refusesToOverwriteUnreadableCache() throws Exception {
         StorageStub stub = new StorageStub(false);
         stub.failCacheDownload = true;
-        assertEquals("KO", stub.function().handleRequest(""));
+        assertThrows(IllegalStateException.class, () -> stub.function().handleRequest(""));
         assertEquals(0, stub.uploads);
         assertEquals(0, stub.cacheUploads);
         stub.failCacheDownload = false;
         stub.cache = "invalid JSON".getBytes(StandardCharsets.UTF_8);
-        assertEquals("KO", stub.function().handleRequest(""));
+        assertThrows(IllegalStateException.class, () -> stub.function().handleRequest(""));
         assertEquals(0, stub.cacheUploads);
         stub.assertStreamsClosed();
     }
 
     @Test
-    public void reportsCacheUploadFailure() {
+    public void reportsCacheUploadFailure() throws Exception {
         StorageStub stub = new StorageStub(false);
         stub.csv = csvWithWays(1);
         stub.failCacheUpload = true;
-        assertEquals("KO", stub.function().handleRequest(""));
+        assertThrows(IllegalStateException.class, () -> stub.function().handleRequest(""));
         assertEquals(1, stub.uploads);
         assertEquals(1, stub.cacheUploads);
+    }
+
+    @Test
+    public void preservesStoredPointLineAndPolygonGeometry() throws Exception {
+        ObjectMapper mapper = new ObjectMapper();
+        for (String geometry : List.of(
+                "{\"type\":\"Point\",\"coordinates\":[3.88,43.6]}",
+                "{\"type\":\"LineString\",\"coordinates\":[[3.88,43.6],[3.89,43.61]]}",
+                "{\"type\":\"Polygon\",\"coordinates\":[[[3.88,43.6],[3.89,43.6],[3.89,43.61],[3.88,43.6]]]}")) {
+            StorageStub stub = new StorageStub(true);
+            stub.geometry = mapper.readValue(geometry, GeoJsonObject.class);
+            assertEquals("OK", stub.function().handleRequest(""));
+            assertEquals(mapper.readTree(geometry), mapper.readTree(stub.output).path("features").get(0).path("geometry"));
+            stub.assertStreamsClosed();
+        }
+    }
+
+    @Test
+    public void retainedYearsSupplyHistoryWhileLatestYearSuppliesGeometryAndSpeeds() throws Exception {
+        StorageStub stub = new StorageStub(false);
+        int year = Year.now().getValue();
+        stub.csv += "100457,Rue de l'École,Montpellier," + year + ",compteur feux,2,400,20,30,50,35\n"
+                + "100457,Rue de l'École,Montpellier," + (year - 1) + ",compteur feux,1,800,80,60,90,80\n";
+        stub.geometryByYear = Map.of(year - 1, new Point(1, 2));
+        assertEquals("OK", stub.function().handleRequest(""));
+        assertEquals(List.of("MMM_Manifest.json",
+                ManifestTestPublication.yearObjectName(GeoJsonDataSource.MMM, year - 1),
+                ManifestTestPublication.yearObjectName(GeoJsonDataSource.MMM, year),
+                "MMM_OSMInfo.json"), stub.downloads);
+        JsonNode feature = new ObjectMapper().readTree(stub.output).path("features").get(0);
+        assertEquals(3.88, feature.path("geometry").path("coordinates").get(0).asDouble(), 0);
+        assertEquals(577, feature.path("properties").path("moyenne_jour_annuelle").asInt());
+        assertEquals("50", feature.path("properties").path("v85_speed").asText());
+        assertEquals("35", feature.path("properties").path("mean_speed").asText());
+        assertEquals("577 (" + year + ") 800 (" + (year - 1) + ") ",
+                feature.path("properties").path("moyenne_annuelle_history").asText());
+    }
+
+    @Test
+    public void matchesLegacyOutputApartFromCompanionOnlyProperties() throws Exception {
+        String companion = "{\"type\":\"FeatureCollection\",\"features\":["
+                + "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[3.88,43.6]},"
+                + "\"properties\":{\"code_centrale\":\"100457\",\"gid\":\"old-id\",\"name:q\":\"old-label\"}}]}";
+        java.io.StringWriter legacy = new java.io.StringWriter();
+        GeoJsonParser.parseAndMerge(GeoJsonParser.DataSource.M3MV2, new StringReader(CSV),
+                new StringReader(companion), legacy);
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode expected = mapper.readTree(legacy.toString());
+        var properties = (com.fasterxml.jackson.databind.node.ObjectNode) expected.path("features").get(0).path("properties");
+        assertNotNull(properties.remove("gid"));
+        assertNotNull(properties.remove("name:q"));
+        StorageStub stub = new StorageStub(false);
+        assertEquals("OK", stub.function().handleRequest(""));
+        assertEquals(expected, mapper.readTree(stub.output));
+    }
+
+    @Test
+    public void usesCounterIdWhenStoredDisplayNameIsMissing() throws Exception {
+        StorageStub stub = new StorageStub(false);
+        stub.csv = CSV.replace("Rue de l'École,Montpellier", ",");
+        assertEquals("OK", stub.function().handleRequest(""));
+        JsonNode properties = new ObjectMapper().readTree(stub.output).path("features").get(0).path("properties");
+        assertEquals("100457", properties.path("description").asText());
+        assertFalse(properties.has("gid"));
+        assertFalse(properties.has("name:q"));
+    }
+
+    @Test
+    public void invalidPublicationsPreserveOutputAndDoNotRefreshCaches() throws Exception {
+        for (String failure : List.of("manifest", "missingYear", "corruptYear")) {
+            StorageStub stub = new StorageStub(false);
+            stub.invalidManifest = failure.equals("manifest");
+            stub.missingYear = failure.equals("missingYear");
+            stub.corruptYear = failure.equals("corruptYear");
+            byte[] previousOutput = "previous output".getBytes(StandardCharsets.UTF_8);
+            stub.output = previousOutput;
+            assertThrows(IllegalStateException.class, () -> stub.function().handleRequest(""));
+            assertSame(previousOutput, stub.output);
+            assertEquals(0, stub.uploads);
+            assertEquals(0, stub.cacheUploads);
+            assertTrue(stub.osmRequests.isEmpty());
+            stub.assertStreamsClosed();
+        }
     }
 
     private static String csvWithWays(long... ids) {
@@ -205,7 +293,11 @@ public class GeoJsonOutFunctionTest {
         final boolean gzip;
         final List<String> downloads = new ArrayList<>();
         final List<TrackedStream> streams = new ArrayList<>();
-        String geojson = GEOJSON;
+        GeoJsonObject geometry = new Point(3.88, 43.60);
+        Map<Integer, GeoJsonObject> geometryByYear = Map.of();
+        boolean invalidManifest;
+        boolean missingYear;
+        boolean corruptYear;
         String csv = CSV;
         String cacheObject = GeoJsonOutFunction.DEFAULT_OSM_CACHE_OBJECT;
         byte[] cache;
@@ -224,7 +316,16 @@ public class GeoJsonOutFunctionTest {
             this.gzip = gzip;
         }
 
-        GeoJsonOutFunction function() {
+        GeoJsonOutFunction function() throws IOException {
+            var records = GeoJsonDataSource.MMM.getParserDataSource().getParser().parseComptages(new StringReader(csv));
+            for (var record : records) {
+                ((M3MComptage) record).setGeometry(geometryByYear.getOrDefault(record.getAnnee(), geometry));
+            }
+            Map<String, byte[]> objects = ManifestTestPublication.fromRecords(GeoJsonDataSource.MMM, records);
+            if (invalidManifest) objects.put("MMM_Manifest.json", "invalid JSON".getBytes(StandardCharsets.UTF_8));
+            String latestYear = ManifestTestPublication.yearObjectName(GeoJsonDataSource.MMM, Year.now().getValue());
+            if (missingYear) objects.remove(latestYear);
+            if (corruptYear) objects.put(latestYear, "[]".getBytes(StandardCharsets.UTF_8));
             ObjectStorage storage = (ObjectStorage) Proxy.newProxyInstance(
                     ObjectStorage.class.getClassLoader(), new Class<?>[]{ObjectStorage.class},
                     (proxy, method, args) -> {
@@ -234,7 +335,7 @@ public class GeoJsonOutFunctionTest {
                             assertEquals(request.getObjectName().equals(cacheObject) ? "osminfo" : "input-bucket",
                                     request.getBucketName());
                             downloads.add(request.getObjectName());
-                            if (failDownload && request.getObjectName().endsWith(".csv")) {
+                            if (failDownload && request.getObjectName().equals("MMM_Manifest.json")) {
                                 throw new IllegalStateException("download failed");
                             }
                             byte[] bytes;
@@ -247,8 +348,10 @@ public class GeoJsonOutFunctionTest {
                                 }
                                 bytes = cache;
                             } else {
-                                bytes = (request.getObjectName().endsWith(".csv") ? csv : geojson)
-                                        .getBytes(StandardCharsets.UTF_8);
+                                bytes = objects.get(request.getObjectName());
+                                assertFalse("Raw CSV must not be read", request.getObjectName().endsWith(".csv"));
+                                assertNotEquals("Raw companion must not be read", "MMM_MMM_Comptage.json", request.getObjectName());
+                                if (bytes == null) throw new BmcException(404, "NotFound", "Missing yearly Object", "request");
                             }
                             if (gzip) {
                                 ByteArrayOutputStream compressed = new ByteArrayOutputStream();

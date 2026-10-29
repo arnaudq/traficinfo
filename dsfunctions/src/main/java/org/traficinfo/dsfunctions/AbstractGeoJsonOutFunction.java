@@ -25,18 +25,18 @@ public abstract class AbstractGeoJsonOutFunction {
 
     private static final Logger LOG = LoggerFactory.getLogger(AbstractGeoJsonOutFunction.class);
 
-    private final CsvDataSource source;
+    private final GeoJsonDataSource source;
 
     private ObjectStoreClient inputClient;
     private ObjectStoreClient outputClient;
     private OSMInfoProviderImpl osmInfoProvider;
 
-    protected AbstractGeoJsonOutFunction(CsvDataSource source) {
+    protected AbstractGeoJsonOutFunction(GeoJsonDataSource source) {
         this.source = Objects.requireNonNull(source);
         LOG.info("GeoJSON {} function booting", source.getDataSourceId());
     }
 
-    protected AbstractGeoJsonOutFunction(CsvDataSource source, ObjectStoreClient inputClient,
+    protected AbstractGeoJsonOutFunction(GeoJsonDataSource source, ObjectStoreClient inputClient,
                                            ObjectStoreClient outputClient, OSMInfoProviderImpl osmInfoProvider) {
         this(source);
         this.inputClient = Objects.requireNonNull(inputClient);
@@ -91,7 +91,7 @@ public abstract class AbstractGeoJsonOutFunction {
         } catch (Exception failure) {
             LOG.warn("Error while generating {} GeoJSON: {}", source.getDataSourceId(),
                     failure.getMessage(), failure);
-            return "KO";
+            throw new IllegalStateException("GeoJSON generation failed for " + source.getDataSourceId(), failure);
         }
     }
 }

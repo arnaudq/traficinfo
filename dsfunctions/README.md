@@ -78,8 +78,8 @@ supplies only its datasource ID; the superclass reads retrieval settings and the
 bucket from function configuration and delegates to `SourceObjectPublisher`.
 MMM's companion inputs use the same lifecycle as single-CSV sources.
 
-DPT30, DPT34 and MRN GeoJSON handlers use `AbstractGeoJsonOutFunction` and
-`CsvDataSource`. That enum contains only parser selection and the naming
+MMM, DPT30, DPT34 and MRN GeoJSON handlers use `AbstractGeoJsonOutFunction` and
+`GeoJsonDataSource`. That enum contains only parser selection and the naming
 conventions needed by GeoJSON generation. Download URLs and archive naming are
 not part of it. NIM does not need a GeoJSON parser entry to retrieve data.
 
@@ -148,7 +148,11 @@ the 4096-byte configuration limit, and sets a 300-second runtime timeout.
 NIM starts with `[2022]`; DPT30 uses `[2021, 2022, 2023, 2024, 2025]`, matching
 the available annual records. Other sources need an explicit expected year scope;
 MMM also requires its companion geometry input. Input names are used as named
-manifest inputs. A dataset may expand its year scope;
+manifest inputs. Preprocessing converts companion LineStrings to Points halfway
+along their total geographic length, interpolating within the original segment.
+Other geometry types are preserved. Rerun MMM preprocessing to apply this change
+to the configured years; years outside that scope retain their published Objects.
+A dataset may expand its year scope;
 use a new `datasetId` to reduce the scope or change input Object names.
 
 Preprocessing is currently manual: deployment without arguments, Events rules
@@ -396,10 +400,29 @@ After deployment, invoke it with `./scripts/invoke.sh geojson DPT34`.
 ## M3M GeoJSON output function
 
 `org.traficinfo.dsfunctions.m3m.GeoJsonOutFunction::handleRequest` reads
-`MMM_MMM_Comptage.csv` and `MMM_MMM_Comptage.json` from Object Storage and
-merges them with `GeoJsonParser.DataSource.M3MV2`. Configure `NAMESPACE`,
+`MMM_Manifest.json` once and follows its exact yearly Object references,
+including years retained from inactive datasets. It validates the publication
+and each year's checksum, record count and record years before generating output
+with `GeoJsonParser.DataSource.M3MV2`. Configure `NAMESPACE`,
 `BUCKETNAME_IN`, and `BUCKETNAME_OUT` to select the namespace and input/output
-buckets. `USE_RESOURCE_PRINCIPAL` defaults to `true`, as in `DataSourceFunction`.
+buckets; defaults are `ds3mbucket` and `traficinfo`.
+`USE_RESOURCE_PRINCIPAL` defaults to `true`, as in `DataSourceFunction`.
+
+Geometry comes from the stored `M3MComptage` records. The GeoJSON function does
+not read the raw CSV or companion GeoJSON. MMM retrieval and preprocessing still
+require both inputs: preprocessing joins the companion geometry by `code_centrale`
+(or legacy `gid`) and stores it in the yearly records. Points, lines and polygons
+are retained. For each counter, rendering selects geometry from the latest eligible
+year with geometry, using the highest traffic count to break ties, and orders
+features by counter ID.
+
+Companion-only properties `gid` and `name:q` are omitted. Output `code_centrale`
+comes from the record. Descriptions use the stored display name, falling back to
+the counter ID; the companion's `name` is no longer a fallback.
+
+Before deploying this handler, configure MMM's preprocessing year scope and publish
+and verify its manifest, including the historical years to retain. The datasource
+configuration retains the companion input. Event routing is migrated separately.
 
 The function supports both plain and gzip-compressed input objects and writes
 `MMM_TraficInfo.geojson` to the output bucket with content type

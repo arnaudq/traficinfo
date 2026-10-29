@@ -1,6 +1,6 @@
 package org.traficinfo.dsfunctions.dpt34;
 
-import org.traficinfo.dsfunctions.CsvDataSource;
+import org.traficinfo.dsfunctions.GeoJsonDataSource;
 import org.traficinfo.dsfunctions.ManifestTestPublication;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -44,8 +44,8 @@ public class GeoJsonOutFunctionTest {
             StorageStub stub = new StorageStub(gzip);
             assertEquals("OK", stub.function().handleRequest(""));
             assertEquals(List.of("DPT34_Manifest.json",
-                    ManifestTestPublication.yearObjectName(CsvDataSource.DPT34, YEAR - 1),
-                    ManifestTestPublication.yearObjectName(CsvDataSource.DPT34, YEAR)), stub.downloads);
+                    ManifestTestPublication.yearObjectName(GeoJsonDataSource.DPT34, YEAR - 1),
+                    ManifestTestPublication.yearObjectName(GeoJsonDataSource.DPT34, YEAR)), stub.downloads);
             assertEquals(1, stub.uploads);
             JsonNode result = new ObjectMapper().readTree(stub.output);
             assertEquals("FeatureCollection", result.get("type").asText());
@@ -80,27 +80,27 @@ public class GeoJsonOutFunctionTest {
     }
 
     @Test
-    public void returnsKoWithoutUploadWhenDownloadFails() throws Exception {
+    public void throwsWithoutUploadWhenDownloadFails() throws Exception {
         StorageStub stub = new StorageStub(false);
         stub.failDownload = true;
-        assertEquals("KO", stub.function().handleRequest(""));
+        assertThrows(IllegalStateException.class, () -> stub.function().handleRequest(""));
         assertEquals(0, stub.uploads);
     }
 
     @Test
-    public void returnsKoWithoutUploadWhenManifestIsInvalid() throws Exception {
+    public void throwsWithoutUploadWhenManifestIsInvalid() throws Exception {
         StorageStub stub = new StorageStub(false);
         stub.invalidManifest = true;
-        assertEquals("KO", stub.function().handleRequest(""));
+        assertThrows(IllegalStateException.class, () -> stub.function().handleRequest(""));
         assertEquals(0, stub.uploads);
         stub.assertStreamsClosed();
     }
 
     @Test
-    public void returnsKoWhenUploadFails() throws Exception {
+    public void throwsWhenUploadFails() throws Exception {
         StorageStub stub = new StorageStub(true);
         stub.failUpload = true;
-        assertEquals("KO", stub.function().handleRequest(""));
+        assertThrows(IllegalStateException.class, () -> stub.function().handleRequest(""));
         assertEquals(1, stub.uploads);
         stub.assertStreamsClosed();
     }
@@ -125,7 +125,7 @@ public class GeoJsonOutFunctionTest {
     public void reportsMappingWriteFailureAfterPublishingGeoJson() throws Exception {
         StorageStub stub = new StorageStub(false);
         stub.failMappingUpload = true;
-        assertEquals("KO", stub.function().handleRequest(""));
+        assertThrows(IllegalStateException.class, () -> stub.function().handleRequest(""));
         assertEquals(1, stub.uploads);
         assertEquals(1, stub.mappingUploads);
     }
@@ -139,7 +139,7 @@ public class GeoJsonOutFunctionTest {
             stub.corruptYear = failure.equals("corruptYear");
             byte[] previousOutput = "previous output".getBytes(StandardCharsets.UTF_8);
             stub.output = previousOutput;
-            assertEquals("KO", stub.function().handleRequest(""));
+            assertThrows(IllegalStateException.class, () -> stub.function().handleRequest(""));
             assertSame(previousOutput, stub.output);
             assertEquals(0, stub.uploads);
             assertEquals(0, stub.mappingUploads);
@@ -163,7 +163,11 @@ public class GeoJsonOutFunctionTest {
             var before = temporaryOutputs();
             StorageStub stub = new StorageStub(false);
             stub.failUpload = failUpload;
-            assertEquals(failUpload ? "KO" : "OK", stub.function().handleRequest(""));
+            if (failUpload) {
+                assertThrows(IllegalStateException.class, () -> stub.function().handleRequest(""));
+            } else {
+                assertEquals("OK", stub.function().handleRequest(""));
+            }
             assertEquals(before, temporaryOutputs());
         }
     }
@@ -196,9 +200,9 @@ public class GeoJsonOutFunctionTest {
         }
 
         GeoJsonOutFunction function() throws IOException {
-            Map<String, byte[]> objects = ManifestTestPublication.fromCsv(CsvDataSource.DPT34, csv);
+            Map<String, byte[]> objects = ManifestTestPublication.fromCsv(GeoJsonDataSource.DPT34, csv);
             if (invalidManifest) objects.put("DPT34_Manifest.json", "invalid JSON".getBytes(StandardCharsets.UTF_8));
-            String latestYear = ManifestTestPublication.yearObjectName(CsvDataSource.DPT34, YEAR);
+            String latestYear = ManifestTestPublication.yearObjectName(GeoJsonDataSource.DPT34, YEAR);
             if (missingYear) objects.remove(latestYear);
             if (corruptYear) objects.put(latestYear, "[]".getBytes(StandardCharsets.UTF_8));
             ObjectStorage storage = (ObjectStorage) Proxy.newProxyInstance(
