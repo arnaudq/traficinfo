@@ -30,6 +30,7 @@ public class GeoJsonParserTest extends ParserBaseTest {
     public void testFeatureCollectionOverloadMatchesReaderOutput() throws Exception {
         StringWriter readerOutput = new StringWriter();
         StringWriter collectionOutput = new StringWriter();
+        StringWriter recordsOutput = new StringWriter();
         try (Reader csv = getReaderFromResource("M3MSample.csv");
              Reader geojson = getReaderFromResource("M3MSample.json")) {
             GeoJsonParser.parseAndMerge(GeoJsonParser.DataSource.M3MV2, csv, geojson, readerOutput);
@@ -40,6 +41,13 @@ public class GeoJsonParserTest extends ParserBaseTest {
             GeoJsonParser.parseAndMerge(GeoJsonParser.DataSource.M3MV2, csv, collection, collectionOutput);
         }
         assertEquals(readerOutput.toString(), collectionOutput.toString());
+        try (Reader csv = getReaderFromResource("M3MSample.csv");
+             Reader geojson = getReaderFromResource("M3MSample.json")) {
+            List<? extends Comptage> records = GeoJsonParser.DataSource.M3MV2.getParser().parseComptages(csv);
+            GeoJsonParser.writeGeoJson(GeoJsonParser.DataSource.M3MV2, records,
+                    GeoJsonParser.parseGeoJSON(geojson), recordsOutput, wayId -> null);
+        }
+        assertEquals(readerOutput.toString(), recordsOutput.toString());
         FeatureCollection result = GeoJsonParser.parseGeoJSON(new StringReader(readerOutput.toString()));
         assertFalse(result.getFeatures().isEmpty());
         result.getFeatures().forEach(feature -> assertEquals("MMM", feature.getProperty("data_source")));
@@ -53,6 +61,11 @@ public class GeoJsonParserTest extends ParserBaseTest {
                 + "Per.034.0001.00.3;" + (year - 1) + ";D11;OLONZAC;3;400;43;3\n"
                 + "Per.034.0001.00.3;" + year + ";D11;OLONZAC;3;500;43.5;3.5\n";
         GeoJsonParser.parseAndMerge(GeoJsonParser.DataSource.DPT34, new StringReader(csv), writer);
+        StringWriter recordsOutput = new StringWriter();
+        List<? extends Comptage> records = new DPT34ComptageParser().parseComptages(new StringReader(csv));
+        GeoJsonParser.writeGeoJson(GeoJsonParser.DataSource.DPT34, records,
+                new FeatureCollection(), recordsOutput, wayId -> null);
+        assertEquals(writer.toString(), recordsOutput.toString());
         FeatureCollection result = GeoJsonParser.parseGeoJSON(new StringReader(writer.toString()));
         assertEquals(1, result.getFeatures().size());
         Feature feature = result.getFeatures().get(0);
@@ -130,6 +143,32 @@ public class GeoJsonParserTest extends ParserBaseTest {
         assertEquals(Set.of(370743659L), requestedWays);
         assertEquals(1, GeoJsonParser.parseGeoJSON(
                 new StringReader(writer.toString())).getFeatures().size());
+    }
+
+    @Test
+    public void testWriteGeoJsonEnrichesParsedRecords() throws Exception {
+        M3MComptage record = new M3MComptage();
+        record.setCodeCentrale("sample");
+        record.setAnnee(Year.now().getValue());
+        record.setMoyenneJourAnnuelle(500);
+        record.setType(Comptage.Type.VEHICULES);
+        record.setGeometry(new Point(3, 43));
+        record.setOsmWayId(123L);
+        OSMWayInfo info = new OSMWayInfo();
+        info.setTags(java.util.Map.of("maxspeed", "50"));
+        Set<Long> requestedWays = new LinkedHashSet<>();
+        StringWriter writer = new StringWriter();
+
+        GeoJsonParser.writeGeoJson(GeoJsonParser.DataSource.M3MV2, List.of(record),
+                new FeatureCollection(), writer, wayId -> {
+                    requestedWays.add(wayId);
+                    return info;
+                });
+
+        assertEquals(Set.of(123L), requestedWays);
+        Feature feature = GeoJsonParser.parseGeoJSON(new StringReader(writer.toString())).getFeatures().get(0);
+        assertEquals("50", feature.getProperty("maximum_speed"));
+        assertEquals(new Point(3, 43), feature.getGeometry());
     }
 
     @Test

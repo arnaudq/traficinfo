@@ -125,6 +125,16 @@ public class GeoJsonParser {
 
         ComptageParser comptageParser = dataSource.getParser();
         List<? extends Comptage> comptages = comptageParser.parseComptages(csvReader);
+        writeGeoJson(dataSource, comptages, geoJsonColl, geojsonMergedWriter, osmInfoProvider);
+    }
+
+    /**
+     * Enriches and renders already parsed records using the existing filtering and aggregation rules.
+     * An empty feature collection uses the records' geometry. Records and supplied features may be modified.
+     */
+    public static void writeGeoJson(DataSource dataSource, List<? extends Comptage> comptages,
+                                    FeatureCollection geoJsonColl, Writer geojsonMergedWriter,
+                                    OSMInfoProvider osmInfoProvider) throws IOException {
         logSpeedCoverage(dataSource, "input records", comptages.size(),
                 comptages.stream().filter(comptage -> comptage.getV85Speed() > 0).count(),
                 comptages.stream().filter(comptage -> comptage.getMeanSpeed() > 0).count());
