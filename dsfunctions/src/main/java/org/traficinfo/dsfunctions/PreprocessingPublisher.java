@@ -23,7 +23,6 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
@@ -81,7 +80,7 @@ public final class PreprocessingPublisher {
             try (InputStream input = storage.getResource(manifestName)) {
                 previous = mapper.readValue(input, DataManifest.class);
             }
-            validateManifest(previous, source.dataSourceId());
+            ManifestValidation.validateManifest(previous, source.dataSourceId());
         }
 
         Map<String, Path> files = new HashMap<>();
@@ -203,8 +202,11 @@ public final class PreprocessingPublisher {
                     Instant.now().toString(), source.datasetId(), datasets, years);
 
             // Read back all referenced yearly Objects and verify their checksum, record count and year.
-            validateManifest(next, source.dataSourceId());
-            for (var entry : years.entrySet()) verifyYearlyObject(entry.getKey(), entry.getValue(), parser);
+            ManifestValidation.validateManifest(next, source.dataSourceId());
+            for (var entry : years.entrySet()) {
+                ManifestValidation.readYearlyObject(storage, entry.getKey(), entry.getValue(),
+                        parser.parser.getDsComptageClass());
+            }
 
             // Abort if any source input was replaced while this publication was being prepared.
             for (DataSourceSettings.Input input : source.inputs()) {
@@ -292,49 +294,6 @@ public final class PreprocessingPublisher {
             GeoJsonObject location = locations.get(count.getCodeCentrale());
             if (location == null) throw new IOException("Missing MMM geometry for " + count.getCodeCentrale());
             ((M3MComptage) count).setGeometry(location);
-        }
-    }
-
-    private void validateManifest(DataManifest manifest, String dataSourceId) throws IOException {
-        if (!dataSourceId.equals(manifest.dataSourceId()) || manifest.revision() == null || manifest.revision().isBlank()
-                || manifest.publishedAt() == null || !manifest.publishedAt().endsWith("Z")
-                || !manifest.datasets().containsKey(manifest.activeDatasetId())) {
-            throw new IOException("Invalid manifest identity");
-        }
-        try { Instant.parse(manifest.publishedAt()); }
-        catch (RuntimeException invalid) { throw new IOException("Invalid manifest timestamp", invalid); }
-        for (DataManifest.Dataset dataset : manifest.datasets().values()) {
-            if (dataset.years().isEmpty() || dataset.inputs().isEmpty()) {
-                throw new IOException("Incomplete manifest dataset scope");
-            }
-        }
-        for (var entry : manifest.years().entrySet()) {
-            DataManifest.YearData year = entry.getValue();
-            DataManifest.Dataset dataset = manifest.datasets().get(year.datasetId());
-            if (dataset == null || !dataset.years().contains(entry.getKey()) || year.recordCount() <= 0
-                    || year.sha256() == null || !year.sha256().matches("[0-9a-f]{64}")
-                    || year.object() == null || !year.object().matches("data/[A-Za-z0-9_-]+/" + dataSourceId + "_Comptage_" + entry.getKey() + "\\.json")
-                    || year.parserVersion() == null || year.parserVersion().isBlank()) {
-                throw new IOException("Invalid manifest year: " + entry.getKey());
-            }
-        }
-    }
-
-    /**
-     * Reads a stored yearly Object as the datasource's Comptage class and checks its record count,
-     * each record's year and the SHA-256 checksum of the exact decompressed bytes against the manifest.
-     *
-     * @throws IOException if reading, deserialization or any consistency check fails, preventing publication
-     */
-    private void verifyYearlyObject(int year, DataManifest.YearData data, PreprocessingSource source) throws IOException {
-        MessageDigest digest = digest();
-        try (InputStream raw = storage.getResource(data.object()); DigestInputStream input = new DigestInputStream(raw, digest)) {
-            List<? extends Comptage> counts = countsJson.read(input, source.parser.getDsComptageClass());
-            input.transferTo(java.io.OutputStream.nullOutputStream());
-            if (counts.size() != data.recordCount() || counts.stream().anyMatch(count -> count.getAnnee() != year)
-                    || !HexFormat.of().formatHex(digest.digest()).equals(data.sha256())) {
-                throw new IOException("Yearly Object verification failed: " + data.object());
-            }
         }
     }
 

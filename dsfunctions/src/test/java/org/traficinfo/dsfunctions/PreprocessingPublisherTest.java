@@ -45,6 +45,12 @@ public class PreprocessingPublisherTest {
         assertNull(count.getDailyAverage());
         assertEquals(1, count.getObservedHours());
         assertEquals(10, count.getTotalPassages());
+        var publishedCounts = new ManifestComptageReader(store).read("NIM");
+        assertEquals(1, publishedCounts.size());
+        NIMComptage publishedCount = (NIMComptage) publishedCounts.get(0);
+        assertNull(publishedCount.getDailyAverage());
+        assertEquals(2022, publishedCount.getAnnee());
+        assertEquals(10, publishedCount.getTotalPassages());
         assertEquals(List.of(year.object(), "NIM_Manifest.json"), store.publications());
         assertFalse(store.objects.containsKey("NIM_Preprocessing.lock"));
     }
