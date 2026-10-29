@@ -198,7 +198,7 @@ class OciScriptsTest(unittest.TestCase):
 
     def test_oversized_source_configuration_fails_before_cloud_calls(self):
         config = json.loads(self.config_file.read_text())
-        config['MRN']['source']['inputs'][0]['url'] = 'https://example.invalid/' + 'x' * 4096
+        config['MRN']['datasets']['mrn-2026']['inputs'][0]['url'] = 'https://example.invalid/' + 'x' * 4096
         self.config_file.write_text(json.dumps(config))
         result = self.deploy(success=False)
         self.assertIn('MRNOpenDataSource configuration uses', result.stderr)
@@ -245,7 +245,7 @@ class OciScriptsTest(unittest.TestCase):
     def test_retrieval_settings_derive_csv_names_and_preserve_companion_order(self):
         config = json.loads(self.config_file.read_text())
         config['DPT30']['csvObject'] = 'custom-counts.csv'
-        config['DPT30']['source']['inputs'][0]['url'] = 'https://example.invalid/new.csv'
+        config['DPT30']['datasets']['current']['inputs'][0]['url'] = 'https://example.invalid/new.csv'
         self.config_file.write_text(json.dumps(config))
         settings = json.loads(self.common('data_source_settings "$(get_data_source DPT30)"').stdout)
         self.assertEqual(settings['dataSourceId'], 'DPT30')
@@ -253,10 +253,54 @@ class OciScriptsTest(unittest.TestCase):
         self.assertEqual(settings['inputs'][0]['url'], 'https://example.invalid/new.csv')
         self.assertNotIn('calls', self.state)
 
+    def test_active_dataset_selection_controls_retrieval_preprocessing_and_timeouts(self):
+        config = json.loads(self.config_file.read_text())
+        nim = config['NIM']
+        nim['datasets']['nim-2023'] = {
+            'years': [2023],
+            'datasetInfoUrl': 'https://example.invalid/2023',
+            'timeoutSeconds': 120,
+            'inputs': [{'url': 'https://example.invalid/2023.csv', 'contentType': 'text/csv'}],
+        }
+        nim['activeDatasetId'] = 'nim-2023'
+        # Inactive settings must not be included in the function configuration budget.
+        nim['datasets']['nim-2022']['inputs'][0]['url'] = 'https://example.invalid/' + 'x' * 4096
+        self.config_file.write_text(json.dumps(config))
+        settings = json.loads(self.common('preprocessing_settings "$(get_data_source NIM)"').stdout)
+        self.assertEqual(settings['source']['datasetId'], 'nim-2023')
+        self.assertEqual(settings['source']['inputs'], [{
+            'url': 'https://example.invalid/2023.csv',
+            'objectName': 'NIM_Comptage.csv', 'contentType': 'text/csv',
+        }])
+        self.assertEqual(settings['datasetUrl'], 'https://example.invalid/2023')
+        self.assertEqual(settings['years'], [2023])
+        self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main ds NIM')
+        function = next(f for f in self.state['functions'] if f['display-name'] == 'NIMOpenDataSource')
+        self.assertEqual(function['timeout-in-seconds'], 120)
+        self.assertEqual(json.loads(function['config']['DATA_SOURCE_SETTINGS']), settings['source'])
+        self.script('invoke.sh', 'ds', 'NIM')
+        call = self.state['calls'][-1]
+        self.assertEqual(call[call.index('--read-timeout') + 1], '180')
+
+    def test_missing_or_invalid_active_dataset_fails_before_cloud_calls(self):
+        original = json.loads(self.config_file.read_text())
+        for changes in [
+                {'activeDatasetId': None}, {'activeDatasetId': ''}, {'activeDatasetId': []},
+                {'activeDatasetId': 'unknown'}, {'datasets': None}, {'datasets': []},
+                {'datasets': {'nim-2022': None}}, {'datasets': {'nim-2022': []}}]:
+            with self.subTest(changes=changes):
+                config = json.loads(json.dumps(original))
+                config['NIM'].update(changes)
+                self.config_file.write_text(json.dumps(config))
+                self.deployment_common('main ds NIM', success=False)
+                self.script('invoke.sh', 'ds', 'NIM', success=False)
+                self.assertFalse(self.state.get('calls', []))
+
     def test_datasource_deployment_passes_settings_to_every_source(self):
         config = json.loads(self.config_file.read_text())
-        config['MRN']['source']['datasetId'] = 'replacement-dataset'
-        config['MRN']['source']['inputs'][0]['url'] = 'https://example.invalid/replacement.csv'
+        config['MRN']['activeDatasetId'] = 'replacement-dataset'
+        config['MRN']['datasets']['replacement-dataset'] = config['MRN']['datasets'].pop('mrn-2026')
+        config['MRN']['datasets']['replacement-dataset']['inputs'][0]['url'] = 'https://example.invalid/replacement.csv'
         self.config_file.write_text(json.dumps(config))
         for existing in [True, False]:
             with self.subTest(existing=existing):
@@ -269,23 +313,22 @@ class OciScriptsTest(unittest.TestCase):
                     name = entry.get('functionPrefix', source_id) + 'OpenDataSource'
                     settings = json.loads(functions[name]['config']['DATA_SOURCE_SETTINGS'])
                     self.assertEqual(settings['dataSourceId'], source_id)
-                    self.assertEqual(settings['datasetId'], entry['source']['datasetId'])
+                    self.assertEqual(settings['datasetId'], entry['activeDatasetId'])
                     self.assertEqual([item['url'] for item in settings['inputs']],
-                                     [item['url'] for item in entry['source']['inputs']])
+                                     [item['url'] for item in entry['datasets'][entry['activeDatasetId']]['inputs']])
                 self.assertEqual([item['objectName'] for item in json.loads(
                     functions['3MOpenDataSource']['config']['DATA_SOURCE_SETTINGS'])['inputs']],
                     ['MMM_MMM_Comptage.json', 'MMM_MMM_Comptage.csv'])
 
     def test_invalid_retrieval_settings_fail_before_deployment_calls(self):
         original = json.loads(self.config_file.read_text())
-        for invalid in [None, {'datasetId': '', 'inputs': []},
-                        {'datasetId': 'current', 'inputs': [{'url': 'file:///tmp/input',
-                                                              'contentType': 'text/csv'}]},
-                        {'datasetId': 'current', 'inputs': [
+        for invalid in [None, {'inputs': []},
+                        {'inputs': [{'url': 'file:///tmp/input', 'contentType': 'text/csv'}]},
+                        {'inputs': [
                             {'url': 'https://example.invalid/a', 'contentType': 'text/csv'},
                             {'url': 'https://example.invalid/b', 'contentType': 'text/csv'}]}]:
             config = json.loads(json.dumps(original))
-            config['DPT30']['source'] = invalid
+            config['DPT30']['datasets']['current'] = invalid
             self.config_file.write_text(json.dumps(config))
             self.deploy(success=False)
             self.assertNotIn('calls', self.state)
@@ -337,7 +380,7 @@ class OciScriptsTest(unittest.TestCase):
                 self.assertEqual(settings['source']['dataSourceId'], 'NIM')
                 self.assertEqual(settings['source']['datasetId'], 'nim-2022')
                 self.assertEqual(settings['datasetUrl'],
-                                 json.loads(self.config_file.read_text())['NIM']['source']['datasetInfoUrl'])
+                                 json.loads(self.config_file.read_text())['NIM']['datasets']['nim-2022']['datasetInfoUrl'])
                 self.assertEqual(settings['years'], [2022])
                 self.assertEqual(settings['source']['inputs'][0]['objectName'], 'NIM_Comptage.csv')
                 self.assertLessEqual(sum(len(k.encode()) + len(v.encode()) for k, v in config.items()), 4096)
@@ -352,10 +395,12 @@ class OciScriptsTest(unittest.TestCase):
         config = json.loads(self.config_file.read_text())
         for years in [None, [], [2022, 2022], [0], [3000], [2022.5], ['2022']]:
             with self.subTest(years=years):
-                config['NIM']['preprocessing']['years'] = years
+                config['NIM']['datasets']['nim-2022']['years'] = years
                 self.config_file.write_text(json.dumps(config))
                 self.deployment_common('main preprocess NIM', success=False)
                 self.assertFalse(self.state.get('calls', []))
+        del config['MRN']['datasets']['mrn-2026']['years']
+        self.config_file.write_text(json.dumps(config))
         self.deployment_common('main preprocess MRN', success=False)
         self.assertFalse(self.state.get('calls', []))
 
@@ -402,7 +447,7 @@ class OciScriptsTest(unittest.TestCase):
             for value in values:
                 config = json.loads(json.dumps(original))
                 if field == 'geoJsonEnabled': config['NIM'][field] = value
-                else: config['NIM']['source'][field] = value
+                else: config['NIM']['datasets']['nim-2022'][field] = value
                 self.config_file.write_text(json.dumps(config))
                 self.common('load_data_sources', success=False)
         self.assertNotIn('calls', self.state)

@@ -16,9 +16,12 @@ invocation before the CSV is published and is reported as a function failure.
 
 ## Source retrieval configuration
 
-Each datasource's `source` entry in `dsconfig.json` specifies `datasetId` and
-an ordered `inputs` array. Inputs have `url`, `contentType`, and optionally
-`objectName`. CSV Object names default to the datasource's `csvObject` naming
+Each datasource in `dsconfig.json` selects an `activeDatasetId` from its
+`datasets` map. Each dataset contains `years`, `datasetInfoUrl`, an ordered
+`inputs` array, and optionally `timeoutSeconds`. Inactive datasets remain in the
+configuration; deployment and invocation select only `datasets[activeDatasetId]`.
+The selected map key becomes `datasetId` in the runtime settings. Inputs have
+`url`, `contentType`, and optionally `objectName`. CSV Object names default to the datasource's `csvObject` naming
 convention; MMM's companion JSON keeps its explicit legacy name.
 
 Deployment passes these settings as a JSON string in `DATA_SOURCE_SETTINGS`,
@@ -100,7 +103,7 @@ Object `NIM_Comptage.csv`; changed downloads archive the previous content as
 the shared publisher. The export uses French column labels and semicolons.
 
 `dsconfig.json` selects Monthly retrieval, `geoJsonEnabled: false`, and
-`source.timeoutSeconds: 300`. Deployment registers `NIMOpenDataSource` with a
+`datasets.nim-2022.timeoutSeconds: 300`. Deployment registers `NIMOpenDataSource` with a
 300-second runtime timeout on creation and updates. `scripts/invoke.sh ds NIM` allows
 360 seconds for the synchronous response. `BUCKETNAME_NIM` overrides the
 deployment bucket. The existing 4096-byte configuration guard applies.
@@ -117,8 +120,8 @@ The parser library provides `NIMComptageParser` for hourly aggregation; see the
 NIM still has no cloud GeoJSON handler. Event setup skips entries
 with `geoJsonEnabled: false`, and GeoJSON deployment/invocation rejects NIM before
 making cloud calls. Preprocessing can publish yearly Objects and the manifest through an explicit invocation; GeoJSON migration comes later.
-Switch the `source.datasetId` and URL in `dsconfig.json` and redeploy the source
-function when ready to monitor the newer dataset.
+Add the newer dataset with its URL and years to `datasets`, select its key with
+`activeDatasetId`, and redeploy the source function when ready to monitor it.
 
 ## Preprocessing
 
@@ -143,11 +146,12 @@ After `source ./scripts/setup.sh`, deploy and invoke NIM preprocessing explicitl
 
 The downloader must have populated the source Objects first. No remote download
 is performed by preprocessing. Deployment builds `PREPROCESSING_SETTINGS` from
-`source`, `source.datasetInfoUrl` and `preprocessing.years` in `dsconfig.json`, applies
-the 4096-byte configuration limit, and sets a 300-second runtime timeout.
+the selected `datasets[activeDatasetId]` inputs, `datasetInfoUrl` and `years`
+in `dsconfig.json`, applies the 4096-byte configuration limit, and sets a
+300-second runtime timeout.
 NIM starts with `[2022]`; DPT30 uses `[2021, 2022, 2023, 2024, 2025]`, matching
-the available annual records. Other sources need an explicit expected year scope;
-MMM also requires its companion geometry input. Input names are used as named
+the available annual records. Every dataset defines its explicit expected year
+scope; MMM also requires its companion geometry input. Input names are used as named
 manifest inputs. Preprocessing converts companion LineStrings to Points halfway
 along their total geographic length, interpolating within the original segment.
 Other geometry types are preserved. Rerun MMM preprocessing to apply this change
@@ -179,10 +183,13 @@ For example, DPT34 contains records for 2014–2025 in one CSV. Publish those ye
 in two groups, then leave 2026 as the active period.
 
 Before starting, ensure `DPT34_Comptage.csv` has been downloaded successfully.
-The following JSON fragments show only the fields to change inside the existing
-`DPT34` entry in `dsconfig.json`. Preserve the other fields, including
-`source.datasetInfoUrl`, `source.inputs` and the datasource logo URL. Keep the
-same input URL throughout; switching dataset IDs does not require another download.
+The DPT34 `datasets` map already contains all three periods, each with its own
+`years`, `datasetInfoUrl` and `inputs`. The following fragments show only the
+`activeDatasetId` field to change inside the existing `DPT34` entry in
+`dsconfig.json`. Keep all dataset entries and the datasource logo URL. The
+periods share the same input URL, so switching dataset IDs does not require
+another download. Registering an inactive dataset in this file does not publish
+it to the manifest; it must be selected and preprocessing invoked first.
 
 **1. Publish the first historical period: 2014–2019.**
 
@@ -190,12 +197,7 @@ Set these values in the DPT34 configuration:
 
 ```json
 {
-  "preprocessing": {
-    "years": [2014, 2015, 2016, 2017, 2018, 2019]
-  },
-  "source": {
-    "datasetId": "dpt34-2014-2019"
-  }
+  "activeDatasetId": "dpt34-2014-2019"
 }
 ```
 
@@ -219,12 +221,7 @@ Change the same fields to:
 
 ```json
 {
-  "preprocessing": {
-    "years": [2020, 2021, 2022, 2023, 2024, 2025]
-  },
-  "source": {
-    "datasetId": "dpt34-2020-2025"
-  }
+  "activeDatasetId": "dpt34-2020-2025"
 }
 ```
 
@@ -239,12 +236,7 @@ Change the configuration to:
 
 ```json
 {
-  "preprocessing": {
-    "years": [2026]
-  },
-  "source": {
-    "datasetId": "dpt34-2026"
-  }
+  "activeDatasetId": "dpt34-2026"
 }
 ```
 

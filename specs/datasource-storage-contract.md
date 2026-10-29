@@ -9,8 +9,9 @@ specification, Object refers to an item stored in that bucket.
 A datasource such as NIM or DPT34 can contain multiple datasets. Each dataset
 has a `datasetId`, such as `nim-2022` or `nim-2023-2024`; one dataset is actively
 monitored at a time. Datasource branding uses the top-level `dataSourceLogoUrl`
-and optional `dataSourceFaviconUrl`; the dataset page URL is
-`source.datasetInfoUrl`, next to `source.datasetId`.
+and optional `dataSourceFaviconUrl`. The `datasets` map is keyed by dataset ID;
+each entry holds its `datasetInfoUrl`, `inputs`, and `years`. The datasource's
+`activeDatasetId` selects the dataset currently monitored.
 
 ## Objects
 
@@ -77,9 +78,10 @@ is maintained in code and must change when the stored interpretation changes.
 ## Source retrieval configuration
 
 The datasource function downloads the active source inputs into its bucket. It
-neither reads nor writes the manifest. Deployment reads the datasource's `source`
-entry in `dsconfig.json` and passes `dataSourceId`, `datasetId` and ordered
-`inputs` through the `DATA_SOURCE_SETTINGS` function configuration. The function
+neither reads nor writes the manifest. Deployment selects the datasource's
+`datasets[activeDatasetId]` entry in `dsconfig.json` and passes `dataSourceId`,
+the selected key as `datasetId`, and ordered `inputs` through the
+`DATA_SOURCE_SETTINGS` function configuration. The function
 reads these settings through `RuntimeContext`; it does not read the repository
 file at runtime.
 
@@ -107,7 +109,7 @@ URLs and dataset IDs are configured only in `dsconfig.json`, with no Java
 fallbacks. Each handler supplies only its datasource ID to the shared retrieval
 superclass. `GeoJsonDataSource` retains only GeoJSON parser selection and naming.
 
-The optional `source.timeoutSeconds` sets the download function's synchronous
+The active dataset's optional `timeoutSeconds` sets the download function's synchronous
 runtime timeout (1–300 seconds). Deployment applies it on creation and updates;
 invocation allows an additional 60 seconds when it exceeds the default 30. NIM
 uses 300 seconds for its 2022 export. `geoJsonEnabled: false` marks a datasource
@@ -189,8 +191,10 @@ as described below.
 
 ## Preprocessing configuration and execution
 
-Deployment builds `PREPROCESSING_SETTINGS` from the existing retrieval settings,
-`source.datasetInfoUrl`, and `preprocessing.years` in `dsconfig.json`:
+Deployment builds `PREPROCESSING_SETTINGS` from the active dataset's retrieval
+settings, `datasetInfoUrl`, and `years` under `datasets[activeDatasetId]` in
+`dsconfig.json`. Inactive entries remain in the file but are not passed to the
+function or published to the manifest until selected and processed:
 
 ```json
 {
@@ -210,7 +214,8 @@ Deployment builds `PREPROCESSING_SETTINGS` from the existing retrieval settings,
 
 The shared `PreprocessingFunction` supports all current datasource IDs. NIM has
 an initial explicit scope of `[2022]`; DPT30 uses `[2021, 2022, 2023, 2024, 2025]`.
-Other sources require their own expected years before invoking this stage. The scope may expand. Reducing the scope or changing input Object names for
+Every configured dataset declares its own expected years before invoking this
+stage. The scope may expand. Reducing the scope or changing input Object names for
 an existing dataset requires a new `datasetId`. Records outside the configured
 scope are skipped, with their distinct years logged at INFO level. Configured
 years with no records are also logged as a set at INFO level and do not prevent

@@ -19,7 +19,7 @@ main() {
       function_name="$(data_source_function_name "$source" "$type")"
       if [ "$type" = preprocess ]; then invocation_options+=(--read-timeout 360); fi
       if [ "$type" = ds ]; then
-        timeout="$(jq -r '.source.timeoutSeconds // 30' <<< "$source")"
+        timeout="$(jq -r '.datasets[.activeDatasetId].timeoutSeconds // 30' <<< "$source")"
         if [ "$timeout" -gt 30 ]; then invocation_options+=(--read-timeout "$((timeout + 60))"); fi
       fi
       ;;

@@ -97,11 +97,18 @@ load_data_sources() {
           error("Overrides must be nonempty strings for \($key)") end
       | if .geoJsonEnabled != null and (.geoJsonEnabled | type) != "boolean" then
           error("geoJsonEnabled must be a boolean for \($key)") else . end
-      | if .source.timeoutSeconds != null and
-          ((.source.timeoutSeconds | type) != "number" or
-           .source.timeoutSeconds != (.source.timeoutSeconds | floor) or
-           .source.timeoutSeconds < 1 or .source.timeoutSeconds > 300) then
-          error("source.timeoutSeconds must be an integer from 1 to 300 for \($key)") else . end
+      | if (.activeDatasetId | nonempty_string | not) then
+          error("Missing activeDatasetId for \($key)") else . end
+      | if (.datasets | type) != "object" then
+          error("Missing datasets for \($key)") else . end
+      | .datasets[.activeDatasetId] as $dataset
+      | if ($dataset | type) != "object" then
+          error("Missing active dataset for \($key): \(.activeDatasetId)") else . end
+      | if $dataset.timeoutSeconds != null and
+          (($dataset.timeoutSeconds | type) != "number" or
+           $dataset.timeoutSeconds != ($dataset.timeoutSeconds | floor) or
+           $dataset.timeoutSeconds < 1 or $dataset.timeoutSeconds > 300) then
+          error("Active dataset timeoutSeconds must be an integer from 1 to 300 for \($key)") else . end
       | (.functionPrefix // .id) as $prefix
       | . + {functionPrefix: $prefix,
           dataSourceFunction: ($prefix + "OpenDataSource"),
@@ -148,8 +155,7 @@ data_source_settings() {
   jq -ce '
     def nonempty_string: type == "string" and test("[^[:space:]]");
     . as $source
-    | if (.source | type) != "object" then error("Missing source settings for \(.id)") else . end
-    | .source
+    | .datasets[.activeDatasetId] + {datasetId: .activeDatasetId}
     | if (.datasetId | nonempty_string | not) or (.inputs | type) != "array"
         or (.inputs | length) == 0 then error("Expected datasetId and source inputs") else . end
     | .inputs |= map(
@@ -173,15 +179,16 @@ preprocessing_settings() {
   local source="$1" settings
   settings="$(data_source_settings "$source")" || return
   jq -cne --argjson source "$source" --argjson settings "$settings" '
-    $source.preprocessing.years as $years
+    $source.datasets[$source.activeDatasetId] as $dataset
+    | $dataset.years as $years
     | if ($years | type) != "array" or ($years | length) == 0 then
-        error("preprocessing.years must be a nonempty array")
+        error("Active dataset years must be a nonempty array")
       elif ($years | unique | length) != ($years | length) then
-        error("preprocessing.years must be distinct")
+        error("Active dataset years must be distinct")
       elif any($years[]; type != "number") then error("Invalid preprocessing year")
       elif any($years[]; . != floor or . < 1900 or . > (now | strftime("%Y") | tonumber)) then
         error("Invalid preprocessing year")
-      elif ($source.source.datasetInfoUrl | type) != "string" then error("Missing source.datasetInfoUrl")
-      elif ($source.source.datasetInfoUrl | test("^https?://[^/[:space:]]+") | not) then error("Invalid source.datasetInfoUrl")
-      else {source: $settings, datasetUrl: $source.source.datasetInfoUrl, years: $years} end'
+      elif ($dataset.datasetInfoUrl | type) != "string" then error("Missing active dataset datasetInfoUrl")
+      elif ($dataset.datasetInfoUrl | test("^https?://[^/[:space:]]+") | not) then error("Invalid active dataset datasetInfoUrl")
+      else {source: $settings, datasetUrl: $dataset.datasetInfoUrl, years: $years} end'
 }

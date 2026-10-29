@@ -275,7 +275,7 @@ main() {
     configs+=("$config")
     defined_tags+=("$tags")
     timeout=''
-    if [ "$type" = ds ]; then timeout="$(jq -r '.source.timeoutSeconds // empty' <<< "$source")"; fi
+    if [ "$type" = ds ]; then timeout="$(jq -r '.datasets[.activeDatasetId].timeoutSeconds // empty' <<< "$source")"; fi
     if [ "$type" = preprocess ]; then timeout=300; fi
     timeouts+=("$timeout")
   done

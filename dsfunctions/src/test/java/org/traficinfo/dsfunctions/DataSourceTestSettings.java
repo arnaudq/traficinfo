@@ -20,11 +20,13 @@ public final class DataSourceTestSettings {
 
     public static DataSourceSettings settings(String id) {
         JsonNode source = SOURCES.get(id);
+        String datasetId = source.get("activeDatasetId").asText();
+        JsonNode dataset = source.get("datasets").get(datasetId);
         ObjectNode settings = JSON.createObjectNode();
         settings.put("dataSourceId", id);
-        settings.put("datasetId", source.get("source").get("datasetId").asText());
+        settings.put("datasetId", datasetId);
         ArrayNode inputs = settings.putArray("inputs");
-        for (JsonNode original : source.get("source").get("inputs")) {
+        for (JsonNode original : dataset.get("inputs")) {
             ObjectNode input = original.deepCopy();
             if (!input.has("objectName")) {
                 input.put("objectName", source.path("csvObject").asText(id + "_Comptage.csv"));
