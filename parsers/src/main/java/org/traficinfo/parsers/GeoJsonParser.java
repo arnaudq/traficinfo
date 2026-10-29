@@ -19,7 +19,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
-import java.nio.charset.StandardCharsets;
 import java.time.Year;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -124,19 +123,12 @@ public class GeoJsonParser {
     public static void parseAndMerge(DataSource dataSource, Reader csvReader, FeatureCollection geoJsonColl,
                                      Writer geojsonMergedWriter, OSMInfoProvider osmInfoProvider) throws Exception {
 
-        Properties idToVoiesProps = new Properties();
-//        try (FileInputStream fis = new FileInputStream(new File(DATADIR, "idToVoies.properties"))) {
-//            idToVoiesProps.load(new InputStreamReader(fis, StandardCharsets.UTF_8));
-//        }
-
         ComptageParser comptageParser = dataSource.getParser();
-        List<? extends Comptage> comptages = comptageParser.parseComptages(csvReader, idToVoiesProps);
+        List<? extends Comptage> comptages = comptageParser.parseComptages(csvReader);
         logSpeedCoverage(dataSource, "input records", comptages.size(),
                 comptages.stream().filter(comptage -> comptage.getV85Speed() > 0).count(),
                 comptages.stream().filter(comptage -> comptage.getMeanSpeed() > 0).count());
         applyOsmInfo(comptages, osmInfoProvider);
-//        writeComptagesIdAndVoie(comptages, new File(OUTDIR,
-//          String.format("idToVoies-%s.properties", TIMESTAMP)));
 
         LOG.info("Nb comptages: {}", comptages.size());
 
@@ -257,38 +249,6 @@ public class GeoJsonParser {
             return "### BOGUS ###";
         }
     }
-
-//    private static void writeComptagesIdAndVoie(List<MMMComptage> comptages, File propertiesFile)
-//      throws IOException {
-//        Map<String, List<Comptage>> idToComptagesMap = comptages.stream()
-//          .collect(Collectors.groupingBy(Comptage::getCodeCentrale));
-//        Properties props = new Properties() {
-//            @Override
-//            public synchronized Enumeration<Object> keys() {
-//                return Collections.enumeration(new TreeSet<Object>(super.keySet()));
-//            }
-//        };
-//        for (Map.Entry<String, List<Comptage>> anId : idToComptagesMap.entrySet()) {
-//            String streetName = "";
-//            for (Comptage comptage : anId.getValue()) {
-//                if (comptage.getStreetName() != null) {
-//                    streetName = comptage.getStreetName();
-//                    break;
-//                }
-//            }
-//            if (!streetName.isEmpty()) {
-//                // check that values are consistent for a given id
-//                for (Comptage comptage : anId.getValue()) {
-//                    if (!streetName.equals(comptage.getStreetName())) {
-//                        System.err.printf("Mismatch in nom voie for %s: %s versus %s%n",
-//                          comptage.getCodeCentrale(), streetName, comptage.getStreetName());
-//                    }
-//                }
-//            }
-//            props.setProperty(anId.getKey(), streetName);
-//        }
-//        props.store(new FileWriter(propertiesFile), null);
-//    }
 
     static FeatureCollection parseGeoJSON(Reader geojsonReader) throws IOException {
         return new ObjectMapper().readValue(geojsonReader, FeatureCollection.class);
