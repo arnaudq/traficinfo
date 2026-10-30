@@ -142,8 +142,10 @@ The initial registry was generated only from `NIM_Comptages-2020-2021.csv`:
 53 sites, 50 cameras, with cameras 43, 51 and 593 marked as having multiple sites.
 The 2022 export was then imported: 75 sites, 68 cameras. Its 74 rows without
 coordinates were assigned to camera 68's sole site, `NIM_68_S01`. Cameras 43,
-51, 59, 593, 60 and 63 now have multiple registered sites. The subsequent export
-has not yet been imported.
+51, 59, 593, 60 and 63 have multiple registered sites after that import.
+Importing `NIM_Comptages.csv` then brought the registry to 82 sites and 73 cameras,
+adding cameras 2, 85, 89, 891 and 892. Cameras 2 and 57 were additionally flagged
+as having multiple sites. All existing IDs and reference coordinates were preserved.
 
 The source does not provide a road reference, OSM way ID, speed statistics or
 annual peak-hour averages. These remain null/0 as required by the existing
