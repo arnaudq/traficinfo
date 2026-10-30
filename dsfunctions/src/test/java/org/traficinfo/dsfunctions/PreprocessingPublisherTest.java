@@ -391,6 +391,19 @@ public class PreprocessingPublisherTest {
         assertFalse(store.objects.containsKey("NIM_Preprocessing.lock"));
     }
 
+    @Test
+    public void missingCoordinatesPublishUsingTheOnlyRegisteredSite() throws Exception {
+        Store store = new Store();
+        var settings = settings("initial", List.of(2022));
+        store.source(settings, HEADER + row("52", 2022, 10).replace("43.8, 4.4", ""));
+        new PreprocessingPublisher(store).publish(settings);
+        var count = (NIMComptage) new ManifestComptageReader(store).read("NIM").get(0);
+        assertEquals("NIM_52_S01", count.getCodeCentrale());
+        assertEquals(Double.valueOf(43.8), count.getLatitude());
+        assertEquals(Double.valueOf(4.4), count.getLongitude());
+        assertEquals(10, count.getTotalPassages());
+    }
+
     private static org.slf4j.Logger infoLogger(List<String> messages) {
         return (org.slf4j.Logger) java.lang.reflect.Proxy.newProxyInstance(
                 org.slf4j.Logger.class.getClassLoader(), new Class<?>[]{org.slf4j.Logger.class},

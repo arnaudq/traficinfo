@@ -81,6 +81,7 @@ public final class NIMComptageParser implements ComptageParser {
     NIMSiteRegistry registry = sites == null ? NIMSiteRegistry.bundled() : sites;
     Map<CameraLocation, NIMSiteRegistry.Site> resolved = new HashMap<>();
     Map<String, String> unknown = new TreeMap<>();
+    Map<String, Long> inferredCoordinates = new TreeMap<>();
     PushbackReader reader = new PushbackReader(source, 1);
     int first = reader.read();
     if (first != -1 && first != '\uFEFF') reader.unread(first);
@@ -118,7 +119,7 @@ public final class NIMComptageParser implements ComptageParser {
           Location location = location(row, columns);
           CameraLocation sourceLocation = new CameraLocation(camera, location);
           NIMSiteRegistry.Site site = resolved.get(sourceLocation);
-          if (site == null && location.latitude() != null) {
+          if (site == null) {
             site = registry.find(camera, location.latitude(), location.longitude());
             if (site != null) resolved.put(sourceLocation, site);
           }
@@ -128,6 +129,7 @@ public final class NIMComptageParser implements ComptageParser {
             continue;
           }
           SiteYear key = new SiteYear(site, date.getYear());
+          if (location.latitude() == null) inferredCoordinates.merge(site.codeCentrale(), 1L, Long::sum);
           years.computeIfAbsent(key, ignored -> new YearCounts()).add(date, hour, count, location, conflictPolicy);
         } catch (IllegalArgumentException | DateTimeParseException invalid) {
           throw new IOException("Invalid NIM CSV row " + rowNumber + ": " + invalid.getMessage(), invalid);
@@ -140,9 +142,12 @@ public final class NIMComptageParser implements ComptageParser {
       throw new IOException("Unknown NIM sites (" + unknown.size() + " camera/location variants):\n"
           + String.join("\n", unknown.values())
           + "\nRun NIMSiteRegistryUpdater on the input CSV, review nim-sites.json and rebuild before retrying."
-          + " Missing coordinates must be corrected before a site can be assigned.");
+          + " Missing coordinates require exactly one registered site for that camera.");
     }
     java.util.ArrayList<NIMComptage> result = new java.util.ArrayList<>();
+    for (var entry : inferredCoordinates.entrySet()) {
+      logger.warn("NIM missing coordinates assigned to sole site: site={}, rows={}", entry.getKey(), entry.getValue());
+    }
     for (var entry : years.entrySet()) result.add(entry.getValue().finish(entry.getKey(), displayNames, logger));
     Map<String, java.util.Set<LocalDate>> cameraDates = new HashMap<>();
     for (var entry : years.entrySet()) {

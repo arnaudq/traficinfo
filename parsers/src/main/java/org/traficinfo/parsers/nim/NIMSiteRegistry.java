@@ -109,7 +109,12 @@ public final class NIMSiteRegistry {
   /** Returns null for a new camera/site; ambiguous matches fail rather than silently choosing a site. */
   public Site find(String camera, Double latitude, Double longitude) throws IOException {
     if (latitude == null || longitude == null) {
-      throw new IOException("Missing coordinates for NIM camera " + camera + "; a site cannot be assigned");
+      List<Site> candidates = byCamera.getOrDefault(camera, List.of());
+      if (candidates.size() > 1) {
+        throw new IOException("Ambiguous NIM site: missing coordinates for camera " + camera
+            + " with " + candidates.size() + " registered sites");
+      }
+      return candidates.isEmpty() ? null : candidates.get(0);
     }
     Site match = null;
     for (Site site : byCamera.getOrDefault(camera, List.of())) {

@@ -27,8 +27,8 @@ The datasets are published under Licence Ouverte v2.0 (Etalab).
 
 Both field identifiers and French labels are accepted. The CSV reader uses UTF-8,
 semicolons, optional BOM and standard quoted fields. Camera ID, date, interval
-and count headers are required. Coordinates must be present to assign a site;
-other location columns may be absent. Duplicate
+and count headers are required. Coordinates assign a site; when absent, the
+camera must have exactly one registered site. Other location columns may be absent. Duplicate
 normalized headers and malformed records fail with an `IOException` rather
 than silently producing incomplete output.
 
@@ -86,7 +86,8 @@ reference coordinates. Position names, commune names and INSEE codes are
 metadata, not matching keys. References never drift as new coordinates arrive.
 Returning to a known site reuses its `codeCentrale` across years. Unknown
 cameras or coordinates are collected and reported together in an `IOException`
-after the input is read; missing coordinates also block parsing. A point within
+after the input is read. Missing coordinates use the sole registered site for
+that camera, with a warning; zero or multiple possible sites block parsing. A point within
 50 metres of multiple reference sites is rejected as ambiguous.
 
 Output geometry uses the registered reference point. The latest observation
@@ -124,8 +125,11 @@ Each registry record contains:
 - `positions`, `inseeCodes`, `communes`: observed descriptive metadata for review.
 
 The updater reads the entire CSV and validates the assignments before replacing
-the registry through a temporary file. Malformed data, missing coordinates or
-ambiguous assignments leave the existing file intact. It does not aggregate or
+the registry through a temporary file. Malformed data or ambiguous assignments leave the existing file intact. All
+coordinate-bearing observations are processed first; missing coordinates then
+use the sole site for that camera, including one discovered in the same CSV.
+These inferred assignments are logged. A camera with no coordinates anywhere
+and no registered site still fails. It does not aggregate or
 validate hourly counts. Rows dated 1970 are ignored; other dates are retained
 as supplied, even if outside the years in the CSV filename.
 
@@ -136,7 +140,10 @@ run the updater on the downloaded CSV, review its changes, rebuild and retry.
 
 The initial registry was generated only from `NIM_Comptages-2020-2021.csv`:
 53 sites, 50 cameras, with cameras 43, 51 and 593 marked as having multiple sites.
-The 2022 and subsequent exports have not yet been imported into the registry.
+The 2022 export was then imported: 75 sites, 68 cameras. Its 74 rows without
+coordinates were assigned to camera 68's sole site, `NIM_68_S01`. Cameras 43,
+51, 59, 593, 60 and 63 now have multiple registered sites. The subsequent export
+has not yet been imported.
 
 The source does not provide a road reference, OSM way ID, speed statistics or
 annual peak-hour averages. These remain null/0 as required by the existing

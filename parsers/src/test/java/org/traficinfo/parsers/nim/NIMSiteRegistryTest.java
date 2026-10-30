@@ -128,7 +128,7 @@ public class NIMSiteRegistryTest {
       try { NIMSiteRegistryUpdater.update(input, file); fail("Invalid CSV"); }
       catch (IOException expected) { assertTrue(expected.getMessage().contains("row 2")); }
       assertArrayEquals(initial, Files.readAllBytes(file));
-      Files.writeString(input, HEADER + row("2", "2021-01-01", 0, "Missing", "", 1));
+      Files.writeString(input, HEADER + row("900", "2021-01-01", 0, "Missing", "", 1));
       try { NIMSiteRegistryUpdater.update(input, file); fail("Missing coordinates"); }
       catch (IOException expected) { assertTrue(expected.getMessage().contains("Missing coordinates")); }
       assertArrayEquals(initial, Files.readAllBytes(file));
@@ -151,6 +151,37 @@ public class NIMSiteRegistryTest {
     } finally {
       Files.deleteIfExists(input); Files.deleteIfExists(file); Files.deleteIfExists(directory);
     }
+  }
+
+  @Test
+  public void missingCoordinatesUseTheSoleSiteDiscoveredElsewhereInTheCsv() throws Exception {
+    String missing = row("68", "2022-03-31", 0, "Earlier label", "", 10);
+    String known = row("68", "2022-04-04", 0, "Later label", "43.8, 4.4", 20);
+    var registry = discover(empty(), missing + known);
+    assertEquals(1, registry.sites().size());
+    assertEquals("2022-03-31", registry.sites().get(0).firstSeen());
+    assertEquals(List.of("Earlier label", "Later label"), registry.sites().get(0).positions());
+    assertArrayEquals(NIMSiteRegistry.serialize(registry), NIMSiteRegistry.serialize(discover(empty(), known + missing)));
+    var counts = new NIMComptageParser(registry).parseComptages(new StringReader(HEADER + missing + known));
+    assertEquals(1, counts.size());
+    assertEquals(30, counts.get(0).getTotalPassages());
+    assertEquals(Double.valueOf(43.8), counts.get(0).getLatitude());
+    assertEquals("NIM_68_S01", counts.get(0).getCodeCentrale());
+    assertEquals("2022-03-31", discover(registry, missing).sites().get(0).firstSeen());
+  }
+
+  @Test
+  public void missingCoordinatesRemainAmbiguousWhenTheCsvDiscoversAnotherSite() throws Exception {
+    var initial = discover(empty(), row("68", "2022-01-01", 0, "Original", "43.8, 4.4", 10));
+    byte[] before = NIMSiteRegistry.serialize(initial);
+    try {
+      discover(initial, row("68", "2022-02-01", 0, "Unknown location", "", 10)
+          + row("68", "2022-03-01", 0, "New site", "44, 4.4", 10));
+      fail("Missing coordinates cannot be inferred after a second site is discovered");
+    } catch (IOException expected) {
+      assertTrue(expected.getMessage(), expected.getMessage().contains("Ambiguous NIM site"));
+    }
+    assertArrayEquals(before, NIMSiteRegistry.serialize(initial));
   }
 
   private static NIMSiteRegistry empty() throws IOException { return new NIMSiteRegistry(List.of()); }

@@ -26,6 +26,7 @@ import java.util.TreeSet;
 
 /** Explicitly discovers sites from a local CSV and updates the reviewed registry, never during parsing. */
 public final class NIMSiteRegistryUpdater {
+  private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(NIMSiteRegistryUpdater.class);
   private NIMSiteRegistryUpdater() {}
 
   /** Supply a CSV and optionally the registry path; a missing registry starts an empty one. */
@@ -72,8 +73,10 @@ public final class NIMSiteRegistryUpdater {
     final Key key;
     LocalDate first;
     LocalDate last;
+    long rows;
     Observed(Key key, LocalDate date) { this.key = key; first = date; last = date; }
     void add(LocalDate date) {
+      rows++;
       if (date.isBefore(first)) first = date;
       if (date.isAfter(last)) last = date;
     }
@@ -82,10 +85,12 @@ public final class NIMSiteRegistryUpdater {
   static NIMSiteRegistry discover(NIMSiteRegistry previous, Reader source) throws IOException {
     Map<Key, Observed> observations = readLocations(source);
     List<Observed> ordered = new ArrayList<>(observations.values());
-    ordered.sort(Comparator.comparing((Observed value) -> value.key.camera)
+    // Discover all coordinate-bearing sites before assigning missing-coordinate observations.
+    ordered.sort(Comparator.comparing((Observed value) -> value.key.location.latitude() == null)
+        .thenComparing(value -> value.key.camera)
         .thenComparing(value -> value.first)
-        .thenComparing(value -> value.key.location.latitude())
-        .thenComparing(value -> value.key.location.longitude())
+        .thenComparing(value -> value.key.location.latitude(), Comparator.nullsLast(Comparator.naturalOrder()))
+        .thenComparing(value -> value.key.location.longitude(), Comparator.nullsLast(Comparator.naturalOrder()))
         .thenComparing(value -> value.key.location.toString()));
     List<Site> sites = new ArrayList<>(previous.sites());
     NIMSiteRegistry registry = previous;
@@ -94,6 +99,9 @@ public final class NIMSiteRegistryUpdater {
       Location location = observed.key.location;
       Site site = registry.find(camera, location.latitude(), location.longitude());
       if (site == null) {
+        if (location.latitude() == null) {
+          throw new IOException("Missing coordinates for camera " + camera + "; no known site supplies a reference point");
+        }
         int number = sites.stream().filter(value -> value.cameraId().equals(camera))
             .mapToInt(value -> Integer.parseInt(value.codeCentrale().substring(value.codeCentrale().lastIndexOf("_S") + 2)))
             .max().orElse(0) + 1;
@@ -113,7 +121,11 @@ public final class NIMSiteRegistryUpdater {
     }
     // Later reference sites must not make any previously observed point ambiguous.
     for (Observed observed : ordered) {
-      registry.find(observed.key.camera, observed.key.location.latitude(), observed.key.location.longitude());
+      Site site = registry.find(observed.key.camera, observed.key.location.latitude(), observed.key.location.longitude());
+      if (observed.key.location.latitude() == null) {
+        LOG.warn("NIM missing coordinates assigned to sole site: camera={}, site={}, rows={}, firstSeen={}, lastSeen={}",
+            observed.key.camera, site.codeCentrale(), observed.rows, observed.first, observed.last);
+      }
     }
     return registry;
   }
@@ -148,7 +160,6 @@ public final class NIMSiteRegistryUpdater {
         LocalDate date = LocalDate.parse(rawDate);
         if (date.getYear() == 1970) continue;
         Location location = NIMComptageParser.location(row, columns);
-        if (location.latitude() == null) throw new IOException("Missing coordinates for camera " + camera);
         Key key = new Key(camera, location);
         observations.computeIfAbsent(key, ignored -> new Observed(key, date)).add(date);
       }

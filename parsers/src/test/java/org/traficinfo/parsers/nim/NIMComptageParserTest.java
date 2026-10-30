@@ -208,8 +208,8 @@ public class NIMComptageParserTest extends ParserBaseTest {
         nearby.replace("Rue exemple", "Other"))) {
       assertEquals(30, parse(HEADER + first + changed).get(0).getTotalPassages());
     }
-    assertInvalid(HEADER + first + nearby.replace("43.8001, 4.4", ""), "Unknown NIM sites");
-    assertInvalid(HEADER + first.replace("43.8, 4.4", "") + nearby, "Unknown NIM sites");
+    assertInvalid(HEADER + first + nearby.replace("43.8001, 4.4", ""), "Ambiguous NIM site");
+    assertInvalid(HEADER + first.replace("43.8, 4.4", "") + nearby, "Ambiguous NIM site");
   }
 
   @Test
@@ -239,13 +239,17 @@ public class NIMComptageParserTest extends ParserBaseTest {
   }
 
   @Test
-  public void coordinatesAreRequiredButOtherLocationColumnsCanBeAbsent() throws Exception {
+  public void missingCoordinatesRequireExactlyOneRegisteredSite() throws Exception {
     String minimal = "id_camera;date;tranche;nbpassage;coordonnees_geographique\n52;2022-01-01;00:00 - 01:00;10;43.8, 4.4\n";
     NIMComptage count = parse(minimal).get(0);
     assertEquals("NIM_52_S01", count.getDisplayName());
     assertNotNull(count.getGeometry());
     assertNull(count.getCityName());
-    assertInvalid(minimal.replace(";coordonnees_geographique", "").replace(";43.8, 4.4", ""), "Unknown NIM sites");
+    assertInvalid(minimal.replace(";coordonnees_geographique", "").replace(";43.8, 4.4", ""), "Ambiguous NIM site");
+    NIMComptage inferred = parse(minimal.replace("52;", "53;")
+        .replace(";coordonnees_geographique", "").replace(";43.8, 4.4", "")).get(0);
+    assertEquals("NIM_53_S01", inferred.getCodeCentrale());
+    assertEquals(Double.valueOf(43.8), inferred.getLatitude());
     assertInvalid(HEADER + day("52", "2022-01-01", Integer.MAX_VALUE), "integer range");
   }
 

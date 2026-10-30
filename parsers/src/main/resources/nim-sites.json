@@ -1,11 +1,33 @@
 [ {
+  "codeCentrale" : "NIM_39_S01",
+  "cameraId" : "39",
+  "latitude" : 43.91085586928253,
+  "longitude" : 4.409836507627043,
+  "cameraMoved" : false,
+  "firstSeen" : "2022-01-10",
+  "lastSeen" : "2022-12-31",
+  "positions" : [ "POU Rte d'Uzes FIXE (2408)", "POU Rte d'Uzes FIXE (2409)" ],
+  "inseeCodes" : [ "30206" ],
+  "communes" : [ "Poulx" ]
+}, {
+  "codeCentrale" : "NIM_3_S01",
+  "cameraId" : "3",
+  "latitude" : 43.784068,
+  "longitude" : 4.298556,
+  "cameraMoved" : false,
+  "firstSeen" : "2022-06-20",
+  "lastSeen" : "2022-12-31",
+  "positions" : [ "MIL Rte de Montpellier FIXE (1519)" ],
+  "inseeCodes" : [ "30169" ],
+  "communes" : [ "Milhaud" ]
+}, {
   "codeCentrale" : "NIM_40_S01",
   "cameraId" : "40",
   "latitude" : 43.796833,
   "longitude" : 4.376703,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-04",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "CAI Cambourin FIXE (1701)" ],
   "inseeCodes" : [ "30060" ],
   "communes" : [ "Caissargues" ]
@@ -16,7 +38,7 @@
   "longitude" : 4.380538,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-04",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "CAI Daudet 1 FIXE (1705)" ],
   "inseeCodes" : [ "30060" ],
   "communes" : [ "Caissargues" ]
@@ -27,7 +49,7 @@
   "longitude" : 4.380774,
   "cameraMoved" : false,
   "firstSeen" : "2018-02-14",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "CAI Daudet 2 FIXE (1706)" ],
   "inseeCodes" : [ "30060" ],
   "communes" : [ "Caissargues" ]
@@ -49,7 +71,7 @@
   "longitude" : 4.43518,
   "cameraMoved" : true,
   "firstSeen" : "2021-05-06",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "GAR ZAE Courbade 2 FIXE (NM) (2602)", "GAR ZAE Courbade FIXE (NM) (2602)" ],
   "inseeCodes" : [ "30125" ],
   "communes" : [ "Garons" ]
@@ -60,7 +82,7 @@
   "longitude" : 4.438321,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-04",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "GAR ZAE Montval FIXE (NM) (2604)" ],
   "inseeCodes" : [ "30125" ],
   "communes" : [ "Garons" ]
@@ -71,7 +93,7 @@
   "longitude" : 4.423977,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-04",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-09-12",
   "positions" : [ "SGIL ZAE Rafale 2 FIXE (NM) (1443)" ],
   "inseeCodes" : [ "30258" ],
   "communes" : [ "Saint-Gilles" ]
@@ -82,8 +104,8 @@
   "longitude" : 4.428315,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-04",
-  "lastSeen" : "2021-12-31",
-  "positions" : [ "ROD Republique FIXE (2811)" ],
+  "lastSeen" : "2022-12-31",
+  "positions" : [ "ROD Republique FIXE (2811)", "ROD Republique Fixe (2811)" ],
   "inseeCodes" : [ "30356" ],
   "communes" : [ "Rodilhan" ]
 }, {
@@ -93,7 +115,7 @@
   "longitude" : 4.50748,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-07",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "LED Park Balazard 2 FIXE (2904)", "LED Park Balazard 2 Fixe (2904)" ],
   "inseeCodes" : [ "30145" ],
   "communes" : [ "Lédenon" ]
@@ -104,7 +126,7 @@
   "longitude" : 4.512381,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-07",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "LED City Stade Fixe (2907)" ],
   "inseeCodes" : [ "30145" ],
   "communes" : [ "Lédenon" ]
@@ -115,7 +137,7 @@
   "longitude" : 4.25208,
   "cameraMoved" : false,
   "firstSeen" : "2021-01-02",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "LAN Vigne Croze FIXE (2715)" ],
   "inseeCodes" : [ "30138" ],
   "communes" : [ "Langlade" ]
@@ -126,7 +148,7 @@
   "longitude" : 4.429701,
   "cameraMoved" : false,
   "firstSeen" : "2021-02-14",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "ROD Canaux Jean Bouin 2 (2814b2)" ],
   "inseeCodes" : [ "30356" ],
   "communes" : [ "Rodilhan" ]
@@ -137,7 +159,7 @@
   "longitude" : 4.429324,
   "cameraMoved" : true,
   "firstSeen" : "2021-02-14",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "ROD Canaux Jean Bouin 4 (2814b4)" ],
   "inseeCodes" : [ "30356" ],
   "communes" : [ "Rodilhan" ]
@@ -159,7 +181,7 @@
   "longitude" : 4.44252,
   "cameraMoved" : false,
   "firstSeen" : "2021-02-14",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "ROD Rte de Manduel 1 (2819b1)" ],
   "inseeCodes" : [ "30356" ],
   "communes" : [ "Rodilhan" ]
@@ -170,7 +192,7 @@
   "longitude" : 4.247094,
   "cameraMoved" : false,
   "firstSeen" : "2021-04-15",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "LAN RD14 Fixe (2702)" ],
   "inseeCodes" : [ "30138" ],
   "communes" : [ "Langlade" ]
@@ -181,7 +203,7 @@
   "longitude" : 4.380295085959558,
   "cameraMoved" : false,
   "firstSeen" : "2021-05-28",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "CAI Estagel FIXE (1726)" ],
   "inseeCodes" : [ "30060" ],
   "communes" : [ "Caissargues" ]
@@ -192,10 +214,43 @@
   "longitude" : 4.274278191642834,
   "cameraMoved" : false,
   "firstSeen" : "2021-05-28",
-  "lastSeen" : "2021-12-31",
-  "positions" : [ "CAV Ch de Juniperaie FIXE (1372)" ],
+  "lastSeen" : "2022-12-31",
+  "positions" : [ "CAV Ch de Juniperaie FIXE (1363)", "CAV Ch de Juniperaie FIXE (1372)" ],
   "inseeCodes" : [ "30075" ],
   "communes" : [ "Caveirac" ]
+}, {
+  "codeCentrale" : "NIM_56_S01",
+  "cameraId" : "56",
+  "latitude" : 43.80254466404698,
+  "longitude" : 4.2521910400582525,
+  "cameraMoved" : false,
+  "firstSeen" : "2022-01-14",
+  "lastSeen" : "2022-12-31",
+  "positions" : [ "LAN Rte de Pinede FIXE (2708)" ],
+  "inseeCodes" : [ "30138" ],
+  "communes" : [ "Langlade" ]
+}, {
+  "codeCentrale" : "NIM_57_S01",
+  "cameraId" : "57",
+  "latitude" : 43.79855491400758,
+  "longitude" : 4.24757124130085,
+  "cameraMoved" : false,
+  "firstSeen" : "2022-01-20",
+  "lastSeen" : "2022-12-31",
+  "positions" : [ "LAN Nages-reservoir FIXE (2712)" ],
+  "inseeCodes" : [ "30138" ],
+  "communes" : [ "Langlade" ]
+}, {
+  "codeCentrale" : "NIM_58_S01",
+  "cameraId" : "58",
+  "latitude" : 43.79840390904789,
+  "longitude" : 4.2474103087693384,
+  "cameraMoved" : false,
+  "firstSeen" : "2022-01-28",
+  "lastSeen" : "2022-12-31",
+  "positions" : [ "LAN Nages-Lauzieres FIXE (2713)" ],
+  "inseeCodes" : [ "30138" ],
+  "communes" : [ "Langlade" ]
 }, {
   "codeCentrale" : "NIM_593_S01",
   "cameraId" : "593",
@@ -214,7 +269,7 @@
   "longitude" : 4.31668,
   "cameraMoved" : true,
   "firstSeen" : "2020-01-12",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "MIL Carraud FIXE (1513)" ],
   "inseeCodes" : [ "30169" ],
   "communes" : [ "Milhaud" ]
@@ -225,7 +280,7 @@
   "longitude" : 4.31417762483226,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-04",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "MIL Rte de Nimes FIXE (1515)" ],
   "inseeCodes" : [ "30169" ],
   "communes" : [ "Milhaud" ]
@@ -236,10 +291,65 @@
   "longitude" : 4.298556,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-04",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-03-22",
   "positions" : [ "MIL Rte de Montpellier FIXE (1519)" ],
   "inseeCodes" : [ "30169" ],
   "communes" : [ "Milhaud" ]
+}, {
+  "codeCentrale" : "NIM_59_S01",
+  "cameraId" : "59",
+  "latitude" : 43.794867202314805,
+  "longitude" : 4.257736763318082,
+  "cameraMoved" : true,
+  "firstSeen" : "2022-01-20",
+  "lastSeen" : "2022-12-31",
+  "positions" : [ "LAN Rte Bernis FIXE (2714)" ],
+  "inseeCodes" : [ "30138" ],
+  "communes" : [ "Langlade" ]
+}, {
+  "codeCentrale" : "NIM_59_S02",
+  "cameraId" : "59",
+  "latitude" : 43.688476218803594,
+  "longitude" : 4.4277690016786755,
+  "cameraMoved" : true,
+  "firstSeen" : "2022-01-28",
+  "lastSeen" : "2022-01-31",
+  "positions" : [ "SGIL Rte de Nimes Fixe (1475)" ],
+  "inseeCodes" : [ "30258" ],
+  "communes" : [ "Saint-Gilles" ]
+}, {
+  "codeCentrale" : "NIM_59_S03",
+  "cameraId" : "59",
+  "latitude" : 43.676593254835076,
+  "longitude" : 4.430838052723603,
+  "cameraMoved" : true,
+  "firstSeen" : "2022-02-04",
+  "lastSeen" : "2022-02-13",
+  "positions" : [ "SGIL Rte de Generac 1-360-4 (1469d)" ],
+  "inseeCodes" : [ "30258" ],
+  "communes" : [ "Saint-Gilles" ]
+}, {
+  "codeCentrale" : "NIM_60_S01",
+  "cameraId" : "60",
+  "latitude" : 43.676593254835076,
+  "longitude" : 4.430838052723603,
+  "cameraMoved" : true,
+  "firstSeen" : "2022-02-04",
+  "lastSeen" : "2022-02-13",
+  "positions" : [ "SGIL Chanzy Fixe (1468)" ],
+  "inseeCodes" : [ "30258" ],
+  "communes" : [ "Saint-Gilles" ]
+}, {
+  "codeCentrale" : "NIM_60_S02",
+  "cameraId" : "60",
+  "latitude" : 43.67220488968289,
+  "longitude" : 4.436453875933253,
+  "cameraMoved" : true,
+  "firstSeen" : "2022-02-14",
+  "lastSeen" : "2022-12-31",
+  "positions" : [ "SGIL Chanzy Fixe (1468)" ],
+  "inseeCodes" : [ "30258" ],
+  "communes" : [ "Saint-Gilles" ]
 }, {
   "codeCentrale" : "NIM_618_S01",
   "cameraId" : "618",
@@ -247,7 +357,7 @@
   "longitude" : 4.27205260546031,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-04",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "CAV Rte de Nimes FIXE (1354)" ],
   "inseeCodes" : [ "30075" ],
   "communes" : [ "Caveirac" ]
@@ -258,7 +368,7 @@
   "longitude" : 4.2614308440412,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-04",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "CAV Rte de Sommieres FIXE (1356)" ],
   "inseeCodes" : [ "30075" ],
   "communes" : [ "Caveirac" ]
@@ -269,7 +379,7 @@
   "longitude" : 4.381018,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-04",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-08-26",
   "positions" : [ "CAI Labadou 2 FIXE (1709)" ],
   "inseeCodes" : [ "30060" ],
   "communes" : [ "Caissargues" ]
@@ -280,7 +390,7 @@
   "longitude" : 4.375252,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-04",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "CAI Rte de Nimes FIXE (1711)" ],
   "inseeCodes" : [ "30060" ],
   "communes" : [ "Caissargues" ]
@@ -291,7 +401,7 @@
   "longitude" : 4.490222,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-04",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "BEZ RD6086-1 FIXE (1603)" ],
   "inseeCodes" : [ "30039" ],
   "communes" : [ "Bezouce" ]
@@ -302,10 +412,54 @@
   "longitude" : 4.490506,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-04",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "BEZ RD6086-2 FIXE (1604)" ],
   "inseeCodes" : [ "30039" ],
   "communes" : [ "Bezouce" ]
+}, {
+  "codeCentrale" : "NIM_63_S01",
+  "cameraId" : "63",
+  "latitude" : 43.6864329971533,
+  "longitude" : 4.4443298447467,
+  "cameraMoved" : true,
+  "firstSeen" : "2022-02-03",
+  "lastSeen" : "2022-05-31",
+  "positions" : [ "SGIL Rte de beaucaire (1421)" ],
+  "inseeCodes" : [ "30258" ],
+  "communes" : [ "Saint-Gilles" ]
+}, {
+  "codeCentrale" : "NIM_63_S02",
+  "cameraId" : "63",
+  "latitude" : 43.676593254835076,
+  "longitude" : 4.430838052723603,
+  "cameraMoved" : true,
+  "firstSeen" : "2022-06-01",
+  "lastSeen" : "2022-12-31",
+  "positions" : [ "SGIL Rte de Beaucaire Fixe (1471)" ],
+  "inseeCodes" : [ "30258" ],
+  "communes" : [ "Saint-Gilles" ]
+}, {
+  "codeCentrale" : "NIM_64_S01",
+  "cameraId" : "64",
+  "latitude" : 43.67311898779051,
+  "longitude" : 4.419292605031563,
+  "cameraMoved" : false,
+  "firstSeen" : "2022-02-14",
+  "lastSeen" : "2022-12-31",
+  "positions" : [ "SGIL Verdun 2 Fixe (1474)" ],
+  "inseeCodes" : [ "30258" ],
+  "communes" : [ "Saint-Gilles" ]
+}, {
+  "codeCentrale" : "NIM_65_S01",
+  "cameraId" : "65",
+  "latitude" : 43.688476218803594,
+  "longitude" : 4.4277690016786755,
+  "cameraMoved" : false,
+  "firstSeen" : "2022-02-01",
+  "lastSeen" : "2022-12-31",
+  "positions" : [ "SGIL Rte de Nimes Fixe (1475)" ],
+  "inseeCodes" : [ "30258" ],
+  "communes" : [ "Saint-Gilles" ]
 }, {
   "codeCentrale" : "NIM_669_S01",
   "cameraId" : "669",
@@ -313,7 +467,7 @@
   "longitude" : 4.303883,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-04",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "MIL Pont Gare FIXE (1517)" ],
   "inseeCodes" : [ "30169" ],
   "communes" : [ "Milhaud" ]
@@ -324,7 +478,7 @@
   "longitude" : 4.320427,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-04",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "MIL ZAE Trajectoire Entree FIXE (NM) (1524)" ],
   "inseeCodes" : [ "30169" ],
   "communes" : [ "Milhaud" ]
@@ -335,10 +489,54 @@
   "longitude" : 4.320227,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-04",
-  "lastSeen" : "2021-12-02",
-  "positions" : [ "MIL ZAE Trajectoire Sortie  (NM) (1525)" ],
+  "lastSeen" : "2022-12-31",
+  "positions" : [ "MIL ZAE Trajectoire Sortie  (NM) (1525)", "MIL ZAE Trajectoire Sortie FIXE (NM) (1525)" ],
   "inseeCodes" : [ "30169" ],
   "communes" : [ "Milhaud" ]
+}, {
+  "codeCentrale" : "NIM_686_S01",
+  "cameraId" : "686",
+  "latitude" : 43.79785,
+  "longitude" : 4.382764,
+  "cameraMoved" : false,
+  "firstSeen" : "2022-01-24",
+  "lastSeen" : "2022-12-31",
+  "positions" : [ "CAI ZAE Carreirasse 2 FIXE (NM) (1714)" ],
+  "inseeCodes" : [ "30060" ],
+  "communes" : [ "Caissargues" ]
+}, {
+  "codeCentrale" : "NIM_68_S01",
+  "cameraId" : "68",
+  "latitude" : 43.785357435002595,
+  "longitude" : 4.307943269840803,
+  "cameraMoved" : false,
+  "firstSeen" : "2022-03-31",
+  "lastSeen" : "2022-12-31",
+  "positions" : [ "MIL Ch du Creux -360- 1 -360- (1526)", "MIL Ch du Creux -360- 2 -360- (1527)" ],
+  "inseeCodes" : [ "30169" ],
+  "communes" : [ "Milhaud" ]
+}, {
+  "codeCentrale" : "NIM_69_S01",
+  "cameraId" : "69",
+  "latitude" : 43.819728862888034,
+  "longitude" : 4.387907473135809,
+  "cameraMoved" : false,
+  "firstSeen" : "2022-07-27",
+  "lastSeen" : "2022-12-31",
+  "positions" : [ "Mendes Fixe (613)" ],
+  "inseeCodes" : [ "30189" ],
+  "communes" : [ "Nîmes" ]
+}, {
+  "codeCentrale" : "NIM_70_S01",
+  "cameraId" : "70",
+  "latitude" : 43.85164283555708,
+  "longitude" : 4.376555410187307,
+  "cameraMoved" : false,
+  "firstSeen" : "2022-07-27",
+  "lastSeen" : "2022-12-31",
+  "positions" : [ "Rte d'Uzes Fixe (614)" ],
+  "inseeCodes" : [ "30189" ],
+  "communes" : [ "Nîmes" ]
 }, {
   "codeCentrale" : "NIM_732_S01",
   "cameraId" : "732",
@@ -346,7 +544,7 @@
   "longitude" : 4.37348714009434,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-04",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "CAI Maraicher FIXE (1707)" ],
   "inseeCodes" : [ "30060" ],
   "communes" : [ "Caissargues" ]
@@ -357,10 +555,32 @@
   "longitude" : 4.38398214075498,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-04",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "CAI Treille FIXE (1721)" ],
   "inseeCodes" : [ "30060" ],
   "communes" : [ "Caissargues" ]
+}, {
+  "codeCentrale" : "NIM_73_S01",
+  "cameraId" : "73",
+  "latitude" : 43.83074531453364,
+  "longitude" : 4.4318833164458065,
+  "cameraMoved" : false,
+  "firstSeen" : "2022-05-25",
+  "lastSeen" : "2022-12-31",
+  "positions" : [ "ROD Auriol -360- 4 (2830)" ],
+  "inseeCodes" : [ "30356" ],
+  "communes" : [ "Rodilhan" ]
+}, {
+  "codeCentrale" : "NIM_74_S01",
+  "cameraId" : "74",
+  "latitude" : 43.83070176222929,
+  "longitude" : 4.439391627185922,
+  "cameraMoved" : false,
+  "firstSeen" : "2022-05-30",
+  "lastSeen" : "2022-12-31",
+  "positions" : [ "ROD Canaux - Lycee Fixe (2810)" ],
+  "inseeCodes" : [ "30356" ],
+  "communes" : [ "Rodilhan" ]
 }, {
   "codeCentrale" : "NIM_762_S01",
   "cameraId" : "762",
@@ -368,7 +588,7 @@
   "longitude" : 4.55511546177792,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-04",
-  "lastSeen" : "2021-12-02",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "SER Cimetiere FIXE (2209)" ],
   "inseeCodes" : [ "30317" ],
   "communes" : [ "Sernhac" ]
@@ -390,7 +610,7 @@
   "longitude" : 4.55536584375894,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-04",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "SER Ch. de Remoulins FIXE (2216)" ],
   "inseeCodes" : [ "30317" ],
   "communes" : [ "Sernhac" ]
@@ -401,8 +621,8 @@
   "longitude" : 4.38318685463863,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-04",
-  "lastSeen" : "2021-12-31",
-  "positions" : [ "CAI Abrivado 1 FIXE (1715)" ],
+  "lastSeen" : "2022-12-31",
+  "positions" : [ "CAI Abrivado 1 FIXE (1715)", "CAI Abrivado 1 FIXE (1727)" ],
   "inseeCodes" : [ "30060" ],
   "communes" : [ "Caissargues" ]
 }, {
@@ -412,7 +632,7 @@
   "longitude" : 4.3833647939309,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-04",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "CAI Abrivado 2 FIXE (1716)" ],
   "inseeCodes" : [ "30060" ],
   "communes" : [ "Caissargues" ]
@@ -423,7 +643,7 @@
   "longitude" : 4.38332848723634,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-04",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "CAI Abrivado 3 FIXE (1717)" ],
   "inseeCodes" : [ "30060" ],
   "communes" : [ "Caissargues" ]
@@ -434,7 +654,7 @@
   "longitude" : 4.39308131547877,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-04",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "CAI Baroncelli FIXE (1720)" ],
   "inseeCodes" : [ "30060" ],
   "communes" : [ "Caissargues" ]
@@ -445,10 +665,21 @@
   "longitude" : 4.47166166156448,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-04",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "CAB Rte de Collias FIXE (2309)" ],
   "inseeCodes" : [ "30057" ],
   "communes" : [ "Cabrières" ]
+}, {
+  "codeCentrale" : "NIM_80_S01",
+  "cameraId" : "80",
+  "latitude" : 43.82471041723865,
+  "longitude" : 4.259348528240663,
+  "cameraMoved" : false,
+  "firstSeen" : "2022-09-07",
+  "lastSeen" : "2022-12-31",
+  "positions" : [ "CAV Pepiniere - 360 - 2 (1357b)" ],
+  "inseeCodes" : [ "30075" ],
+  "communes" : [ "Caveirac" ]
 }, {
   "codeCentrale" : "NIM_810_S01",
   "cameraId" : "810",
@@ -456,7 +687,7 @@
   "longitude" : 4.46848228615511,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-05",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "CAB Rte de Poulx FIXE (2310)" ],
   "inseeCodes" : [ "30057" ],
   "communes" : [ "Cabrières" ]
@@ -467,7 +698,7 @@
   "longitude" : 4.5507249331597,
   "cameraMoved" : false,
   "firstSeen" : "2018-02-14",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "SER Ch. des Aires 1 FIXE (2210)" ],
   "inseeCodes" : [ "30317" ],
   "communes" : [ "Sernhac" ]
@@ -478,7 +709,7 @@
   "longitude" : 4.272129,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-04",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "CAV Ch de Vermaciel FIXE (1360)" ],
   "inseeCodes" : [ "30075" ],
   "communes" : [ "Caveirac" ]
@@ -489,7 +720,7 @@
   "longitude" : 4.55070809792502,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-04",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "SER Gd Chemin FIXE (2211)" ],
   "inseeCodes" : [ "30317" ],
   "communes" : [ "Sernhac" ]
@@ -500,8 +731,19 @@
   "longitude" : 4.38473,
   "cameraMoved" : false,
   "firstSeen" : "2018-02-14",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "Lamour FIXE (456)" ],
+  "inseeCodes" : [ "30189" ],
+  "communes" : [ "Nîmes" ]
+}, {
+  "codeCentrale" : "NIM_84_S01",
+  "cameraId" : "84",
+  "latitude" : 43.834150351280755,
+  "longitude" : 4.417364667872871,
+  "cameraMoved" : false,
+  "firstSeen" : "2022-12-01",
+  "lastSeen" : "2022-12-31",
+  "positions" : [ "Grezan Fixe (629)" ],
   "inseeCodes" : [ "30189" ],
   "communes" : [ "Nîmes" ]
 }, {
@@ -511,7 +753,7 @@
   "longitude" : 4.232722,
   "cameraMoved" : false,
   "firstSeen" : "2018-02-14",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-16",
   "positions" : [ "CLA Rte de Langlade Fixe (1906)" ],
   "inseeCodes" : [ "30082" ],
   "communes" : [ "Clarensac" ]
@@ -522,7 +764,7 @@
   "longitude" : 4.213207,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-04",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "CLA Rte de St Come Fixe (1907)" ],
   "inseeCodes" : [ "30082" ],
   "communes" : [ "Clarensac" ]
@@ -533,7 +775,7 @@
   "longitude" : 4.324839,
   "cameraMoved" : false,
   "firstSeen" : "2018-02-14",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "Rosiers FIXE (460)" ],
   "inseeCodes" : [ "30189" ],
   "communes" : [ "Nîmes" ]
@@ -544,7 +786,7 @@
   "longitude" : 4.253129,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-04",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "CAV Rte de Clarensac FIXE (1362)" ],
   "inseeCodes" : [ "30075" ],
   "communes" : [ "Caveirac" ]
@@ -555,7 +797,7 @@
   "longitude" : 4.426018,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-04",
-  "lastSeen" : "2021-12-31",
+  "lastSeen" : "2022-12-31",
   "positions" : [ "SGIL ZAE Entree FIXE (NM) (1434)" ],
   "inseeCodes" : [ "30258" ],
   "communes" : [ "Saint-Gilles" ]
@@ -566,8 +808,8 @@
   "longitude" : 4.421875,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-05",
-  "lastSeen" : "2021-12-31",
-  "positions" : [ "POU Rte de Nimes FIXE (2412)" ],
+  "lastSeen" : "2022-12-31",
+  "positions" : [ "POU Rte de Nimes FIXE (2407)", "POU Rte de Nimes FIXE (2412)" ],
   "inseeCodes" : [ "30206" ],
   "communes" : [ "Poulx" ]
 }, {
@@ -577,8 +819,8 @@
   "longitude" : 4.426298,
   "cameraMoved" : false,
   "firstSeen" : "2020-01-04",
-  "lastSeen" : "2021-12-31",
-  "positions" : [ "POU Rte de Cabrieres FIXE (2413)" ],
+  "lastSeen" : "2022-12-31",
+  "positions" : [ "POU Rte de Cabrieres FIXE (2408)", "POU Rte de Cabrieres FIXE (2413)" ],
   "inseeCodes" : [ "30206" ],
   "communes" : [ "Poulx" ]
 } ]
