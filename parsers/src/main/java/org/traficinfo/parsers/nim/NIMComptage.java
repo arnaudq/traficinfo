@@ -6,7 +6,7 @@ import org.traficinfo.parsers.Comptage;
 
 import java.util.Objects;
 
-/** Yearly camera count with observation coverage and a daily average over complete days. */
+/** Yearly count for a registered camera/site, with coverage and a daily average over complete days. */
 public class NIMComptage implements Comptage {
   private Long osmWayId;
   private String cameraId;

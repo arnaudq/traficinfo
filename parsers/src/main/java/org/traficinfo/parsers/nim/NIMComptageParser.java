@@ -31,7 +31,7 @@ import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Streams hourly source rows into yearly camera counts. */
+/** Streams hourly source rows into yearly counts for registered geographic sites. */
 public final class NIMComptageParser implements ComptageParser {
   private static final Logger LOGGER = LoggerFactory.getLogger(NIMComptageParser.class);
   public static final String COUNTER_PREFIX = "NIM_";
@@ -39,6 +39,7 @@ public final class NIMComptageParser implements ComptageParser {
 
   private final Logger logger;
   private final ConflictPolicy conflictPolicy;
+  private final NIMSiteRegistry sites;
 
   public NIMComptageParser() {
     this(ConflictPolicy.EXCLUDE_HOUR);
@@ -53,6 +54,15 @@ public final class NIMComptageParser implements ComptageParser {
   }
 
   NIMComptageParser(Logger logger, ConflictPolicy conflictPolicy) {
+    this(logger, conflictPolicy, null);
+  }
+
+  public NIMComptageParser(NIMSiteRegistry sites) {
+    this(LOGGER, ConflictPolicy.EXCLUDE_HOUR, java.util.Objects.requireNonNull(sites));
+  }
+
+  NIMComptageParser(Logger logger, ConflictPolicy conflictPolicy, NIMSiteRegistry sites) {
+    this.sites = sites;
     this.logger = java.util.Objects.requireNonNull(logger);
     this.conflictPolicy = java.util.Objects.requireNonNull(conflictPolicy);
   }
@@ -68,13 +78,16 @@ public final class NIMComptageParser implements ComptageParser {
 
   @Override
   public List<NIMComptage> parseComptages(Reader source, Properties displayNames) throws IOException {
+    NIMSiteRegistry registry = sites == null ? NIMSiteRegistry.bundled() : sites;
+    Map<CameraLocation, NIMSiteRegistry.Site> resolved = new HashMap<>();
+    Map<String, String> unknown = new TreeMap<>();
     PushbackReader reader = new PushbackReader(source, 1);
     int first = reader.read();
     if (first != -1 && first != '\uFEFF') reader.unread(first);
     // Do not close the caller's reader. Only daily aggregates, not raw CSV rows, are retained.
     CSVReader csv = new CSVReaderBuilder(reader)
         .withCSVParser(new CSVParserBuilder().withSeparator(';').build()).build();
-    Map<CameraYear, YearCounts> years = new TreeMap<>();
+    Map<SiteYear, YearCounts> years = new TreeMap<>();
     long inputRows = 0;
     long ignored1970Rows = 0;
     java.util.Set<String> camerasEncountered = new java.util.HashSet<>();
@@ -103,7 +116,18 @@ public final class NIMComptageParser implements ComptageParser {
           Integer count = rawCount == null ? null : Integer.valueOf(rawCount);
           if (count != null && count < 0) throw new IllegalArgumentException("Negative nbPassage");
           Location location = location(row, columns);
-          CameraYear key = new CameraYear(camera, date.getYear());
+          CameraLocation sourceLocation = new CameraLocation(camera, location);
+          NIMSiteRegistry.Site site = resolved.get(sourceLocation);
+          if (site == null && location.latitude() != null) {
+            site = registry.find(camera, location.latitude(), location.longitude());
+            if (site != null) resolved.put(sourceLocation, site);
+          }
+          if (site == null) {
+            unknown.putIfAbsent(camera + ":" + location, "camera=" + camera + ", exampleDate=" + date
+                + ", row=" + rowNumber + ", location=" + location);
+            continue;
+          }
+          SiteYear key = new SiteYear(site, date.getYear());
           years.computeIfAbsent(key, ignored -> new YearCounts()).add(date, hour, count, location, conflictPolicy);
         } catch (IllegalArgumentException | DateTimeParseException invalid) {
           throw new IOException("Invalid NIM CSV row " + rowNumber + ": " + invalid.getMessage(), invalid);
@@ -112,12 +136,23 @@ public final class NIMComptageParser implements ComptageParser {
     } catch (CsvValidationException invalid) {
       throw new IOException("Invalid NIM CSV", invalid);
     }
+    if (!unknown.isEmpty()) {
+      throw new IOException("Unknown NIM sites (" + unknown.size() + " camera/location variants):\n"
+          + String.join("\n", unknown.values())
+          + "\nRun NIMSiteRegistryUpdater on the input CSV, review nim-sites.json and rebuild before retrying."
+          + " Missing coordinates must be corrected before a site can be assigned.");
+    }
     java.util.ArrayList<NIMComptage> result = new java.util.ArrayList<>();
     for (var entry : years.entrySet()) result.add(entry.getValue().finish(entry.getKey(), displayNames, logger));
+    Map<String, java.util.Set<LocalDate>> cameraDates = new HashMap<>();
+    for (var entry : years.entrySet()) {
+      cameraDates.computeIfAbsent(entry.getKey().site().cameraId(), ignored -> new java.util.HashSet<>())
+          .addAll(entry.getValue().days.keySet());
+    }
     Map<String, long[]> cameraCoverage = new TreeMap<>();
     for (NIMComptage count : result) {
       long[] coverage = cameraCoverage.computeIfAbsent(count.getCameraId(), ignored -> new long[2]);
-      coverage[0] += count.getObservedDays();
+      coverage[0] = cameraDates.get(count.getCameraId()).size();
       coverage[1] += count.getObservedHours();
     }
     for (var entry : cameraCoverage.entrySet()) {
@@ -127,7 +162,7 @@ public final class NIMComptageParser implements ComptageParser {
     }
     long observedDays = result.stream().mapToLong(NIMComptage::getObservedDays).sum();
     long observedHours = result.stream().mapToLong(NIMComptage::getObservedHours).sum();
-    logger.info("NIM summary: camerasEncountered={}, camerasRetained={}, cameraYears={}, observedDays={}, completeDays={}, incompleteDays={}, daysWithoutRecords={}, observedHours={}, averageObservedHoursPerDay={}, conflictingHours={}, inputRows={}, ignored1970Rows={}",
+    logger.info("NIM summary: camerasEncountered={}, camerasRetained={}, siteYears={}, observedSiteDays={}, completeDays={}, incompleteDays={}, daysWithoutRecords={}, observedHours={}, averageObservedHoursPerDay={}, conflictingHours={}, inputRows={}, ignored1970Rows={}",
         camerasEncountered.size(), cameraCoverage.size(), result.size(), observedDays,
         result.stream().mapToLong(NIMComptage::getCompleteDays).sum(),
         result.stream().mapToLong(NIMComptage::getIncompleteDays).sum(),
@@ -141,7 +176,7 @@ public final class NIMComptageParser implements ComptageParser {
     return String.format(Locale.ROOT, "%.2f", days == 0 ? 0.0 : (double) hours / days);
   }
 
-  private static Map<String, Integer> columns(String[] header) throws IOException {
+  static Map<String, Integer> columns(String[] header) throws IOException {
     Map<String, Integer> columns = new HashMap<>();
     for (int index = 0; index < header.length; index++) {
       String name = normalize(header[index]);
@@ -158,7 +193,7 @@ public final class NIMComptageParser implements ComptageParser {
         .toLowerCase(Locale.ROOT).replaceAll("[\\s_]", "");
   }
 
-  private static String value(String[] row, Map<String, Integer> columns, String name) {
+  static String value(String[] row, Map<String, Integer> columns, String name) {
     Integer index = columns.get(name);
     if (index == null) return null;
     return row[index].isBlank() ? null : row[index].trim();
@@ -180,7 +215,7 @@ public final class NIMComptageParser implements ComptageParser {
     return start;
   }
 
-  private static Location location(String[] row, Map<String, Integer> columns) {
+  static Location location(String[] row, Map<String, Integer> columns) {
     String raw = value(row, columns, "coordonneesgeographique");
     Double latitude = null;
     Double longitude = null;
@@ -198,23 +233,20 @@ public final class NIMComptageParser implements ComptageParser {
         value(row, columns, "position"), latitude, longitude);
   }
 
-  private record CameraYear(String camera, int year) implements Comparable<CameraYear> {
-    @Override public int compareTo(CameraYear other) {
-      int order = camera.compareTo(other.camera);
+  private record CameraLocation(String camera, Location location) {}
+
+  private record SiteYear(NIMSiteRegistry.Site site, int year) implements Comparable<SiteYear> {
+    @Override public int compareTo(SiteYear other) {
+      int order = site.codeCentrale().compareTo(other.site.codeCentrale());
       return order != 0 ? order : Integer.compare(year, other.year);
     }
   }
 
-  private record Location(String insee, String city, String position, Double latitude, Double longitude) {
-    private static final double COORDINATE_TOLERANCE_METRES = 50.0;
+  record Location(String insee, String city, String position, Double latitude, Double longitude) {
+    static final double COORDINATE_TOLERANCE_METRES = NIMSiteRegistry.TOLERANCE_METRES;
 
     boolean matches(Location other) {
-      if (!java.util.Objects.equals(insee, other.insee)
-          || !java.util.Objects.equals(city, other.city)
-          || !java.util.Objects.equals(position, other.position)) return false;
-      if (latitude == null || other.latitude == null) {
-        return latitude == null && other.latitude == null;
-      }
+      if (latitude == null || other.latitude == null) return false;
       double distance = GeoJsonUtils.distanceMeters(new LngLatAlt(longitude, latitude),
           new LngLatAlt(other.longitude, other.latitude));
       return distance <= COORDINATE_TOLERANCE_METRES;
@@ -224,22 +256,11 @@ public final class NIMComptageParser implements ComptageParser {
   private static final class DayCounts {
     final int[] counts = new int[24];
     int mask;
-    Location location;
     Map<Integer, java.util.SortedSet<Integer>> conflicts = Map.of();
 
     DayCounts() { Arrays.fill(counts, -1); }
 
-    void add(int hour, Integer count, Location location, ConflictPolicy policy) {
-      if (this.location == null) this.location = location;
-      else if (!this.location.equals(location)) {
-        boolean matches = this.location.matches(location);
-        LOGGER.warn("{} location metadata for the same camera/date: before={}, after={}",
-            matches ? "Tolerated coordinate difference in" : "Conflicting",
-            this.location, location);
-        if (!matches) {
-          throw new IllegalArgumentException("Conflicting location metadata for the same camera/date");
-        }
-      }
+    void add(int hour, Integer count, ConflictPolicy policy) {
       if (count == null) return;
       if (conflicts.containsKey(hour)) {
         conflicts.get(hour).add(count);
@@ -247,7 +268,7 @@ public final class NIMComptageParser implements ComptageParser {
       }
       if (counts[hour] >= 0 && counts[hour] != count) {
         if (policy == ConflictPolicy.REJECT) {
-          throw new IllegalArgumentException("Conflicting counts for the same camera/date/hour");
+          throw new IllegalArgumentException("Conflicting counts for the same site/date/hour");
         }
         if (conflicts.isEmpty()) conflicts = new TreeMap<>();
         conflicts.put(hour, new java.util.TreeSet<>(List.of(counts[hour], count)));
@@ -270,26 +291,30 @@ public final class NIMComptageParser implements ComptageParser {
     final Map<LocalDate, DayCounts> days = new TreeMap<>();
     LocalDate latestDate;
     Location latestLocation;
+    int latestHour;
 
     void add(LocalDate date, int hour, Integer count, Location location, ConflictPolicy policy) {
-      if (latestDate == null || date.isAfter(latestDate)) {
+      if (latestDate == null || date.isAfter(latestDate)
+          || (date.equals(latestDate) && (hour > latestHour
+              || (hour == latestHour && location.toString().compareTo(latestLocation.toString()) > 0)))) {
         latestDate = date;
         latestLocation = location;
+        latestHour = hour;
       }
       DayCounts day = days.computeIfAbsent(date, ignored -> new DayCounts());
-      day.add(hour, count, location, policy);
+      day.add(hour, count, policy);
     }
 
-    NIMComptage finish(CameraYear key, Properties displayNames, Logger logger) throws IOException {
+    NIMComptage finish(SiteYear key, Properties displayNames, Logger logger) throws IOException {
       NIMComptage result = new NIMComptage();
-      result.setCameraId(key.camera());
-      result.setCodeCentrale(COUNTER_PREFIX + key.camera());
+      result.setCameraId(key.site().cameraId());
+      result.setCodeCentrale(key.site().codeCentrale());
       result.setAnnee(key.year());
       result.setCodeInsee(latestLocation.insee());
       result.setCityName(StringUtils.toCamelCase(latestLocation.city()));
       result.setPosition(latestLocation.position());
-      result.setLatitude(latestLocation.latitude());
-      result.setLongitude(latestLocation.longitude());
+      result.setLatitude(key.site().latitude());
+      result.setLongitude(key.site().longitude());
       String city = result.getCityName();
       String position = result.getPosition();
       String name = position == null ? city : city == null ? position : position + " - " + city;
@@ -336,7 +361,7 @@ public final class NIMComptageParser implements ComptageParser {
         if (average > Integer.MAX_VALUE) throw new IOException("NIM daily average exceeds the Comptage integer range");
         result.setDailyAverage((int) average);
       }
-      logger.info("NIM camera/year: camera={}, year={}, observedDays={}, completeDays={}, incompleteDays={}, daysWithoutRecords={}, conflictingHours={}, dailyAverage={}",
+      logger.info("NIM site/year: site={}, year={}, observedDays={}, completeDays={}, incompleteDays={}, daysWithoutRecords={}, conflictingHours={}, dailyAverage={}",
           result.getCodeCentrale(), key.year(), days.size(), complete, result.getIncompleteDays(),
           result.getDaysWithoutRecords(), conflicts, result.getDailyAverage());
       return result;

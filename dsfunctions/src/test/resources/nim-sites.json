@@ -1,0 +1,26 @@
+[
+  {
+    "codeCentrale": "NIM_52_S01",
+    "cameraId": "52",
+    "latitude": 43.8,
+    "longitude": 4.4,
+    "cameraMoved": false,
+    "firstSeen": "2020-01-01",
+    "lastSeen": "2024-12-31",
+    "positions": [],
+    "inseeCodes": [],
+    "communes": []
+  },
+  {
+    "codeCentrale": "NIM_53_S01",
+    "cameraId": "53",
+    "latitude": 43.8,
+    "longitude": 4.4,
+    "cameraMoved": false,
+    "firstSeen": "2020-01-01",
+    "lastSeen": "2024-12-31",
+    "positions": [],
+    "inseeCodes": [],
+    "communes": []
+  }
+]

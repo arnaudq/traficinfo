@@ -20,11 +20,11 @@ import java.util.Map;
 import static org.junit.Assert.*;
 
 public class PreprocessingPublisherTest {
-    private static final String HEADER = "id_camera;date;tranche;nbPassage\n";
+    private static final String HEADER = "id_camera;date;tranche;nbPassage;coordonnees_geographique\n";
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private static String row(String camera, int year, int count) {
-        return camera + ";" + year + "-01-01;00:00 - 01:00;" + count + "\n";
+        return camera + ";" + year + "-01-01;00:00 - 01:00;" + count + ";43.8, 4.4\n";
     }
 
     @Test
@@ -34,7 +34,7 @@ public class PreprocessingPublisherTest {
         store.source(settings, HEADER + row("52", 2022, 10) + row("52", 1970, 20));
         DataManifest manifest = new PreprocessingPublisher(store).publish(settings);
         assertEquals("initial", manifest.activeDatasetId());
-        assertEquals(List.of("id_camera", "date", "tranche", "nbPassage"),
+        assertEquals(List.of("id_camera", "date", "tranche", "nbPassage", "coordonnees_geographique"),
                 manifest.datasets().get("initial").inputs().get("NIM_Comptage.csv").headers());
         DataManifest.YearData year = manifest.years().get(2022);
         byte[] bytes = store.objects.get(year.object());
@@ -192,7 +192,7 @@ public class PreprocessingPublisherTest {
         }
         store.source(settings, HEADER + row("52", 2022, 10));
         new PreprocessingPublisher(store).publish(settings);
-        store.source(settings, "nbPassage;tranche;date;id_camera;extra\n10;00:00 - 01:00;2022-01-01;52;ignored\n");
+        store.source(settings, "nbPassage;tranche;date;id_camera;coordonnees_geographique;extra\n10;00:00 - 01:00;2022-01-01;52;43.8, 4.4;ignored\n");
         new PreprocessingPublisher(store).publish(settings);
         byte[] previous = store.objects.get("NIM_Manifest.json");
         store.source(settings, HEADER + row("52", 2022, 10));
@@ -219,10 +219,10 @@ public class PreprocessingPublisherTest {
         store.source(settings, HEADER + row("52", 2022, 10));
         publisher.publish(settings);
         assertTrue(warnings.isEmpty());
-        store.source(settings, "nbPassage;tranche;date;id_camera\n10;00:00 - 01:00;2022-01-01;52\n");
+        store.source(settings, "nbPassage;tranche;date;id_camera;coordonnees_geographique\n10;00:00 - 01:00;2022-01-01;52;43.8, 4.4\n");
         publisher.publish(settings);
         assertTrue(warnings.isEmpty());
-        store.source(settings, "nbPassage;tranche;date;id_camera;extra;another\n10;00:00 - 01:00;2022-01-01;52;ignored;ignored\n");
+        store.source(settings, "nbPassage;tranche;date;id_camera;coordonnees_geographique;extra;another\n10;00:00 - 01:00;2022-01-01;52;43.8, 4.4;ignored;ignored\n");
         publisher.publish(settings);
         assertEquals(List.of("CSV headers added: dataSourceId=NIM, datasetId=initial, input=NIM_Comptage.csv, headers=[extra, another]"), warnings);
         warnings.clear();
@@ -364,6 +364,31 @@ public class PreprocessingPublisherTest {
         store.writes.clear();
         assertEquals(manifest, publisher.publish(settings));
         assertTrue(store.publications().isEmpty());
+    }
+
+    @Test
+    public void unknownSitesLeaveExistingPublicationUntouchedAndReportAllCandidates() throws Exception {
+        Store store = new Store();
+        var settings = settings("initial", List.of(2022));
+        store.source(settings, HEADER + row("52", 2022, 10));
+        var publisher = new PreprocessingPublisher(store);
+        publisher.publish(settings);
+        var count = (NIMComptage) new ManifestComptageReader(store).read("NIM").get(0);
+        assertEquals("NIM_52_S01", count.getCodeCentrale());
+        byte[] manifest = store.objects.get("NIM_Manifest.json");
+        store.writes.clear();
+        store.source(settings, HEADER + row("52", 2022, 10).replace("43.8, 4.4", "44, 4.4")
+                + row("900", 2022, 20));
+        try {
+            publisher.publish(settings);
+            fail("Unknown sites must prevent publication");
+        } catch (IOException expected) {
+            assertTrue(expected.getMessage(), expected.getMessage().contains("camera=52"));
+            assertTrue(expected.getMessage(), expected.getMessage().contains("camera=900"));
+        }
+        assertArrayEquals(manifest, store.objects.get("NIM_Manifest.json"));
+        assertTrue(store.publications().isEmpty());
+        assertFalse(store.objects.containsKey("NIM_Preprocessing.lock"));
     }
 
     private static org.slf4j.Logger infoLogger(List<String> messages) {

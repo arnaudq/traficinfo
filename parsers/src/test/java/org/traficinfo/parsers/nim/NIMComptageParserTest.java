@@ -23,7 +23,7 @@ import static org.junit.Assert.*;
 
 public class NIMComptageParserTest extends ParserBaseTest {
   private static final String HEADER = "id_camera;code INSEE;commune;date;tranche;position;coordonnées géographique;nbPassage\n";
-  private final NIMComptageParser parser = new NIMComptageParser();
+  private final NIMComptageParser parser = new NIMComptageParser(testRegistry());
 
   @Test
   public void parsesDocumentedFieldsFromTinyApiSampleWithoutInventingDailyAverages() throws Exception {
@@ -31,7 +31,7 @@ public class NIMComptageParserTest extends ParserBaseTest {
     try (Reader reader = getReaderFromResource("NIMSample.csv")) { result = parser.parseComptages(reader); }
     assertEquals(4, result.size());
     NIMComptage camera = result.stream().filter(value -> value.getCameraId().equals("52")).findFirst().orElseThrow();
-    assertEquals("NIM_52", camera.getCodeCentrale());
+    assertEquals("NIM_52_S02", camera.getCodeCentrale());
     assertEquals(2022, camera.getAnnee());
     assertEquals("30356", camera.getCodeInsee());
     assertEquals("Rodilhan", camera.getCityName());
@@ -85,7 +85,7 @@ public class NIMComptageParserTest extends ParserBaseTest {
     assertEquals(3, actual.size());
     assertEquals(2022, actual.get(0).getAnnee());
     assertEquals(2023, actual.get(1).getAnnee());
-    assertEquals("NIM_53", actual.get(2).getCodeCentrale());
+    assertEquals("NIM_53_S01", actual.get(2).getCodeCentrale());
   }
 
   @Test
@@ -95,7 +95,8 @@ public class NIMComptageParserTest extends ParserBaseTest {
     assertEquals(24, count.getObservedHours());
     assertEquals(240, count.getTotalPassages());
     try {
-      new NIMComptageParser(NIMComptageParser.ConflictPolicy.REJECT)
+      new NIMComptageParser(org.slf4j.LoggerFactory.getLogger(NIMComptageParser.class),
+          NIMComptageParser.ConflictPolicy.REJECT, testRegistry())
           .parseComptages(new StringReader(csv + row("52", "2022-01-01", 0, "11")));
       fail("Expected explicit REJECT policy to reject conflicting counts");
     } catch (IOException expected) {
@@ -107,7 +108,7 @@ public class NIMComptageParserTest extends ParserBaseTest {
   public void excludesConflictedHoursWithoutRestoringThemWhenAnotherDuplicateArrives() throws Exception {
     String rows = day("52", "2022-01-01", 10) + row("52", "2022-01-01", 0, "11")
         + row("52", "2022-01-01", 0, "10") + row("52", "2022-01-01", 0, "12");
-    NIMComptageParser diagnostic = new NIMComptageParser();
+    NIMComptageParser diagnostic = new NIMComptageParser(testRegistry());
     NIMComptage count = diagnostic.parseComptages(new StringReader(HEADER + rows)).get(0);
     assertEquals(1, count.getConflictingHours());
     assertEquals(23, count.getObservedHours());
@@ -155,20 +156,24 @@ public class NIMComptageParserTest extends ParserBaseTest {
       Files.writeString(file, csv, StandardCharsets.UTF_8);
       assertEquals("Rue; de l’École - Nîmes", parser.parseComptages(file.toFile(), new Properties()).get(0).getDisplayName());
       Properties names = new Properties();
-      names.setProperty("NIM_52", "Custom name");
+      names.setProperty("NIM_52_S01", "Custom name");
       assertEquals("Custom name", parser.parseComptages(file.toFile(), names).get(0).getDisplayName());
     } finally { Files.deleteIfExists(file); }
   }
 
   @Test
-  public void keepsTheLatestDatedLocationRegardlessOfRowOrder() throws Exception {
+  public void splitsRelocatedCameraIntoSeparateSitesRegardlessOfRowOrder() throws Exception {
     String oldDay = day("52", "2022-01-01", 10);
     String newDay = day("52", "2022-02-01", 20).replace("Rue exemple", "Rue renommée").replace("43.8, 4.4", "43.9, 4.5");
-    NIMComptage count = parse(HEADER + newDay + oldDay).get(0);
-    assertEquals("Rue renommée - Nîmes", count.getDisplayName());
-    assertEquals(Double.valueOf(43.9), count.getLatitude());
-    assertEquals(parse(HEADER + oldDay + newDay), parse(HEADER + newDay + oldDay));
-    assertInvalid(HEADER + oldDay + row("52", "2022-01-01", 0, "10").replace("Rue exemple", "Other"), "Conflicting location");
+    List<NIMComptage> counts = parse(HEADER + newDay + oldDay);
+    assertEquals(2, counts.size());
+    assertEquals("NIM_52_S01", counts.get(0).getCodeCentrale());
+    assertEquals(240, counts.get(0).getTotalPassages());
+    assertEquals("NIM_52_S03", counts.get(1).getCodeCentrale());
+    assertEquals("Rue renommée - Nîmes", counts.get(1).getDisplayName());
+    assertEquals(Double.valueOf(43.9), counts.get(1).getLatitude());
+    assertEquals(480, counts.get(1).getTotalPassages());
+    assertEquals(counts, parse(HEADER + oldDay + newDay));
   }
 
   @Test
@@ -191,22 +196,20 @@ public class NIMComptageParserTest extends ParserBaseTest {
       assertEquals(30, parse(HEADER + first + second.replace("43.8, 4.4", coordinates)).get(0).getTotalPassages());
     }
     for (String coordinates : List.of("43.80046, 4.4", "43.8, 4.40064", "43.80044, 4.4006")) {
-      assertInvalid(HEADER + first + second.replace("43.8, 4.4", coordinates), "Conflicting location");
+      assertInvalid(HEADER + first + second.replace("43.8, 4.4", coordinates), "Unknown NIM sites");
     }
   }
 
   @Test
-  public void coordinateToleranceStillRequiresMatchingMetadataAndCoordinatePresence() throws Exception {
+  public void coordinateToleranceIgnoresLabelsButRequiresCoordinates() throws Exception {
     String first = row("52", "2022-01-01", 0, "10");
     String nearby = row("52", "2022-01-01", 1, "20").replace("43.8, 4.4", "43.8001, 4.4");
     for (String changed : List.of(nearby.replace("30189", "30317"), nearby.replace("NÎMES", "Sernhac"),
-        nearby.replace("Rue exemple", "Other"), nearby.replace("43.8001, 4.4", ""))) {
-      assertInvalid(HEADER + first + changed, "Conflicting location");
+        nearby.replace("Rue exemple", "Other"))) {
+      assertEquals(30, parse(HEADER + first + changed).get(0).getTotalPassages());
     }
-    assertInvalid(HEADER + first.replace("43.8, 4.4", "") + nearby, "Conflicting location");
-    NIMComptage missing = parse(HEADER + (first + nearby).replace("43.8, 4.4", "").replace("43.8001, 4.4", "")).get(0);
-    assertEquals(30, missing.getTotalPassages());
-    assertNull(missing.getGeometry());
+    assertInvalid(HEADER + first + nearby.replace("43.8001, 4.4", ""), "Unknown NIM sites");
+    assertInvalid(HEADER + first.replace("43.8, 4.4", "") + nearby, "Unknown NIM sites");
   }
 
   @Test
@@ -236,25 +239,28 @@ public class NIMComptageParserTest extends ParserBaseTest {
   }
 
   @Test
-  public void optionalLocationColumnsCanBeAbsentAndLargeTotalsUseLongs() throws Exception {
-    String minimal = "id_camera;date;tranche;nbpassage\n52;2022-01-01;00:00 - 01:00;10\n";
+  public void coordinatesAreRequiredButOtherLocationColumnsCanBeAbsent() throws Exception {
+    String minimal = "id_camera;date;tranche;nbpassage;coordonnees_geographique\n52;2022-01-01;00:00 - 01:00;10;43.8, 4.4\n";
     NIMComptage count = parse(minimal).get(0);
-    assertEquals("NIM_52", count.getDisplayName());
-    assertNull(count.getGeometry());
+    assertEquals("NIM_52_S01", count.getDisplayName());
+    assertNotNull(count.getGeometry());
     assertNull(count.getCityName());
+    assertInvalid(minimal.replace(";coordonnees_geographique", "").replace(";43.8, 4.4", ""), "Unknown NIM sites");
     assertInvalid(HEADER + day("52", "2022-01-01", Integer.MAX_VALUE), "integer range");
   }
 
   @Test
   public void integratesWithGeoJsonParserWithoutEnablingCloudPublication() throws Exception {
-    String csv = HEADER + day("52", Year.now().getValue() + "-01-01", 10);
+    NIMSiteRegistry.Site site = NIMSiteRegistry.bundled().sites().get(0);
+    String csv = HEADER + day(site.cameraId(), Year.now().getValue() + "-01-01", 10)
+        .replace("43.8, 4.4", site.latitude() + ", " + site.longitude());
     StringWriter output = new StringWriter();
     GeoJsonParser.parseAndMerge(GeoJsonParser.DataSource.NIM, new StringReader(csv), output);
     var features = new com.fasterxml.jackson.databind.ObjectMapper()
         .readValue(output.toString(), org.geojson.FeatureCollection.class).getFeatures();
     assertEquals(1, features.size());
     assertEquals("NIM", features.get(0).getProperty("data_source"));
-    assertEquals("NIM_52", features.get(0).getProperty("code_centrale"));
+    assertEquals(site.codeCentrale(), features.get(0).getProperty("code_centrale"));
     assertEquals(240, ((Number) features.get(0).getProperty("moyenne_jour_annuelle")).intValue());
   }
 
@@ -274,7 +280,7 @@ public class NIMComptageParserTest extends ParserBaseTest {
     String first = day("52", "2022-01-01", 10);
     String partial = row("52", "2022-01-03", 0, "10")
         + row("52", "2022-01-03", 0, "11") + row("52", "2022-01-03", 0, "12");
-    NIMComptage count = new NIMComptageParser(logger)
+    NIMComptage count = new NIMComptageParser(logger, NIMComptageParser.ConflictPolicy.EXCLUDE_HOUR, testRegistry())
         .parseComptages(new StringReader(HEADER + partial + first)).get(0);
     assertEquals(1, count.getIncompleteDays());
     assertEquals(1, count.getDaysWithoutRecords());
@@ -282,10 +288,10 @@ public class NIMComptageParserTest extends ParserBaseTest {
     assertFalse(output, output.contains("NIM incomplete day:"));
     assertFalse(output, output.contains("missingHours="));
     assertTrue(output, output.contains("NIM camera coverage: camera=NIM_52, observedDays=2, observedHours=24, averageObservedHoursPerDay=12.00"));
-    assertTrue(output, output.contains("NIM conflicting hour excluded: camera=NIM_52, date=2022-01-03"));
+    assertTrue(output, output.contains("NIM conflicting hour excluded: camera=NIM_52_S01, date=2022-01-03"));
     assertTrue(output, output.contains("values=[10, 11, 12]"));
     assertTrue(output, output.contains("from=2022-01-02, to=2022-01-02, daysWithoutRecords=1"));
-    assertTrue(output, output.contains("NIM summary: camerasEncountered=1, camerasRetained=1, cameraYears=1, observedDays=2, completeDays=1, incompleteDays=1, daysWithoutRecords=1"));
+    assertTrue(output, output.contains("NIM summary: camerasEncountered=1, camerasRetained=1, siteYears=1, observedSiteDays=2, completeDays=1, incompleteDays=1, daysWithoutRecords=1"));
   }
 
   @Test
@@ -296,6 +302,21 @@ public class NIMComptageParserTest extends ParserBaseTest {
     assertEquals("52", counts.get(0).getCameraId());
     assertEquals(2022, counts.get(0).getAnnee());
     assertTrue(parse(HEADER + ignored).isEmpty());
+  }
+
+  private static NIMSiteRegistry testRegistry() {
+    try {
+      return new NIMSiteRegistry(List.of(
+          site("52", "01", 43.8, 4.4), site("52", "02", 43.82906, 4.44252), site("52", "03", 43.9, 4.5),
+          site("53", "01", 43.8, 4.4), site("54", "01", 43.790886274995025, 4.380295085959558),
+          site("810", "01", 43.9063761562996, 4.46848228615511),
+          site("786", "01", 43.7930223860447, 4.3833647939309), site("816", "01", 43.91028, 4.55076)));
+    } catch (IOException invalid) { throw new AssertionError(invalid); }
+  }
+
+  private static NIMSiteRegistry.Site site(String camera, String suffix, double latitude, double longitude) {
+    return new NIMSiteRegistry.Site("NIM_" + camera + "_S" + suffix, camera, latitude, longitude, false,
+        "2020-01-01", "2024-12-31", List.of(), List.of(), List.of());
   }
 
   private List<NIMComptage> parse(String csv) throws IOException { return parser.parseComptages(new StringReader(csv)); }

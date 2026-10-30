@@ -56,7 +56,7 @@ public class PreprocessingFunctionTest {
         @Override protected ObjectStoreClient createObjectStoreClient(boolean principal, String namespace, String bucket) {
             created++;
             this.bucket = namespace + "/" + bucket;
-            store.source(settings(), "id_camera;date;tranche;nbPassage\n52;2022-01-01;00:00 - 01:00;10\n");
+            store.source(settings(), "id_camera;date;tranche;nbPassage;coordonnees_geographique\n52;2022-01-01;00:00 - 01:00;10;43.8, 4.4\n");
             return store;
         }
     }
