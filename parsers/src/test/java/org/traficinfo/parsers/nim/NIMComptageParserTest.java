@@ -172,6 +172,44 @@ public class NIMComptageParserTest extends ParserBaseTest {
   }
 
   @Test
+  public void toleratesSameDayCoordinateDifferencesFromSourceSample() throws Exception {
+    String first = "816;30317;Sernhac;2020-02-10;00:00 - 01:00;SER Ch. des Aires 1 FIXE (2210);43.91028, 4.55076;5\n";
+    String second = "816;30317;Sernhac;2020-02-10;01:00 - 02:00;SER Ch. des Aires 1 FIXE (2210);43.9105807039654, 4.5507249331597;15\n";
+    for (String rows : List.of(first + second, second + first)) {
+      NIMComptage count = parse(HEADER + rows).get(0);
+      assertEquals(2, count.getObservedHours());
+      assertEquals(20, count.getTotalPassages());
+    }
+  }
+
+  @Test
+  public void appliesFiftyMetreToleranceToGeographicDistance() throws Exception {
+    String first = row("52", "2022-01-01", 0, "10");
+    String second = row("52", "2022-01-01", 1, "20");
+    // About 49 m north or 48 m east; the diagonal exceeds 50 m.
+    for (String coordinates : List.of("43.80044, 4.4", "43.8, 4.4006")) {
+      assertEquals(30, parse(HEADER + first + second.replace("43.8, 4.4", coordinates)).get(0).getTotalPassages());
+    }
+    for (String coordinates : List.of("43.80046, 4.4", "43.8, 4.40064", "43.80044, 4.4006")) {
+      assertInvalid(HEADER + first + second.replace("43.8, 4.4", coordinates), "Conflicting location");
+    }
+  }
+
+  @Test
+  public void coordinateToleranceStillRequiresMatchingMetadataAndCoordinatePresence() throws Exception {
+    String first = row("52", "2022-01-01", 0, "10");
+    String nearby = row("52", "2022-01-01", 1, "20").replace("43.8, 4.4", "43.8001, 4.4");
+    for (String changed : List.of(nearby.replace("30189", "30317"), nearby.replace("NÎMES", "Sernhac"),
+        nearby.replace("Rue exemple", "Other"), nearby.replace("43.8001, 4.4", ""))) {
+      assertInvalid(HEADER + first + changed, "Conflicting location");
+    }
+    assertInvalid(HEADER + first.replace("43.8, 4.4", "") + nearby, "Conflicting location");
+    NIMComptage missing = parse(HEADER + (first + nearby).replace("43.8, 4.4", "").replace("43.8001, 4.4", "")).get(0);
+    assertEquals(30, missing.getTotalPassages());
+    assertNull(missing.getGeometry());
+  }
+
+  @Test
   public void acceptsMidnightEndingsAndRejectsNonHourlyIntervals() throws Exception {
     String csv = HEADER + day("52", "2022-01-01", 10);
     assertEquals(parse(csv), parse(csv.replace("23:00 - 24:00", "23:00 - 00:00")));

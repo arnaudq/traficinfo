@@ -4,9 +4,11 @@ import com.opencsv.CSVParserBuilder;
 import com.opencsv.CSVReader;
 import com.opencsv.CSVReaderBuilder;
 import com.opencsv.exceptions.CsvValidationException;
+import org.geojson.LngLatAlt;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.traficinfo.parsers.ComptageParser;
+import org.traficinfo.parsers.GeoJsonUtils;
 import org.traficinfo.parsers.StringUtils;
 
 import java.io.File;
@@ -31,6 +33,7 @@ import java.util.regex.Pattern;
 
 /** Streams hourly source rows into yearly camera counts. */
 public final class NIMComptageParser implements ComptageParser {
+  private static final Logger LOGGER = LoggerFactory.getLogger(NIMComptageParser.class);
   public static final String COUNTER_PREFIX = "NIM_";
   public enum ConflictPolicy { REJECT, EXCLUDE_HOUR }
 
@@ -42,7 +45,7 @@ public final class NIMComptageParser implements ComptageParser {
   }
 
   public NIMComptageParser(ConflictPolicy conflictPolicy) {
-    this(LoggerFactory.getLogger(NIMComptageParser.class), conflictPolicy);
+    this(LOGGER, conflictPolicy);
   }
 
   NIMComptageParser(Logger logger) {
@@ -202,7 +205,21 @@ public final class NIMComptageParser implements ComptageParser {
     }
   }
 
-  private record Location(String insee, String city, String position, Double latitude, Double longitude) {}
+  private record Location(String insee, String city, String position, Double latitude, Double longitude) {
+    private static final double COORDINATE_TOLERANCE_METRES = 50.0;
+
+    boolean matches(Location other) {
+      if (!java.util.Objects.equals(insee, other.insee)
+          || !java.util.Objects.equals(city, other.city)
+          || !java.util.Objects.equals(position, other.position)) return false;
+      if (latitude == null || other.latitude == null) {
+        return latitude == null && other.latitude == null;
+      }
+      double distance = GeoJsonUtils.distanceMeters(new LngLatAlt(longitude, latitude),
+          new LngLatAlt(other.longitude, other.latitude));
+      return distance <= COORDINATE_TOLERANCE_METRES;
+    }
+  }
 
   private static final class DayCounts {
     final int[] counts = new int[24];
@@ -215,7 +232,13 @@ public final class NIMComptageParser implements ComptageParser {
     void add(int hour, Integer count, Location location, ConflictPolicy policy) {
       if (this.location == null) this.location = location;
       else if (!this.location.equals(location)) {
-        throw new IllegalArgumentException("Conflicting location metadata for the same camera/date");
+        boolean matches = this.location.matches(location);
+        LOGGER.warn("{} location metadata for the same camera/date: before={}, after={}",
+            matches ? "Tolerated coordinate difference in" : "Conflicting",
+            this.location, location);
+        if (!matches) {
+          throw new IllegalArgumentException("Conflicting location metadata for the same camera/date");
+        }
       }
       if (count == null) return;
       if (conflicts.containsKey(hour)) {

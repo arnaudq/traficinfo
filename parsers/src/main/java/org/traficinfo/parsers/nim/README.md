@@ -77,8 +77,11 @@ or years entirely absent from its input.
 ## Location and remaining fields
 
 The latest dated location within each camera/year supplies the position label,
-commune, INSEE code and coordinates. Conflicting location metadata for the same
-camera/date fails independently of row order. The default display name is
+commune, INSEE code and coordinates. Within a camera/date, coordinates may differ
+by up to 50 metres from the first location when the commune, INSEE code and
+position label match exactly. Such differences are logged with both locations;
+larger distances, changed labels or codes, and missing versus present coordinates
+fail. Coordinates retain their source precision. The default display name is
 `position - commune`, falling back to the available label or prefixed camera ID.
 The properties argument can override it by prefixed ID, e.g. `NIM_52`.
 

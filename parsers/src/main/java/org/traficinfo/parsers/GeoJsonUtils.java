@@ -1,4 +1,4 @@
-package org.traficinfo.dsfunctions;
+package org.traficinfo.parsers;
 
 import org.geojson.LineString;
 import org.geojson.LngLatAlt;
@@ -6,11 +6,14 @@ import org.geojson.Point;
 
 import java.io.IOException;
 
-/** Half the horizontal geographic length, interpolated on the original coordinate segment. */
-final class LineStringMidpoint {
-    private LineStringMidpoint() {}
+/** Shared geographic calculations for GeoJSON coordinates. */
+public final class GeoJsonUtils {
+    private static final double EARTH_RADIUS_METRES = 6_371_000.0;
 
-    static Point of(LineString line) throws IOException {
+    private GeoJsonUtils() {}
+
+    /** Half the horizontal geographic length, interpolated on the original coordinate segment. */
+    public static Point midpoint(LineString line) throws IOException {
         var coordinates = line.getCoordinates();
         if (coordinates == null || coordinates.size() < 2) {
             throw new IOException("LineString requires at least two positions");
@@ -50,6 +53,11 @@ final class LineStringMidpoint {
             remaining -= lengths[i];
         }
         throw new IOException("Unable to locate LineString midpoint");
+    }
+
+    /** Great-circle distance in metres, ignoring altitude; positions must have valid coordinates. */
+    public static double distanceMeters(LngLatAlt start, LngLatAlt end) {
+        return EARTH_RADIUS_METRES * angularDistance(start, end);
     }
 
     private static double angularDistance(LngLatAlt start, LngLatAlt end) {

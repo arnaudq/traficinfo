@@ -11,6 +11,7 @@ import org.geojson.LineString;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.traficinfo.parsers.Comptage;
+import org.traficinfo.parsers.GeoJsonUtils;
 import org.traficinfo.parsers.m3m.M3MComptage;
 import org.traficinfo.parsers.storage.ComptageJson;
 import org.traficinfo.parsers.storage.DataManifest;
@@ -295,7 +296,7 @@ public final class PreprocessingPublisher {
             GeoJsonObject location = locations.get(count.getCodeCentrale());
             if (location == null) throw new IOException("Missing MMM geometry for " + count.getCodeCentrale());
             ((M3MComptage) count).setGeometry(location instanceof LineString line
-                    ? LineStringMidpoint.of(line) : location);
+                    ? GeoJsonUtils.midpoint(line) : location);
         }
     }
 
