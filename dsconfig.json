@@ -130,8 +130,19 @@
     "schedule": "Monthly",
     "geoJsonEnabled": false,
     "dataSourceLogoUrl": "https://data.nimes-metropole.fr/assets/logo?tstamp=161855394019",
-    "activeDatasetId": "nim-2022",
+    "activeDatasetId": "nim-2023-2025",
     "datasets": {
+      "nim-2020-2021": {
+        "years": [2020,2021],
+        "datasetInfoUrl": "https://data.nimes-metropole.fr/explore/dataset/comptages-routiers-sur-la-voirie-de-lagglomeration-2020-2021/",
+        "timeoutSeconds": 300,
+        "inputs": [
+          {
+            "url": "https://data.nimes-metropole.fr/api/explore/v2.1/catalog/datasets/comptages-routiers-sur-la-voirie-de-lagglomeration-2020-2021/exports/csv?lang=fr&timezone=Europe%2FBerlin&use_labels=true&delimiter=%3B",
+            "contentType": "text/csv"
+          }
+        ]
+      },
       "nim-2022": {
         "years": [2022],
         "datasetInfoUrl": "https://data.nimes-metropole.fr/explore/dataset/comptages-routiers-sur-la-voirie-de-lagglomeration-2022/",
@@ -139,6 +150,17 @@
         "inputs": [
           {
             "url": "https://data.nimes-metropole.fr/api/explore/v2.1/catalog/datasets/comptages-routiers-sur-la-voirie-de-lagglomeration-2022/exports/csv?use_labels=true&delimiter=%3B",
+            "contentType": "text/csv"
+          }
+        ]
+      },
+      "nim-2023-2025": {
+        "years": [2023,2024,2025],
+        "datasetInfoUrl": "https://data.nimes-metropole.fr/explore/dataset/comptages-routiers-sur-la-voirie-de-lagglomeration/",
+        "timeoutSeconds": 300,
+        "inputs": [
+          {
+            "url": "https://data.nimes-metropole.fr/api/explore/v2.1/catalog/datasets/comptages-routiers-sur-la-voirie-de-lagglomeration/exports/csv?lang=fr&timezone=Europe%2FBerlin&use_labels=true&delimiter=%3B",
             "contentType": "text/csv"
           }
         ]
