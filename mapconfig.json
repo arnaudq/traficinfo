@@ -1,0 +1,36 @@
+{
+  "$schema": "./specs/mapconfig.schema.json",
+  "geoJsonBaseUrl": "https://objectstorage.eu-frankfurt-1.oraclecloud.com/n/frivwhhfdcjn/b/traficinfo/o",
+  "maps": {
+    "MMM": {
+      "id": "MMM",
+      "name": "Comptage véhicules - Montpellier",
+      "description": "Carte basée sur les données de la métropole de Montpellier et du département de l'Hérault.",
+      "center": [
+        3.88401,
+        43.606499
+      ],
+      "zoom": 14,
+      "dataSources": [
+        "MMM",
+        "DPT34"
+      ],
+      "uri": "http://umap.openstreetmap.fr/en/map/comptage-vehicules-montpellier_754880"
+    },
+    "NIM": {
+      "id": "NIM",
+      "name": "Comptage véhicules - Nîmes",
+      "description": "Carte basée sur les données de Nîmes Métropole et du département du Gard.",
+      "center": [
+        4.341316223144532,
+        43.85507847990137
+      ],
+      "zoom": 12,
+      "dataSources": [
+        "NIM",
+        "DPT30"
+      ],
+      "uri": "http://umap.openstreetmap.fr/en/map/comptage-vehicules-nimes_1478574"
+    }
+  }
+}

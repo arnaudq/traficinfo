@@ -1,0 +1,62 @@
+{
+  "type": "FeatureCollection",
+  "features": [],
+  "properties": {
+    "type": "Cluster",
+    "fields": [
+      {
+        "key": "code_centrale",
+        "type": "String"
+      },
+      {
+        "key": "name",
+        "type": "String"
+      },
+      {
+        "key": "description",
+        "type": "Text"
+      },
+      {
+        "key": "annee",
+        "type": "Number"
+      },
+      {
+        "key": "moyenne_jour_annuelle",
+        "type": "Number"
+      },
+      {
+        "key": "moyenne_pointe_matin",
+        "type": "String"
+      },
+      {
+        "key": "moyenne_pointe_soir",
+        "type": "String"
+      },
+      {
+        "key": "moyenne_annuelle_history",
+        "type": "String"
+      },
+      {
+        "key": "v85_speed",
+        "type": "Number"
+      },
+      {
+        "key": "mean_speed",
+        "type": "Number"
+      },
+      {
+        "key": "maximum_speed",
+        "type": "Number"
+      },
+      {
+        "key": "data_source",
+        "type": "String"
+      }
+    ],
+    "filters": [],
+    "browsable": true,
+    "inCaption": true,
+    "displayOnLoad": true
+  },
+  "rank": 0
+}
