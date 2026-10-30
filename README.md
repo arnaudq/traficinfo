@@ -64,6 +64,7 @@ GeoJSON enabled in `dsconfig.json`, targeting GeoJSON functions in `3MOpenDataPr
 | DPT34 | `DPT34ComptageCsvToGeoJson` | `dsdpt34/DPT34_Comptage.csv` | `DPT34GeoJsonOut` |
 | DPT30 | `DPT30ComptageCsvToGeoJson` | `dsdpt30/DPT30_Comptage.csv` | `DPT30GeoJsonOut` |
 | MRN | `MRNComptageCsvToGeoJson` | `dsmrn/MRN_Comptage.csv` | `MRNGeoJsonOut` |
+| NIM | `NIMComptageCsvToGeoJson` | `dsnim/NIM_Comptage.csv` | `NIMGeoJsonOut` |
 
 Names default to function `${id}GeoJsonOut`, rule `${id}ComptageCsvToGeoJson`,
 bucket `ds${lowercase(id)}`, and CSV `${id}_Comptage.csv`. Optional per-source
@@ -71,15 +72,18 @@ bucket `ds${lowercase(id)}`, and CSV `${id}_Comptage.csv`. Optional per-source
 MMM supplies all three overrides to retain its existing resource names; DPT34
 uses the defaults. `functionPrefix` affects both the rule and function name.
 
-NIM currently downloads the 2022 dataset only. Its `geoJsonEnabled: false`
-setting excludes it from event setup; no NIM GeoJSON function is deployed.
-Use `./scripts/deploy-functions.sh ds NIM` and, when ready to download its large export,
-`./scripts/invoke.sh ds NIM`. The source uses bucket `dsnim`, Object `NIM_Comptage.csv`,
-a 300-second runtime timeout and the Monthly schedule tag. The downloader does
-not perform yearly preprocessing. The shared preprocessing function can be
-deployed separately with `./scripts/deploy-functions.sh preprocess NIM` and run with
-`./scripts/invoke.sh preprocess NIM` to publish the yearly array and manifest.
-Automatic preprocessing/GeoJSON routing remains a later step.
+NIM selects the `nim-2023-2025` dataset and enables GeoJSON in `dsconfig.json`.
+Use `./scripts/deploy-functions.sh ds NIM` and `./scripts/invoke.sh ds NIM`
+to retrieve it. The source uses bucket `dsnim`, Object `NIM_Comptage.csv`,
+a 300-second runtime timeout and the Monthly schedule tag.
+Deploy and run preprocessing with `./scripts/deploy-functions.sh preprocess NIM`
+and `./scripts/invoke.sh preprocess NIM` to publish its yearly Objects and manifest.
+Then deploy `NIMGeoJsonOut` with `./scripts/deploy-functions.sh geojson NIM`
+and invoke it with `./scripts/invoke.sh geojson NIM` to publish
+`NIM_TraficInfo.geojson`. See the [NIM function documentation](dsfunctions/README.md#nim-functions).
+Preprocessing remains manual: existing CSV events invoke GeoJSON against the
+latest published manifest. Run preprocessing after source changes; automatic
+source-to-preprocessing-to-GeoJSON routing remains a later step.
 
 Each rule matches create and update events for exactly its configured CSV in
 its bucket, compartment, and Object Storage namespace. Archive objects,

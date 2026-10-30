@@ -128,7 +128,6 @@
     "id": "NIM",
     "name": "Comptages véhicules - Nîmes Métropole",
     "schedule": "Monthly",
-    "geoJsonEnabled": false,
     "dataSourceLogoUrl": "https://data.nimes-metropole.fr/assets/logo?tstamp=161855394019",
     "activeDatasetId": "nim-2023-2025",
     "datasets": {

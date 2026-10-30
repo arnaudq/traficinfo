@@ -9,7 +9,8 @@ public enum GeoJsonDataSource {
     MMM(GeoJsonParser.DataSource.M3MV2, "ds3mbucket", "MMM_MMM_Comptage.csv"),
     DPT30(GeoJsonParser.DataSource.DPT30),
     DPT34(GeoJsonParser.DataSource.DPT34),
-    MRN(GeoJsonParser.DataSource.MRN);
+    MRN(GeoJsonParser.DataSource.MRN),
+    NIM(GeoJsonParser.DataSource.NIM);
 
     private final GeoJsonParser.DataSource parserDataSource;
     private final String defaultInputBucket;

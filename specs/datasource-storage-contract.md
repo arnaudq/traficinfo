@@ -112,9 +112,9 @@ superclass. `GeoJsonDataSource` retains only GeoJSON parser selection and naming
 The active dataset's optional `timeoutSeconds` sets the download function's synchronous
 runtime timeout (1–300 seconds). Deployment applies it on creation and updates;
 invocation allows an additional 60 seconds when it exceeds the default 30. NIM
-uses 300 seconds for its 2022 export. `geoJsonEnabled: false` marks a datasource
+uses 300 seconds for its configured exports. `geoJsonEnabled: false` marks a datasource
 as having no GeoJSON handler: event setup skips it and GeoJSON
-invocation/deployment is disabled. Explicit preprocessing is independent of this flag. Other sources remain enabled by default.
+invocation/deployment is disabled. Explicit preprocessing is independent of this flag. All current sources have GeoJSON handlers enabled.
 
 ## Processing sequence
 
@@ -212,8 +212,8 @@ function or published to the manifest until selected and processed:
 }
 ```
 
-The shared `PreprocessingFunction` supports all current datasource IDs. NIM has
-an initial explicit scope of `[2022]`; DPT30 uses `[2021, 2022, 2023, 2024, 2025]`.
+The shared `PreprocessingFunction` supports all current datasource IDs. NIM’s
+active dataset covers `[2023, 2024, 2025]`; DPT30 uses `[2021, 2022, 2023, 2024, 2025]`.
 Every configured dataset declares its own expected years before invoking this
 stage. The scope may expand. Reducing the scope or changing input Object names for
 an existing dataset requires a new `datasetId`. Records outside the configured
@@ -250,8 +250,9 @@ leave unreferenced yearly Objects; automatic cleanup is outside this step.
 Preprocessing deployment and invocation are explicit (`preprocess` in the shared
 scripts), with a 300-second runtime timeout. It is not included in a deployment
 without arguments, has no schedule tag and is not connected to Events yet.
-GeoJSON handlers continue using their current inputs until their separate
-manifest migration.
+All current GeoJSON handlers read the published manifest and
+its exact yearly Object references. CSV events do not run preprocessing;
+preprocessing must publish source changes before GeoJSON is invoked.
 
 For the end-user procedure, including the DPT34 period-splitting example, see
 [Making past periods read-only](../dsfunctions/README.md#making-past-periods-read-only).

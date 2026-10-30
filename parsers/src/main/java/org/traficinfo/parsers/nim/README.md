@@ -178,8 +178,10 @@ A shuffled or truncated sample is useful for examining these diagnostics.
 ## Integration and tests
 
 The library parser is registered as `GeoJsonParser.DataSource.NIM`. The cloud
-source remains download-only (`geoJsonEnabled: false`); this change does not
-introduce a GeoJSON function or manifest publication.
+GeoJSON handler reads preprocessed yearly records through `NIM_Manifest.json`
+and publishes `NIM_TraficInfo.geojson`; see the
+[function README](../../../../../../../../dsfunctions/README.md#nim-functions)
+for deployment and invocation. Preprocessing remains an explicit step.
 
 `NIMSample.csv` contains five records fetched through a bounded JSON API query
 and converted to CSV using documented field labels. It is not a downloaded CSV

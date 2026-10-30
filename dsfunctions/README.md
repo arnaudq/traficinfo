@@ -56,8 +56,8 @@ Archive dates use the previous download date, including for MMM.
 The datasource function does not use the manifest. Event routing remains the
 existing CSV-to-GeoJSON flow until manifest-based routing is enabled. Changing current
 Object names also requires matching consumers/event configuration; use existing
-names during this step. NIM preprocessing is invoked explicitly; its CSV does
-not trigger GeoJSON processing.
+names during this step. Preprocessing is invoked explicitly, including for NIM;
+publish its manifest before invoking the GeoJSON handler or enabling events.
 
 ## Shared infrastructure
 
@@ -81,10 +81,10 @@ supplies only its datasource ID; the superclass reads retrieval settings and the
 bucket from function configuration and delegates to `SourceObjectPublisher`.
 MMM's companion inputs use the same lifecycle as single-CSV sources.
 
-MMM, DPT30, DPT34 and MRN GeoJSON handlers use `AbstractGeoJsonOutFunction` and
+MMM, DPT30, DPT34, MRN and NIM GeoJSON handlers use `AbstractGeoJsonOutFunction` and
 `GeoJsonDataSource`. That enum contains only parser selection and the naming
 conventions needed by GeoJSON generation. Download URLs and archive naming are
-not part of it. NIM does not need a GeoJSON parser entry to retrieve data.
+not part of it.
 
 The superclasses expose public final `config(RuntimeContext)` methods annotated
 with `@FnConfiguration`, and public final `handleRequest(String)` methods. Fn
@@ -93,35 +93,53 @@ configurer and runtime context with fake clients, checking mandatory settings,
 handler identity and client creation order. Package-private constructors accept
 explicit test settings and clients without introducing runtime fallbacks.
 
-## NIM datasource (2022)
+## NIM functions
 
 `org.traficinfo.dsfunctions.nim.DataSourceFunction::handleRequest` downloads the
-CSV export for [Nîmes Métropole's 2022 hourly counts](https://data.nimes-metropole.fr/explore/dataset/comptages-routiers-sur-la-voirie-de-lagglomeration-2022/).
-The active dataset ID is `nim-2022`. Default bucket `dsnim` contains the gzip
-Object `NIM_Comptage.csv`; changed downloads archive the previous content as
-`NIM_Comptage_YYYYMMDD.csv`. Retrieval, source identity checks and metadata use
-the shared publisher. The export uses French column labels and semicolons.
+active Nîmes Métropole CSV export selected in `dsconfig.json`. The active dataset
+is `nim-2023-2025`; historical datasets cover 2020–2021 and 2022. Default bucket
+`dsnim` contains the gzip Object `NIM_Comptage.csv`; changed downloads archive
+the previous content as `NIM_Comptage_YYYYMMDD.csv`. Retrieval, source identity
+checks and metadata use the shared publisher. The export uses French column
+labels and semicolons.
 
-`dsconfig.json` selects Monthly retrieval, `geoJsonEnabled: false`, and
-`datasets.nim-2022.timeoutSeconds: 300`. Deployment registers `NIMOpenDataSource` with a
-300-second runtime timeout on creation and updates. `scripts/invoke.sh ds NIM` allows
-360 seconds for the synchronous response. `BUCKETNAME_NIM` overrides the
-deployment bucket. The existing 4096-byte configuration guard applies.
+Retrieval runs Monthly with a 300-second runtime timeout.
+`scripts/invoke.sh ds NIM` allows 360 seconds for the synchronous response.
+`BUCKETNAME_NIM` overrides the deployment bucket. The existing 4096-byte
+configuration guard applies.
 
-After `source ./scripts/setup.sh`, create/reconcile its bucket with `./scripts/setup-buckets.sh`
-and deploy only its downloader with `./scripts/deploy-functions.sh ds NIM`. Invoke with
-`./scripts/invoke.sh ds NIM` when ready to fetch the large CSV. No full export has been
-downloaded during development; tests use synthetic bytes. Actual transfer time
-and temporary-storage requirements remain unverified. Deployment applies the
-Monthly schedule tag; the shared scheduler must be configured to run it.
+`org.traficinfo.dsfunctions.nim.GeoJsonOutFunction::handleRequest` reads
+`NIM_Manifest.json` and its exact yearly Object references, including retained
+historical datasets. It validates checksums, record counts and years before
+rendering through `GeoJsonParser.DataSource.NIM`. It accepts plain or gzip
+Objects and uploads gzip `NIM_TraficInfo.geojson` with content type
+`application/geo+json`. Geometry and site IDs come from stored NIM records;
+annual history and filtering use the shared renderer. The displayed daily
+average is over observed complete days, not an extrapolated full-year TMJA.
+Records without a daily average or coordinates are excluded by shared filtering.
+See the [NIM parser README](../parsers/src/main/java/org/traficinfo/parsers/nim/README.md).
 
-The parser library provides `NIMComptageParser` for hourly aggregation; see the
-[NIM parser README](../parsers/src/main/java/org/traficinfo/parsers/nim/README.md).
-NIM still has no cloud GeoJSON handler. Event setup skips entries
-with `geoJsonEnabled: false`, and GeoJSON deployment/invocation rejects NIM before
-making cloud calls. Preprocessing can publish yearly Objects and the manifest through an explicit invocation; GeoJSON migration comes later.
-Add the newer dataset with its URL and years to `datasets`, select its key with
-`activeDatasetId`, and redeploy the source function when ready to monitor it.
+Configure `NAMESPACE`, `BUCKETNAME_IN` (default `dsnim`), `BUCKETNAME_OUT`
+(default `traficinfo`) and `USE_RESOURCE_PRINCIPAL` (default `true`). OSM
+configuration uses `BUCKETNAME_OSM` (default `osminfo`), `OSM_CACHE_OBJECT`
+(default `NIM_OSMInfo.json`) and `OSM_WAY_MAPPING_OBJECT`
+(default `NIM_OSMWayMapping.json`). Cache refresh follows successful output
+publication. Download, validation, upload and cache-write failures fail the
+invocation; temporary output files are removed on success and failure.
+
+After `source ./scripts/setup.sh`, deploy the handler as `NIMGeoJsonOut` and
+invoke it against an already published manifest:
+
+```sh
+./scripts/deploy-functions.sh geojson NIM
+./scripts/invoke.sh geojson NIM
+```
+
+Publish the required datasets with preprocessing before invoking GeoJSON.
+GeoJSON deployment, invocation and inclusion in the existing CSV event setup
+are enabled by default. Events still invoke GeoJSON directly and do not run
+preprocessing; generation reads the latest published manifest. Run preprocessing
+explicitly after source changes until event routing is migrated.
 
 ## Preprocessing
 
@@ -149,7 +167,7 @@ is performed by preprocessing. Deployment builds `PREPROCESSING_SETTINGS` from
 the selected `datasets[activeDatasetId]` inputs, `datasetInfoUrl` and `years`
 in `dsconfig.json`, applies the 4096-byte configuration limit, and sets a
 300-second runtime timeout.
-NIM starts with `[2022]`; DPT30 uses `[2021, 2022, 2023, 2024, 2025]`, matching
+NIM’s active dataset uses `[2023, 2024, 2025]`; DPT30 uses `[2021, 2022, 2023, 2024, 2025]`, matching
 the available annual records. Every dataset defines its explicit expected year
 scope; MMM also requires its companion geometry input. Input names are used as named
 manifest inputs. Preprocessing converts companion LineStrings to Points halfway

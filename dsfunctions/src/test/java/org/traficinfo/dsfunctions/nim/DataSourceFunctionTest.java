@@ -39,7 +39,8 @@ public class DataSourceFunctionTest {
         assertEquals(List.of("NIM_Comptage.csv"), function.writes);
         assertArrayEquals(CSV, function.contents.get("NIM_Comptage.csv"));
         OOSResourceMetadata metadata = function.metadata.get("NIM_Comptage.csv");
-        assertEquals("nim-2022", metadata.getMetadata().get("dataset-id"));
+        assertEquals(DataSourceTestSettings.settings("NIM").datasetId(),
+                metadata.getMetadata().get("dataset-id"));
         assertEquals("NIM", metadata.getMetadata().get("datasource-id"));
         assertEquals(CSV_URI.toString(), metadata.getMetadata().get("source-url"));
         assertTrue(function.closed);

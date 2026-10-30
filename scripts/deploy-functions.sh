@@ -23,6 +23,7 @@ functions=(
   'DPT34|geojson|org.traficinfo.dsfunctions.dpt34.GeoJsonOutFunction::handleRequest'
   'DPT30|geojson|org.traficinfo.dsfunctions.dpt30.GeoJsonOutFunction::handleRequest'
   'MRN|geojson|org.traficinfo.dsfunctions.mrn.GeoJsonOutFunction::handleRequest'
+  'NIM|geojson|org.traficinfo.dsfunctions.nim.GeoJsonOutFunction::handleRequest'
 )
 
 usage() {

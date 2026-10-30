@@ -41,8 +41,8 @@ public class CsvFunctionInheritanceTest {
     }
 
     @Test
-    public void fnLoadsInheritedMethodsForAllEightConcreteHandlers() throws Exception {
-        for (String name : List.of("dpt30", "dpt34", "mrn", "m3m")) {
+    public void fnLoadsInheritedMethodsForAllConcreteHandlers() throws Exception {
+        for (String name : List.of("dpt30", "dpt34", "mrn", "m3m", "nim")) {
             for (String handler : List.of("DataSourceFunction", "GeoJsonOutFunction")) {
                 Class<?> type = Class.forName("org.traficinfo.dsfunctions." + name + "." + handler);
                 MethodWrapper wrapper = new FunctionLoader().loadClass(type.getName(), "handleRequest");
