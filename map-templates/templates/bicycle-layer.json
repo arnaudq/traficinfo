@@ -1,0 +1,4 @@
+{
+  "iconUrl": "/uploads/pictogram/bicycle.svg",
+  "popupContentTemplate": "# {name}\n{description}\nAnnée: {annee}\nMoyenne de vélos / jour: {moyenne_jour_annuelle}\n\nHistorique des moyennes: {moyenne_annuelle_history}\n\n{{https://objectstorage.eu-frankfurt-1.oraclecloud.com/n/frivwhhfdcjn/b/traficinfo/o/{data_source}_Logo.png|200}}\nGID: {code_centrale}"
+}

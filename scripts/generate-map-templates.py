@@ -72,10 +72,22 @@ def validate(config, sources):
         zoom = entry.get("zoom")
         require(type(zoom) is int and 0 <= zoom <= 24,
                 f"{map_id}: zoom must be an integer from 0 to 24")
-        ids = entry.get("dataSources")
-        require(isinstance(ids, list) and ids and all(nonempty(i) for i in ids)
-                and len(ids) == len(set(ids)),
-                f"{map_id}: dataSources must contain distinct source IDs")
+        selections = entry.get("dataSources")
+        require(isinstance(selections, list) and selections,
+                f"{map_id}: dataSources must be a nonempty list")
+        ids = []
+        for selection in selections:
+            require(isinstance(selection, dict) and set(selection) == {"id", "types"},
+                    f"{map_id}: each data source must contain id and types")
+            source_id = selection["id"]
+            require(nonempty(source_id), f"{map_id}: missing data source ID")
+            types = selection["types"]
+            require(isinstance(types, list) and types
+                    and all(isinstance(t, str) and t in ("VEHICULES", "BICYCLES") for t in types)
+                    and len(types) == len(set(types)),
+                    f"{map_id}: {source_id} types must be distinct VEHICULES or BICYCLES values")
+            ids.append(source_id)
+        require(len(ids) == len(set(ids)), f"{map_id}: dataSources must contain distinct source IDs")
         if "uri" in entry:
             require(http_url(entry["uri"]), f"{map_id}: invalid uri")
         require(isinstance(entry.get("properties", {}), dict),
@@ -111,7 +123,7 @@ def merge(target, overrides):
             target[key] = deepcopy(value)
 
 
-def generate(entry, config, sources, map_template, layer_template):
+def generate(entry, config, sources, map_template, layer_template, bicycle_template):
     result = deepcopy(map_template)
     result.pop("uri", None)
     result["geometry"] = {"type": "Point", "coordinates": entry["center"]}
@@ -126,22 +138,32 @@ def generate(entry, config, sources, map_template, layer_template):
     result["layers"] = []
     schedules = {"Hourly": "horaire", "Daily": "quotidienne",
                  "Weekly": "hebdomadaire", "Monthly": "mensuelle"}
-    for rank, source_id in enumerate(entry["dataSources"]):
+    for selection in entry["dataSources"]:
+        source_id = selection["id"]
         source = sources[source_id]
         dataset = source["datasets"][source["activeDatasetId"]]
-        layer = deepcopy(layer_template)
-        layer["rank"] = rank
         description = ("Comptages basés sur les données de "
                        f"[[{dataset['datasetInfoUrl']} | {source['name']}]]")
         if source.get("schedule") in schedules:
             description += f"\n\nMise à jour {schedules[source['schedule']]}"
-        layer["properties"].update(name=source["name"], description=description)
-        merge(layer["properties"], entry.get("layerProperties", {}).get(source_id, {}))
-        layer["properties"]["remoteData"] = {
-            "url": f"{config['geoJsonBaseUrl'].rstrip('/')}/{source_id}_TraficInfo.geojson",
-            "format": "geojson",
-        }
-        result["layers"].append(layer)
+        for population in selection["types"]:
+            suffix, label = ("_BICYCLES", "vélos") if population == "BICYCLES" else ("", "véhicules")
+            layer = deepcopy(layer_template)
+            source_title = source["name"].split(" - ", 1)[-1]
+            layer["properties"].update(name=f"Comptages {label} - {source_title}", description=description)
+            merge(layer["properties"], entry.get("layerProperties", {}).get(source_id, {}))
+            if population == "BICYCLES":
+                merge(layer["properties"], bicycle_template)
+            layer["properties"]["remoteData"] = {
+                "url": f"{config['geoJsonBaseUrl'].rstrip('/')}/{source_id}_TraficInfo{suffix}.geojson",
+                "format": "geojson",
+            }
+            result["layers"].append(layer)
+    # uMap imports in array order, assigns increasing ranks, then displays highest first.
+    # Serialize bottom-to-top so the browser displays the configured source/type order.
+    result["layers"].reverse()
+    for rank, layer in enumerate(result["layers"]):
+        layer["rank"] = rank
     return json.dumps(result, ensure_ascii=False, indent=2, allow_nan=False) + "\n"
 
 
@@ -176,9 +198,10 @@ def main():
     directory = root / "map-templates"
     base = read_json(directory / "templates/map.json")
     layer = read_json(directory / "templates/layer.json")
+    bicycle = read_json(directory / "templates/bicycle-layer.json")
     # Render every requested map before changing any output.
     outputs = [(directory / f"{i}.umap",
-                generate(config["maps"][i], config, sources, base, layer)) for i in ids]
+                generate(config["maps"][i], config, sources, base, layer, bicycle)) for i in ids]
     changed = False
     for path, content in outputs:
         if path.exists() and path.read_text(encoding="utf-8") == content:

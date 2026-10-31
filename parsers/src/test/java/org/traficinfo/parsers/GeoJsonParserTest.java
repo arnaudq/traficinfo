@@ -27,6 +27,41 @@ import static org.junit.Assert.assertFalse;
 public class GeoJsonParserTest extends ParserBaseTest {
 
     @Test
+    public void testMmmCounterTypesInSeparateGeoJson() throws Exception {
+        int year = Year.now().getValue();
+        String csv = "code_centrale,annee,type_compteur,mja_jo\n"
+                + "146966," + year + ",compteur permanent vélo,500\n"
+                + "146966," + (year - 1) + ",compteur permanent vélo,900\n"
+                + "472," + year + ",compteur permanent,1000\n"
+                + "unknown," + year + ",ne pas tenir compte,500\n";
+        FeatureCollection supplied = new FeatureCollection();
+        for (String id : List.of("146966", "472", "unknown")) {
+            Feature feature = new Feature();
+            feature.setProperty("code_centrale", id);
+            // Existing map properties must be replaced with the source's classification.
+            feature.setProperty("type", "UNKNOWN");
+            feature.setProperty("shape-icon", "car");
+            feature.setGeometry(new Point(3, 43));
+            supplied.add(feature);
+        }
+        List<? extends Comptage> records = GeoJsonParser.DataSource.M3MV2.getParser()
+                .parseComptages(new StringReader(csv));
+        for (Comptage.Type type : List.of(Comptage.Type.VEHICULES, Comptage.Type.BICYCLES)) {
+            StringWriter writer = new StringWriter();
+            GeoJsonParser.writeGeoJson(GeoJsonParser.DataSource.M3MV2, records, supplied, writer,
+                    wayId -> null, type);
+            FeatureCollection result = GeoJsonParser.parseGeoJSON(new StringReader(writer.toString()));
+            assertEquals(1, result.getFeatures().size());
+            Feature feature = result.getFeatures().get(0);
+            boolean bicycle = type == Comptage.Type.BICYCLES;
+            assertEquals(bicycle ? "146966" : "472", feature.getProperty("code_centrale"));
+            assertEquals(type.name(), feature.getProperty("type"));
+            assertFalse(feature.getProperties().containsKey("shape-icon"));
+            assertEquals(bicycle ? 500 : 1000, (int) feature.getProperty("moyenne_jour_annuelle"));
+        }
+    }
+
+    @Test
     public void testFeatureCollectionOverloadMatchesReaderOutput() throws Exception {
         StringWriter readerOutput = new StringWriter();
         StringWriter collectionOutput = new StringWriter();
@@ -71,6 +106,7 @@ public class GeoJsonParserTest extends ParserBaseTest {
         Feature feature = result.getFeatures().get(0);
         assertEquals("DPT34_Per.034.0001.00.3", feature.getProperty("code_centrale"));
         assertEquals("DPT34", feature.getProperty("data_source"));
+        assertEquals("VEHICULES", feature.getProperty("type"));
         Point point = (Point) feature.getGeometry();
         assertEquals(3.5, point.getCoordinates().getLongitude(), 0.0);
         assertEquals(43.5, point.getCoordinates().getLatitude(), 0.0);

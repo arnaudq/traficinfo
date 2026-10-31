@@ -80,12 +80,6 @@ public class GeoJsonParser {
     private static final int NB_YEARS = 10;
     //private static Set<String> GID_CSVFILTER = new HashSet<>(Arrays.asList("4465"));
     private static final Set<String> GID_CSVFILTER = new HashSet<>();
-//    private static final Set<EnumSet<Comptage.Type>> COMPTAGE_TYPES_FILTERS = new HashSet<>(Arrays.asList(
-//      EnumSet.of(Comptage.Type.VEHICULES), EnumSet.of(Comptage.Type.VELOS, Comptage.Type.PIETONS_VELOS)));
-//    private static final Set<EnumSet<Comptage.Type>> COMPTAGE_TYPES_FILTERS =
-//        Collections.singleton(EnumSet.of(Comptage.Type.VELOS, Comptage.Type.PIETONS_VELOS));
-    private static final Set<EnumSet<Comptage.Type>> COMPTAGE_TYPES_FILTERS =
-      Collections.singleton(EnumSet.of(Comptage.Type.VEHICULES, Comptage.Type.BICYCLES));
     private static Set<String> PRESERVED_GEOJSON_PROPERTIES = new HashSet<>(Arrays.asList("gid", "code_centrale", "name:q"));
 
     private static final Logger LOG = LoggerFactory.getLogger(GeoJsonParser.class);
@@ -135,31 +129,29 @@ public class GeoJsonParser {
     public static void writeGeoJson(DataSource dataSource, List<? extends Comptage> comptages,
                                     FeatureCollection geoJsonColl, Writer geojsonMergedWriter,
                                     OSMInfoProvider osmInfoProvider) throws IOException {
-        logSpeedCoverage(dataSource, "input records", comptages.size(),
-                comptages.stream().filter(comptage -> comptage.getV85Speed() > 0).count(),
-                comptages.stream().filter(comptage -> comptage.getMeanSpeed() > 0).count());
-        applyOsmInfo(comptages, osmInfoProvider);
+        writeGeoJson(dataSource, comptages, geoJsonColl, geojsonMergedWriter, osmInfoProvider,
+                Comptage.Type.VEHICULES);
+    }
 
-        LOG.info("Nb comptages: {}", comptages.size());
-
-        LOG.info("Nb GeoJson: {}", geoJsonColl.getFeatures().size());
-
-        for (EnumSet<Comptage.Type> types : COMPTAGE_TYPES_FILTERS) {
-            FeatureCollection outCol = buildForType(geoJsonColl.getFeatures(), comptages, types);
-            outCol.getFeatures().forEach(feature ->
-                    feature.setProperty("data_source", dataSource.getId()));
-            LOG.info("Nb filtered GeoJson: {}", outCol.getFeatures().size());
-            logSpeedCoverage(dataSource, "GeoJSON features " + types, outCol.getFeatures().size(),
-                    outCol.getFeatures().stream()
-                            .filter(feature -> feature.getProperties().containsKey("v85_speed")).count(),
-                    outCol.getFeatures().stream()
-                            .filter(feature -> feature.getProperties().containsKey("mean_speed")).count());
-
-            StringBuilder typesStr = new StringBuilder();
-            types.forEach(type -> typesStr.append(type.name()).append('_'));
-            typesStr.deleteCharAt(typesStr.length() -1);
-            new ObjectMapper().writeValue(geojsonMergedWriter, outCol);
+    /** Writes one population; the default overload exports motor vehicles. */
+    public static void writeGeoJson(DataSource dataSource, List<? extends Comptage> comptages,
+                                    FeatureCollection geoJsonColl, Writer geojsonMergedWriter,
+                                    OSMInfoProvider osmInfoProvider, Comptage.Type type) throws IOException {
+        if (type != Comptage.Type.VEHICULES && type != Comptage.Type.BICYCLES) {
+            throw new IllegalArgumentException("Unsupported GeoJSON population: " + type);
         }
+        List<? extends Comptage> selected = comptages.stream()
+                .filter(comptage -> comptage.getType() == type).collect(Collectors.toList());
+        logSpeedCoverage(dataSource, "input records " + type, selected.size(),
+                selected.stream().filter(comptage -> comptage.getV85Speed() > 0).count(),
+                selected.stream().filter(comptage -> comptage.getMeanSpeed() > 0).count());
+        applyOsmInfo(selected, osmInfoProvider);
+        FeatureCollection outCol = buildForType(geoJsonColl.getFeatures(), selected, EnumSet.of(type));
+        outCol.getFeatures().forEach(feature -> feature.setProperty("data_source", dataSource.getId()));
+        logSpeedCoverage(dataSource, "GeoJSON features " + type, outCol.getFeatures().size(),
+                outCol.getFeatures().stream().filter(feature -> feature.getProperties().containsKey("v85_speed")).count(),
+                outCol.getFeatures().stream().filter(feature -> feature.getProperties().containsKey("mean_speed")).count());
+        new ObjectMapper().writeValue(geojsonMergedWriter, outCol);
     }
 
     private static void logSpeedCoverage(DataSource dataSource, String stage, int total,
@@ -305,6 +297,7 @@ public class GeoJsonParser {
         feature.setProperty("description", description);
 
         feature.setProperty("annee", comptage.getAnnee());
+        feature.setProperty("type", comptage.getType().name());
         feature.setProperty("moyenne_jour_annuelle", comptage.getMoyenneJourAnnuelle());
         setPropertyIfPresent(feature, "moyenne_pointe_matin", comptage.getMoyenneHeureDePointeMatin());
         setPropertyIfPresent(feature, "moyenne_pointe_soir", comptage.getMoyenneHeureDePointeSoir());

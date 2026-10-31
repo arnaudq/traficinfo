@@ -134,7 +134,7 @@ public class CsvFunctionInheritanceTest {
                     ManifestTestPublication.yearObjectName(GeoJsonDataSource.MRN, Year.now().getValue()),
                     overrides ? "tags.json" : "MRN_OSMInfo.json",
                     overrides ? "mapping.json" : "MRN_OSMWayMapping.json"), function.reads);
-            assertEquals(List.of("MRN_TraficInfo.geojson",
+            assertEquals(List.of("MRN_TraficInfo.geojson", "MRN_TraficInfo_BICYCLES.geojson",
                     overrides ? "mapping.json" : "MRN_OSMWayMapping.json"), function.writes);
             JsonNode output = new ObjectMapper().readTree(function.output);
             JsonNode feature = output.get("features").get(0);
@@ -172,7 +172,7 @@ public class CsvFunctionInheritanceTest {
             assertEquals("OK", runtime.getMethod().getTargetMethod().invoke(function, ""));
             assertEquals(List.of("MMM_Manifest.json", overrides ? "tags.json" : "MMM_OSMInfo.json",
                     overrides ? "mapping.json" : "MMM_OSMWayMapping.json"), function.reads);
-            assertEquals(List.of("MMM_TraficInfo.geojson", overrides ? "mapping.json" : "MMM_OSMWayMapping.json"),
+            assertEquals(List.of("MMM_TraficInfo.geojson", "MMM_TraficInfo_BICYCLES.geojson", overrides ? "mapping.json" : "MMM_OSMWayMapping.json"),
                     function.writes);
         }
     }
@@ -272,7 +272,8 @@ public class CsvFunctionInheritanceTest {
                     writes.add(name);
                     if (name.endsWith(".geojson")) {
                         assertEquals("application/geo+json", type);
-                        output = body.readAllBytes();
+                        byte[] bytes = body.readAllBytes();
+                        if (!name.endsWith("_BICYCLES.geojson")) output = bytes;
                     } else {
                         assertNotNull("GeoJSON must be uploaded before refreshing mappings", output);
                         mapping = body.readAllBytes();

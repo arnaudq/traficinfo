@@ -49,6 +49,38 @@ public class GeoJsonOutFunctionTest {
             + "mja_jo,hp_johvs_matin,hp_johvs_soir,v85ma_tcj,vtma_tcj\n"
             + "100457,Rue de l'École,Montpellier," + Year.now().getValue()
             + ",compteur feux,1,577,72,43,30,28\n";
+
+    @Test
+    public void publishesBicyclesSeparatelyAndClearsRemovedCounters() throws Exception {
+        StorageStub stub = new StorageStub(true);
+        stub.csv += "146966,Piste,Montpellier," + Year.now().getValue()
+                + ",compteur permanent vélo,Z,500,,,,\n";
+        assertEquals("OK", stub.function().handleRequest(""));
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode vehicles = mapper.readTree(stub.output).path("features");
+        JsonNode bicycles = mapper.readTree(stub.bicycleOutput).path("features");
+        assertEquals(1, vehicles.size());
+        assertEquals("VEHICULES", vehicles.get(0).path("properties").path("type").asText());
+        assertEquals(1, bicycles.size());
+        assertEquals("146966", bicycles.get(0).path("properties").path("code_centrale").asText());
+        assertFalse(bicycles.get(0).path("properties").has("shape-icon"));
+        stub.csv = CSV;
+        assertEquals("OK", stub.function().handleRequest(""));
+        assertEquals(0, mapper.readTree(stub.bicycleOutput).path("features").size());
+        stub.assertStreamsClosed();
+    }
+
+    @Test
+    public void reportsBicycleUploadFailureBeforeRefreshingCache() throws Exception {
+        StorageStub stub = new StorageStub(false);
+        stub.failBicycleUpload = true;
+        assertFunctionFailure(() -> stub.function().handleRequest(""));
+        assertEquals(2, stub.uploads);
+        assertNotNull(stub.output);
+        assertNull(stub.bicycleOutput);
+        assertEquals(0, stub.cacheUploads);
+        stub.assertStreamsClosed();
+    }
     @Test
     public void rendersPlainAndGzipManifestPublicationsWithoutRawCompanionAndUploadsToOutputBucket() throws Exception {
         for (boolean gzip : new boolean[]{false, true}) {
@@ -57,7 +89,7 @@ public class GeoJsonOutFunctionTest {
             assertEquals(List.of("MMM_Manifest.json",
                     ManifestTestPublication.yearObjectName(GeoJsonDataSource.MMM, Year.now().getValue()),
                     "MMM_OSMInfo.json"), stub.downloads);
-            assertEquals(1, stub.uploads);
+            assertEquals(2, stub.uploads);
             JsonNode result = new ObjectMapper().readTree(stub.output);
             assertEquals("FeatureCollection", result.get("type").asText());
             assertEquals(1, result.get("features").size());
@@ -189,7 +221,7 @@ public class GeoJsonOutFunctionTest {
         stub.csv = csvWithWays(1);
         stub.failCacheUpload = true;
         assertFunctionFailure(() -> stub.function().handleRequest(""));
-        assertEquals(1, stub.uploads);
+        assertEquals(2, stub.uploads);
         assertEquals(1, stub.cacheUploads);
     }
 
@@ -310,8 +342,10 @@ public class GeoJsonOutFunctionTest {
         boolean failCacheDownload;
         boolean failDownload;
         boolean failUpload;
+        boolean failBicycleUpload;
         int uploads;
         byte[] output;
+        byte[] bicycleOutput;
 
         StorageStub(boolean gzip) {
             this.gzip = gzip;
@@ -383,15 +417,21 @@ public class GeoJsonOutFunctionTest {
                             return PutObjectResponse.builder().build();
                         }
                         assertEquals("output-bucket", request.getBucketName());
-                        assertEquals("MMM_TraficInfo.geojson", request.getObjectName());
+                        assertTrue(List.of("MMM_TraficInfo.geojson", "MMM_TraficInfo_BICYCLES.geojson")
+                                .contains(request.getObjectName()));
                         assertEquals("application/geo+json", request.getContentType());
                         assertEquals("gzip", request.getContentEncoding());
                         uploads++;
-                        if (failUpload) {
+                        if (failUpload || (failBicycleUpload && request.getObjectName().endsWith("_BICYCLES.geojson"))) {
                             throw new IllegalStateException("upload failed");
                         }
                         try (GZIPInputStream decoded = new GZIPInputStream(request.getPutObjectBody())) {
-                            output = decoded.readAllBytes();
+                            byte[] bytes = decoded.readAllBytes();
+                            if (request.getObjectName().endsWith("_BICYCLES.geojson")) {
+                                bicycleOutput = bytes;
+                            } else {
+                                output = bytes;
+                            }
                         }
                         return PutObjectResponse.builder().build();
                     });

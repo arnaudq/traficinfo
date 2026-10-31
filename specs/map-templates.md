@@ -16,7 +16,10 @@ JSON Schema cannot express across these files.
       "description": "Carte basée sur les données de Nîmes Métropole et du Gard.",
       "center": [4.3601, 43.8367],
       "zoom": 12,
-      "dataSources": ["NIM", "DPT30"]
+      "dataSources": [
+        {"id": "NIM", "types": ["VEHICULES"]},
+        {"id": "DPT30", "types": ["VEHICULES"]}
+      ]
     }
   }
 }
@@ -29,15 +32,31 @@ is `[longitude, latitude]` in both the uMap geometry and map properties.
 `description` introduces the shared usage instructions. `zoom` is an integer
 from 0 to 24; the shared tile provider currently supports up to 18.
 
-`dataSources` is a nonempty, distinct, ordered list of IDs from `dsconfig.json`.
-Each generates one layer, with zero-based rank following list order. The layer
-name comes from the source's `name`, its description links to the active
-dataset's `datasetInfoUrl`, and its update cadence comes from `schedule` when
-recognized. Sources explicitly disabling GeoJSON are rejected.
+`dataSources` is a nonempty, ordered list of objects with `id` and `types`.
+Source IDs must be distinct and reference `dsconfig.json`. Each `types` array is
+nonempty and contains distinct `VEHICULES` and/or `BICYCLES` values. Only selected
+types generate layers. Source order and type order define the displayed order: `{"id": "MMM", "types": ["VEHICULES", "BICYCLES"]}` before
+`{"id": "DPT34", "types": ["VEHICULES"]}` produces MMM vehicles, MMM bicycles,
+then DPT34 vehicles.
+
+uMap imports layers in array order, assigns increasing ranks, and displays the
+highest rank first. The generator therefore serializes the layers in reverse
+of the configured display order, with consecutive zero-based ranks. Both the
+imported and saved map display the configured order.
+
+Layer names begin with `Comptages véhicules - ` or `Comptages vélos - `,
+followed by the source title after its first ` - `. The description links to the active dataset's
+`datasetInfoUrl`, and its update cadence comes from `schedule` when recognized.
+Sources explicitly disabling GeoJSON are rejected.
 
 Remote layer URLs follow the existing publisher contract:
-`<geoJsonBaseUrl>/<dataSourceId>_TraficInfo.geojson`. A trailing slash on the base
-is optional. The base must be an HTTP(S) URL without a query or fragment.
+`<geoJsonBaseUrl>/<dataSourceId>_TraficInfo.geojson` for vehicles and
+`<geoJsonBaseUrl>/<dataSourceId>_TraficInfo_BICYCLES.geojson` for bicycles.
+Both files are published even if the population is empty. Vehicle layers inherit
+the default map popup. Bicycle layers apply `templates/bicycle-layer.json`,
+which shows counts and history without speed fields and sets the bicycle icon
+URL to `/uploads/pictogram/bicycle.svg`. The default map icon is
+`/uploads/pictogram/car.svg`. A trailing slash on the base is optional. The base must be an HTTP(S) URL without a query or fragment.
 
 Optional map fields:
 
@@ -47,7 +66,9 @@ Optional map fields:
   description. Dedicated `name`, `center` and `zoom` fields take precedence.
 - `layerProperties`: layer property overrides keyed by IDs in `dataSources`,
   for example `"layerProperties": {"NIM": {"displayOnLoad": false}}`.
-  Layer names and descriptions can be customized here. `remoteData` is always
+  These overrides apply to all selected population layers before bicycle
+  template overrides. Layer names and descriptions can
+  be customized here. `remoteData` is always
   generated from the source ID and configured base URL.
 
 Overrides merge objects recursively; arrays and scalar values replace their

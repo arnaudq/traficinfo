@@ -5,6 +5,10 @@
     "type": "Cluster",
     "fields": [
       {
+        "key": "type",
+        "type": "String"
+      },
+      {
         "key": "code_centrale",
         "type": "String"
       },

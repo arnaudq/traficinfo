@@ -1,5 +1,20 @@
 # Parsers
 
+## GeoJSON counter types
+
+Each exported feature includes `type` (`VEHICULES` or `BICYCLES`), taken from
+the same latest record used for the displayed count. The default `writeGeoJson` and `parseAndMerge` overloads
+export vehicles only. Pass `Comptage.Type.BICYCLES` to the population-specific
+`writeGeoJson` overload for bicycles. Each call writes one FeatureCollection.
+
+The publishing functions write `<sourceId>_TraficInfo.geojson` for vehicles and
+`<sourceId>_TraficInfo_BICYCLES.geojson` for bicycles. uMap can filter on `type`.
+The map templates use fixed relative icon URLs (`/uploads/pictogram/car.svg`
+and `/uploads/pictogram/bicycle.svg`) per population.
+
+The model also supports `PIETONS_VELOS` (mixed pedestrian and bicycle counts)
+and `UNKNOWN`; these remain excluded by the export's existing type filter.
+
 ## Comparing MMM snapshots
 
 Run the test-source main class `org.traficinfo.parsers.ComptageDiffProgram`

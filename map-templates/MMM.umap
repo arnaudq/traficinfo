@@ -16,6 +16,10 @@
     "easing": true,
     "fields": [
       {
+        "key": "type",
+        "type": "String"
+      },
+      {
         "key": "annee",
         "type": "Number"
       },
@@ -33,6 +37,11 @@
       }
     ],
     "filters": [
+      {
+        "label": "Type de comptage",
+        "widget": "Checkbox",
+        "fieldKey": "type"
+      },
       {
         "label": "Année",
         "widget": "Checkbox",
@@ -98,73 +107,9 @@
         "type": "Cluster",
         "fields": [
           {
-            "key": "code_centrale",
+            "key": "type",
             "type": "String"
           },
-          {
-            "key": "name",
-            "type": "String"
-          },
-          {
-            "key": "description",
-            "type": "Text"
-          },
-          {
-            "key": "annee",
-            "type": "Number"
-          },
-          {
-            "key": "moyenne_jour_annuelle",
-            "type": "Number"
-          },
-          {
-            "key": "moyenne_pointe_matin",
-            "type": "String"
-          },
-          {
-            "key": "moyenne_pointe_soir",
-            "type": "String"
-          },
-          {
-            "key": "moyenne_annuelle_history",
-            "type": "String"
-          },
-          {
-            "key": "v85_speed",
-            "type": "Number"
-          },
-          {
-            "key": "mean_speed",
-            "type": "Number"
-          },
-          {
-            "key": "maximum_speed",
-            "type": "Number"
-          },
-          {
-            "key": "data_source",
-            "type": "String"
-          }
-        ],
-        "filters": [],
-        "browsable": true,
-        "inCaption": true,
-        "displayOnLoad": true,
-        "name": "Comptages véhicules - Montpellier Méditerrannée Métropole",
-        "description": "Comptages basés sur les données de [[https://data.montpellier3m.fr/dataset/comptage-vehicules-particuliers-de-montpellier | Comptages véhicules - Montpellier Méditerrannée Métropole]]\n\nMise à jour quotidienne",
-        "remoteData": {
-          "url": "https://objectstorage.eu-frankfurt-1.oraclecloud.com/n/frivwhhfdcjn/b/traficinfo/o/MMM_TraficInfo.geojson",
-          "format": "geojson"
-        }
-      },
-      "rank": 0
-    },
-    {
-      "type": "FeatureCollection",
-      "features": [],
-      "properties": {
-        "type": "Cluster",
-        "fields": [
           {
             "key": "code_centrale",
             "type": "String"
@@ -225,7 +170,153 @@
           "format": "geojson"
         }
       },
+      "rank": 0
+    },
+    {
+      "type": "FeatureCollection",
+      "features": [],
+      "properties": {
+        "type": "Cluster",
+        "fields": [
+          {
+            "key": "type",
+            "type": "String"
+          },
+          {
+            "key": "code_centrale",
+            "type": "String"
+          },
+          {
+            "key": "name",
+            "type": "String"
+          },
+          {
+            "key": "description",
+            "type": "Text"
+          },
+          {
+            "key": "annee",
+            "type": "Number"
+          },
+          {
+            "key": "moyenne_jour_annuelle",
+            "type": "Number"
+          },
+          {
+            "key": "moyenne_pointe_matin",
+            "type": "String"
+          },
+          {
+            "key": "moyenne_pointe_soir",
+            "type": "String"
+          },
+          {
+            "key": "moyenne_annuelle_history",
+            "type": "String"
+          },
+          {
+            "key": "v85_speed",
+            "type": "Number"
+          },
+          {
+            "key": "mean_speed",
+            "type": "Number"
+          },
+          {
+            "key": "maximum_speed",
+            "type": "Number"
+          },
+          {
+            "key": "data_source",
+            "type": "String"
+          }
+        ],
+        "filters": [],
+        "browsable": true,
+        "inCaption": true,
+        "displayOnLoad": true,
+        "name": "Comptages vélos - Montpellier Méditerrannée Métropole",
+        "description": "Comptages basés sur les données de [[https://data.montpellier3m.fr/dataset/comptage-vehicules-particuliers-de-montpellier | Comptages véhicules - Montpellier Méditerrannée Métropole]]\n\nMise à jour quotidienne",
+        "iconUrl": "/uploads/pictogram/bicycle.svg",
+        "popupContentTemplate": "# {name}\n{description}\nAnnée: {annee}\nMoyenne de vélos / jour: {moyenne_jour_annuelle}\n\nHistorique des moyennes: {moyenne_annuelle_history}\n\n{{https://objectstorage.eu-frankfurt-1.oraclecloud.com/n/frivwhhfdcjn/b/traficinfo/o/{data_source}_Logo.png|200}}\nGID: {code_centrale}",
+        "remoteData": {
+          "url": "https://objectstorage.eu-frankfurt-1.oraclecloud.com/n/frivwhhfdcjn/b/traficinfo/o/MMM_TraficInfo_BICYCLES.geojson",
+          "format": "geojson"
+        }
+      },
       "rank": 1
+    },
+    {
+      "type": "FeatureCollection",
+      "features": [],
+      "properties": {
+        "type": "Cluster",
+        "fields": [
+          {
+            "key": "type",
+            "type": "String"
+          },
+          {
+            "key": "code_centrale",
+            "type": "String"
+          },
+          {
+            "key": "name",
+            "type": "String"
+          },
+          {
+            "key": "description",
+            "type": "Text"
+          },
+          {
+            "key": "annee",
+            "type": "Number"
+          },
+          {
+            "key": "moyenne_jour_annuelle",
+            "type": "Number"
+          },
+          {
+            "key": "moyenne_pointe_matin",
+            "type": "String"
+          },
+          {
+            "key": "moyenne_pointe_soir",
+            "type": "String"
+          },
+          {
+            "key": "moyenne_annuelle_history",
+            "type": "String"
+          },
+          {
+            "key": "v85_speed",
+            "type": "Number"
+          },
+          {
+            "key": "mean_speed",
+            "type": "Number"
+          },
+          {
+            "key": "maximum_speed",
+            "type": "Number"
+          },
+          {
+            "key": "data_source",
+            "type": "String"
+          }
+        ],
+        "filters": [],
+        "browsable": true,
+        "inCaption": true,
+        "displayOnLoad": true,
+        "name": "Comptages véhicules - Montpellier Méditerrannée Métropole",
+        "description": "Comptages basés sur les données de [[https://data.montpellier3m.fr/dataset/comptage-vehicules-particuliers-de-montpellier | Comptages véhicules - Montpellier Méditerrannée Métropole]]\n\nMise à jour quotidienne",
+        "remoteData": {
+          "url": "https://objectstorage.eu-frankfurt-1.oraclecloud.com/n/frivwhhfdcjn/b/traficinfo/o/MMM_TraficInfo.geojson",
+          "format": "geojson"
+        }
+      },
+      "rank": 2
     }
   ]
 }

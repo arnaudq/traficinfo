@@ -12,8 +12,19 @@
       ],
       "zoom": 14,
       "dataSources": [
-        "MMM",
-        "DPT34"
+        {
+          "id": "MMM",
+          "types": [
+            "VEHICULES",
+            "BICYCLES"
+          ]
+        },
+        {
+          "id": "DPT34",
+          "types": [
+            "VEHICULES"
+          ]
+        }
       ],
       "uri": "http://umap.openstreetmap.fr/en/map/comptage-vehicules-montpellier_754880"
     },
@@ -27,8 +38,18 @@
       ],
       "zoom": 12,
       "dataSources": [
-        "NIM",
-        "DPT30"
+        {
+          "id": "NIM",
+          "types": [
+            "VEHICULES"
+          ]
+        },
+        {
+          "id": "DPT30",
+          "types": [
+            "VEHICULES"
+          ]
+        }
       ],
       "uri": "http://umap.openstreetmap.fr/en/map/comptage-vehicules-nimes_1478574"
     }

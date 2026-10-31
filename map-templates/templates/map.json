@@ -16,6 +16,10 @@
     "easing": true,
     "fields": [
       {
+        "key": "type",
+        "type": "String"
+      },
+      {
         "key": "annee",
         "type": "Number"
       },
@@ -33,6 +37,11 @@
       }
     ],
     "filters": [
+      {
+        "label": "Type de comptage",
+        "widget": "Checkbox",
+        "fieldKey": "type"
+      },
       {
         "label": "Année",
         "widget": "Checkbox",

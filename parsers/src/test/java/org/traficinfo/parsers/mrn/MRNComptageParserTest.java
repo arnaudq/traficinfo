@@ -180,7 +180,7 @@ public class MRNComptageParserTest extends ParserBaseTest {
     StringWriter writer = new StringWriter();
     GeoJsonParser.parseAndMerge(GeoJsonParser.DataSource.MRN, new StringReader(csv), writer, osm);
     FeatureCollection features = new ObjectMapper().readValue(writer.toString(), FeatureCollection.class);
-    assertEquals(2, features.getFeatures().size());
+    assertEquals(1, features.getFeatures().size());
     var first = features.getFeatures().get(0);
     assertEquals("MRN_A", first.getProperty("code_centrale"));
     assertEquals(120, (int) first.getProperty("moyenne_jour_annuelle"));
@@ -188,6 +188,13 @@ public class MRNComptageParserTest extends ParserBaseTest {
     assertEquals("30", first.getProperty("maximum_speed"));
     assertEquals("120 (" + year + ") 100 (" + (year - 1) + ") ",
         first.getProperty("moyenne_annuelle_history"));
+    StringWriter bicycles = new StringWriter();
+    GeoJsonParser.writeGeoJson(GeoJsonParser.DataSource.MRN,
+        parser.parseComptages(new StringReader(csv)), new FeatureCollection(), bicycles, osm,
+        Comptage.Type.BICYCLES);
+    FeatureCollection bicycleFeatures = new ObjectMapper().readValue(bicycles.toString(), FeatureCollection.class);
+    assertEquals(1, bicycleFeatures.getFeatures().size());
+    assertEquals("MRN_B", bicycleFeatures.getFeatures().get(0).getProperty("code_centrale"));
   }
 
   @Test

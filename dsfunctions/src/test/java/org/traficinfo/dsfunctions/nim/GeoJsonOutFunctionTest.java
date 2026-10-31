@@ -58,7 +58,7 @@ public class GeoJsonOutFunctionTest {
             assertEquals(List.of("NIM_Manifest.json",
                     ManifestTestPublication.yearObjectName(GeoJsonDataSource.NIM, YEAR - 1),
                     ManifestTestPublication.yearObjectName(GeoJsonDataSource.NIM, YEAR)), stub.downloads);
-            assertEquals(1, stub.uploads);
+            assertEquals(2, stub.uploads);
             JsonNode result = new ObjectMapper().readTree(stub.output);
             assertEquals("FeatureCollection", result.get("type").asText());
             assertEquals(1, result.get("features").size());
@@ -153,7 +153,7 @@ public class GeoJsonOutFunctionTest {
         StorageStub stub = new StorageStub(false);
         stub.failMappingUpload = true;
         assertFunctionFailure(() -> stub.function().handleRequest(""));
-        assertEquals(1, stub.uploads);
+        assertEquals(2, stub.uploads);
         assertEquals(1, stub.mappingUploads);
     }
 
@@ -223,6 +223,7 @@ public class GeoJsonOutFunctionTest {
         byte[] mappings;
         int uploads;
         byte[] output;
+        byte[] bicycleOutput;
 
         StorageStub(boolean gzip) {
             this.gzip = gzip;
@@ -263,7 +264,9 @@ public class GeoJsonOutFunctionTest {
                         PutObjectRequest request = (PutObjectRequest) args[0];
                         assertEquals("namespace", request.getNamespaceName());
                         assertEquals("traficinfo", request.getBucketName());
-                        assertEquals(GeoJsonOutFunction.GEOJSON_OBJECT_NAME, request.getObjectName());
+                        assertTrue(List.of(GeoJsonOutFunction.GEOJSON_OBJECT_NAME,
+                                GeoJsonOutFunction.GEOJSON_OBJECT_NAME.replace(".geojson", "_BICYCLES.geojson"))
+                                .contains(request.getObjectName()));
                         assertEquals("application/geo+json", request.getContentType());
                         assertEquals("gzip", request.getContentEncoding());
                         uploads++;
@@ -271,7 +274,12 @@ public class GeoJsonOutFunctionTest {
                             throw new IllegalStateException("Upload failed");
                         }
                         try (GZIPInputStream decoded = new GZIPInputStream(request.getPutObjectBody())) {
-                            output = decoded.readAllBytes();
+                            byte[] bytes = decoded.readAllBytes();
+                            if (request.getObjectName().endsWith("_BICYCLES.geojson")) {
+                                bicycleOutput = bytes;
+                            } else {
+                                output = bytes;
+                            }
                         }
                         return PutObjectResponse.builder().build();
                     });

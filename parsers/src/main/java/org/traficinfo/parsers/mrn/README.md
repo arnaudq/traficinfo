@@ -64,7 +64,8 @@ population-details map for soft-mode campaigns. Missing mappings default to
 `UNKNOWN`, never vehicles. Unknown populations and missing counts are retained
 by the parser. The shared
 GeoJSON filters exclude missing/zero averages and currently include only
-vehicles and bicycles. Unknown populations are excluded even if they contain
+vehicles and bicycles, exported separately as `MRN_TraficInfo.geojson` and
+`MRN_TraficInfo_BICYCLES.geojson`. Unknown populations are excluded even if they contain
 counts. Location-only junction and soft-mode surveys therefore
 do not generate traffic features. Pedestrian-only and other EDP combinations remain unknown. The mixed
 `Piétons / Vélos / EDP` population uses the shared `PIETONS_VELOS` type.

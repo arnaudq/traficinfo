@@ -74,12 +74,34 @@
           "dataSources": {
             "type": "array",
             "items": {
-              "type": "string",
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "types"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+                },
+                "types": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "VEHICULES",
+                      "BICYCLES"
+                    ]
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                }
+              }
             },
             "minItems": 1,
             "uniqueItems": true,
-            "description": "Ordered source IDs from dsconfig.json; one remote layer per ID."
+            "description": "Ordered sources from dsconfig.json with an ordered list of populations; one remote layer per selected type. Source IDs must be distinct."
           },
           "uri": {
             "type": "string",

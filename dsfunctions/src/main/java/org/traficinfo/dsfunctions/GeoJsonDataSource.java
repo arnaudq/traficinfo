@@ -1,6 +1,7 @@
 package org.traficinfo.dsfunctions;
 
 import org.traficinfo.parsers.GeoJsonParser;
+import org.traficinfo.parsers.Comptage;
 
 import java.util.Locale;
 
@@ -44,7 +45,16 @@ public enum GeoJsonDataSource {
     }
 
     public String getGeoJsonObjectName() {
-        return getDataSourceId() + "_TraficInfo.geojson";
+        return getGeoJsonObjectName(Comptage.Type.VEHICULES);
+    }
+
+    public String getGeoJsonObjectName(Comptage.Type type) {
+        String suffix = switch (type) {
+            case VEHICULES -> "";
+            case BICYCLES -> "_BICYCLES";
+            default -> throw new IllegalArgumentException("Unsupported GeoJSON population: " + type);
+        };
+        return getDataSourceId() + "_TraficInfo" + suffix + ".geojson";
     }
 
     public String getOsmCacheObjectName() {

@@ -6,6 +6,8 @@ import org.geojson.FeatureCollection;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.traficinfo.parsers.GeoJsonParser;
+import org.traficinfo.parsers.Comptage;
+import java.util.List;
 
 import java.io.InputStream;
 import java.io.Writer;
@@ -73,18 +75,20 @@ public abstract class AbstractGeoJsonOutFunction {
         try {
             var comptages = new ManifestComptageReader(inputClient).read(source.getDataSourceId());
             osmInfoProvider.loadCache();
-            Path mergedFile = Files.createTempFile(source.getDataSourceId() + "-geojson-", ".geojson");
-            try {
-                try (Writer geojsonMergedWriter = Files.newBufferedWriter(mergedFile, StandardCharsets.UTF_8)) {
-                    GeoJsonParser.writeGeoJson(source.getParserDataSource(), comptages,
-                            new FeatureCollection(), geojsonMergedWriter, osmInfoProvider);
+            for (Comptage.Type type : List.of(Comptage.Type.VEHICULES, Comptage.Type.BICYCLES)) {
+                Path mergedFile = Files.createTempFile(source.getDataSourceId() + "-geojson-", ".geojson");
+                try {
+                    try (Writer geojsonMergedWriter = Files.newBufferedWriter(mergedFile, StandardCharsets.UTF_8)) {
+                        GeoJsonParser.writeGeoJson(source.getParserDataSource(), comptages,
+                                new FeatureCollection(), geojsonMergedWriter, osmInfoProvider, type);
+                    }
+                    try (InputStream mergedInput = Files.newInputStream(mergedFile)) {
+                        outputClient.putResource(source.getGeoJsonObjectName(type), "application/geo+json",
+                                new OOSResourceMetadata(), mergedInput);
+                    }
+                } finally {
+                    Files.deleteIfExists(mergedFile);
                 }
-                try (InputStream mergedInput = Files.newInputStream(mergedFile)) {
-                    outputClient.putResource(source.getGeoJsonObjectName(), "application/geo+json",
-                            new OOSResourceMetadata(), mergedInput);
-                }
-            } finally {
-                Files.deleteIfExists(mergedFile);
             }
             osmInfoProvider.refreshCache();
             return "OK";

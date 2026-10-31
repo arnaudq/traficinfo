@@ -86,6 +86,14 @@ MMM, DPT30, DPT34, MRN and NIM GeoJSON handlers use `AbstractGeoJsonOutFunction`
 conventions needed by GeoJSON generation. Download URLs and archive naming are
 not part of it.
 
+Each invocation publishes two gzip GeoJSON FeatureCollections in the output
+bucket: `<sourceId>_TraficInfo.geojson` contains only `VEHICULES`, and
+`<sourceId>_TraficInfo_BICYCLES.geojson` contains only `BICYCLES`. Empty
+populations are published as empty collections to clear removed counters.
+Both outputs retain `type` on each feature. OSM cache refresh
+runs after both uploads. The two object uploads are sequential; a failure of
+the bicycle upload fails the invocation after the vehicle file was updated.
+
 The superclasses expose public final `config(RuntimeContext)` methods annotated
 with `@FnConfiguration`, and public final `handleRequest(String)` methods. Fn
 runtime 1.0.185 discovers these inherited methods. Tests use Fn's actual loader,
