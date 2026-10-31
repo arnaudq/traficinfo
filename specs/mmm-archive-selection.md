@@ -104,9 +104,11 @@ fields retain the original publisher URLs as provenance, while `objectName`
 identifies the stored archive to read; those URLs are not archive download URLs.
 
 One-off historical dataset selection and any required legacy metadata handling
-remain to be implemented in preprocessing. The current dataset still covers
-2021–2026. Before recurring preprocessing is enabled for this historical split,
-its scope must be adjusted to the intended current years so that it does not
-replace the selected historical years. The manifest stores one publication per
+remain to be implemented in preprocessing. The current dataset is scoped to
+2025–2026 so that recurring preprocessing does not replace the selected
+historical years. If an existing manifest already records `current` with the
+former 2021–2026 scope, preprocessing rejects shrinking that existing dataset;
+a new dataset ID is required for the narrower scope before republishing.
+The manifest stores one publication per
 measurement year, so later processing of an overlapping year replaces that
 year's reference.
