@@ -16,28 +16,38 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.Set;
+import java.util.TreeSet;
 
 /** Run manually with no arguments for the two MMM snapshots in ~/Downloads. */
 public final class ComptageDiffProgram {
+  private static final List<String> SUMMARY_FIELDS = List.of("meanSpeed", "moyenneHeureDePointeMatin",
+      "moyenneHeureDePointeSoir", "moyenneJourAnnuelle", "v85Speed");
+
   private ComptageDiffProgram() {
   }
 
-  /** Optionally supply before/after CSV paths and an output JSON path. */
+  /** Optionally supply CSV paths, comma-separated years, and an output JSON path. */
   public static void main(String[] args) throws IOException {
-    if (args.length != 0 && args.length != 2 && args.length != 3) {
-      throw new IllegalArgumentException("Usage: ComptageDiffProgram [before.csv after.csv [diff.json]]");
+    if (args.length != 0 && args.length != 2 && args.length != 3 && args.length != 4) {
+      throw new IllegalArgumentException("Usage: ComptageDiffProgram [before.csv after.csv [2024,2025 [diff.json]]]");
     }
     Path downloads = Path.of(System.getProperty("user.home"), "Downloads");
     Path before = args.length >= 2 ? Path.of(args[0])
-        : downloads.resolve("MMM_MMM_Comptage_20260302.csv");
+        : downloads.resolve("MMM_MMM_Comptage_20221031.csv");
     Path after = args.length >= 2 ? Path.of(args[1])
-        : downloads.resolve("MMM_MMM_Comptage_20260430.csv");
-    List<ComptageDiffer.Diff> differences = ComptageDiffer.diff(parse(before), parse(after),
+        : downloads.resolve("MMM_MMM_Comptage_20240312.csv");
+    Set<Integer> years = args.length >= 3 ? parseYears(args[2]) : Set.of(2011,2012,2013,2014,2015,2016,2017,2018,2019,2020,2021);
+    List<ComptageDiffer.Diff> differences = ComptageDiffer.diff(
+        filterYears(parse(before), years), filterYears(parse(after), years),
         M3MComptage::getCodeCanal);
     System.out.println("Before: " + before);
     System.out.println("After: " + after);
+    if (!years.isEmpty()) {
+      System.out.println("Years: " + years);
+    }
     printSummary(differences, System.out);
-    Path output = args.length == 3 ? Path.of(args[2]) : downloads.resolve("diff.json");
+    Path output = args.length == 4 ? Path.of(args[3]) : downloads.resolve("diff.json");
     try (Writer writer = Files.newBufferedWriter(output, StandardCharsets.UTF_8)) {
       writeDiff(differences, writer);
     }
@@ -53,6 +63,7 @@ public final class ComptageDiffProgram {
       group.put("added", counts.added);
       group.put("modified", counts.modified);
       group.put("deleted", counts.deleted);
+      group.put("fieldSummary", fieldSummary(changes));
       List<Map<String, Object>> records = new ArrayList<>();
       for (ComptageDiffer.Diff difference : changes) {
         Map<String, Object> record = new LinkedHashMap<>();
@@ -102,47 +113,73 @@ public final class ComptageDiffProgram {
     }
   }
 
-  static void printSummary(List<ComptageDiffer.Diff> differences, PrintStream out) {
-    int added = 0;
-    int removed = 0;
-    int modified = 0;
-    int v85Modified = 0;
-    int v85Deleted = 0;
-    Map<Integer, YearCounts> byYear = new TreeMap<>();
-    groupByYear(differences).forEach((year, changes) -> byYear.put(year, countChanges(changes)));
-    for (ComptageDiffer.Diff difference : differences) {
-      Comptage before = difference.before();
-      Comptage after = difference.after();
-      if (before == null) {
-        added++;
-      } else {
-        if (after == null) {
-          removed++;
-        } else {
-          modified++;
+  static Set<Integer> parseYears(String argument) {
+    Set<Integer> years = new TreeSet<>();
+    for (String token : argument.split(",", -1)) {
+      try {
+        int year = Integer.parseInt(token.trim());
+        if (year <= 0) {
+          throw new NumberFormatException();
         }
-        // MMM maps a blank V85 to zero. Removed records also lose their V85.
-        if (before.getV85Speed() > 0 && (after == null || after.getV85Speed() <= 0)) {
-          v85Deleted++;
-        } else if (after != null && after.getV85Speed() > 0
-            && before.getV85Speed() != after.getV85Speed()) {
-          v85Modified++;
-        }
+        years.add(year);
+      } catch (NumberFormatException exception) {
+        throw new IllegalArgumentException("Expected comma-separated positive years, got: " + argument, exception);
       }
     }
-    out.printf("Comptage added: %d%nComptage removed: %d%nComptage modified: %d%n",
-        added, removed, modified);
-    out.printf("V85 modified: %d%nV85 deleted: %d%nV85 modified or deleted: %d%n",
-        v85Modified, v85Deleted, v85Modified + v85Deleted);
-    out.println("Counts by year:");
-    out.printf("%4s %8s %8s %8s%n", "Year", "Added", "Modified", "Deleted");
-    byYear.forEach((year, counts) -> out.printf("%4d %8d %8d %8d%n",
-        year, counts.added, counts.modified, counts.deleted));
+    return years;
   }
 
-  private static final class YearCounts {
-    private int added;
-    private int modified;
-    private int deleted;
+  static List<M3MComptage> filterYears(List<M3MComptage> records, Set<Integer> years) {
+    return years.isEmpty() ? records : records.stream()
+        .filter(record -> years.contains(record.getAnnee())).toList();
+  }
+
+  static Map<String, YearCounts> fieldSummary(List<ComptageDiffer.Diff> differences) {
+    Map<String, YearCounts> summary = new LinkedHashMap<>();
+    SUMMARY_FIELDS.forEach(field -> summary.put(field, new YearCounts()));
+    for (ComptageDiffer.Diff difference : differences) {
+      difference.fieldChanges().forEach((field, change) -> {
+        YearCounts counts = summary.get(field);
+        if (counts != null) {
+          switch (change) {
+            case ADDED -> counts.added++;
+            case MODIFIED -> counts.modified++;
+            case DELETED -> counts.deleted++;
+          }
+        }
+      });
+    }
+    return summary;
+  }
+
+  static void printSummary(List<ComptageDiffer.Diff> differences, PrintStream out) {
+    YearCounts total = countChanges(differences);
+    out.printf("Comptage added: %d%nComptage removed: %d%nComptage modified: %d%n",
+        total.added, total.deleted, total.modified);
+    out.println("Field summary:");
+    printFieldSummary(differences, out);
+    Map<Integer, List<ComptageDiffer.Diff>> years = groupByYear(differences);
+    out.println("Counts by year:");
+    out.printf("%4s %8s %8s %8s%n", "Year", "Added", "Modified", "Deleted");
+    years.forEach((year, changes) -> {
+      YearCounts counts = countChanges(changes);
+      out.printf("%4d %8d %8d %8d%n", year, counts.added, counts.modified, counts.deleted);
+    });
+    years.forEach((year, changes) -> {
+      out.printf("Field summary for %d:%n", year);
+      printFieldSummary(changes, out);
+    });
+  }
+
+  private static void printFieldSummary(List<ComptageDiffer.Diff> differences, PrintStream out) {
+    out.printf("%-30s %8s %8s %8s%n", "Field", "Added", "Modified", "Deleted");
+    fieldSummary(differences).forEach((field, counts) -> out.printf("%-30s %8d %8d %8d%n",
+        field, counts.added, counts.modified, counts.deleted));
+  }
+
+  static final class YearCounts {
+    public int added;
+    public int modified;
+    public int deleted;
   }
 }

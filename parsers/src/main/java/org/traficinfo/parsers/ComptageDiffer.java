@@ -18,6 +18,9 @@ import java.util.function.Function;
 public final class ComptageDiffer {
   private static final Logger LOG = LoggerFactory.getLogger(ComptageDiffer.class);
   private static final ObjectMapper MAPPER = new ObjectMapper();
+  private static final Set<String> IGNORED_FIELDS = Set.of("altStreetName");
+
+  enum ChangeType { ADDED, MODIFIED, DELETED }
 
   private ComptageDiffer() {
   }
@@ -44,13 +47,24 @@ public final class ComptageDiffer {
       if (before == null || after == null) {
         return null;
       }
+      List<String> changed = new ArrayList<>();
+      fieldChanges().forEach((field, change) -> changed.add(
+          (change == ChangeType.ADDED ? "+" : change == ChangeType.DELETED ? "-" : "") + field));
+      return String.join(",", changed);
+    }
+
+    /** Includes value transitions on whole-record additions and removals. */
+    Map<String, ChangeType> fieldChanges() {
       JsonNode previous = MAPPER.valueToTree(before);
       JsonNode current = MAPPER.valueToTree(after);
       Set<String> fields = new TreeSet<>();
       previous.fieldNames().forEachRemaining(fields::add);
       current.fieldNames().forEachRemaining(fields::add);
-      List<String> changed = new ArrayList<>();
+      Map<String, ChangeType> changed = new LinkedHashMap<>();
       for (String field : fields) {
+        if (IGNORED_FIELDS.contains(field)) {
+          continue;
+        }
         JsonNode oldValue = previous.get(field);
         JsonNode newValue = current.get(field);
         if (Objects.equals(oldValue, newValue)) {
@@ -59,10 +73,10 @@ public final class ComptageDiffer {
         boolean oldMissing = isMissing(field, oldValue);
         boolean newMissing = isMissing(field, newValue);
         if (!oldMissing || !newMissing) {
-          changed.add((oldMissing ? "+" : newMissing ? "-" : "") + field);
+          changed.put(field, oldMissing ? ChangeType.ADDED : newMissing ? ChangeType.DELETED : ChangeType.MODIFIED);
         }
       }
-      return String.join(",", changed);
+      return changed;
     }
   }
 
@@ -79,8 +93,7 @@ public final class ComptageDiffer {
 
   /**
    * Returns removals and modifications in before-list order, then additions in
-   * after-list order. Unchanged records are omitted. Implementations of Comptage
-   * must define value-based equals to compare separately parsed records.
+   * after-list order. Records with no non-ignored field changes are omitted.
    * The default key combines central code, year and directional coverage.
    * Duplicate keys on each side produce a warning and retain the first record.
    */
@@ -97,8 +110,9 @@ public final class ComptageDiffer {
 
     beforeByKey.forEach((key, previous) -> {
       Comptage current = afterByKey.get(key);
-      if (!Objects.equals(previous, current)) {
-        differences.add(new Diff(previous, current));
+      Diff difference = new Diff(previous, current);
+      if (current == null || !difference.fieldChanges().isEmpty()) {
+        differences.add(difference);
       }
     });
     afterByKey.forEach((key, current) -> {

@@ -118,9 +118,11 @@ public class ComptageDifferTest {
     assertTrue(output.contains("Comptage added: 1"));
     assertTrue(output.contains("Comptage removed: 2"));
     assertTrue(output.contains("Comptage modified: 3"));
-    assertTrue(output.contains("V85 modified: 2"));
-    assertTrue(output.contains("V85 deleted: 2"));
-    assertTrue(output.contains("V85 modified or deleted: 4"));
+    ComptageDiffProgram.YearCounts v85 = ComptageDiffProgram.fieldSummary(differences).get("v85Speed");
+    assertEquals(2, v85.added);
+    assertEquals(1, v85.modified);
+    assertEquals(2, v85.deleted);
+    assertTrue(output.contains("Field summary for 2025:"));
   }
 
   @Test(expected = IllegalArgumentException.class)
@@ -210,10 +212,10 @@ public class ComptageDifferTest {
     after.setMeanSpeed(45);
     after.setMaximumSpeed(30);
     after.setMoyenneJourAnnuelle(200);
-    assertEquals("+altStreetName,cityName,+maximumSpeed,meanSpeed,"
+    assertEquals("cityName,+maximumSpeed,meanSpeed,"
         + "+moyenneJourAnnuelle,-streetName,-v85Speed",
         new ComptageDiffer.Diff(before, after).changedFields());
-    assertEquals("-altStreetName,cityName,-maximumSpeed,meanSpeed,"
+    assertEquals("cityName,-maximumSpeed,meanSpeed,"
         + "-moyenneJourAnnuelle,+streetName,+v85Speed",
         new ComptageDiffer.Diff(after, before).changedFields());
   }
