@@ -25,6 +25,7 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
@@ -56,6 +57,24 @@ public final class PreprocessingPublisher {
     }
 
     public DataManifest publish(PreprocessingSettings settings) throws IOException {
+        return publish(settings, null);
+    }
+
+    /** Imports existing Objects without changing which dataset is actively monitored. */
+    public DataManifest publishArchive(PreprocessingSettings archive, PreprocessingSettings active) throws IOException {
+        if (!archive.source().dataSourceId().equals(active.source().dataSourceId())
+                || archive.source().datasetId().equals(active.source().datasetId())) {
+            throw new IllegalArgumentException("Archive must be an inactive dataset of the deployed datasource");
+        }
+        Set<String> activeInputs = active.source().inputs().stream()
+                .map(DataSourceSettings.Input::objectName).collect(java.util.stream.Collectors.toSet());
+        if (archive.source().inputs().stream().anyMatch(input -> activeInputs.contains(input.objectName()))) {
+            throw new IllegalArgumentException("Archive inputs must not reference active input Objects");
+        }
+        return publish(archive, active);
+    }
+
+    private DataManifest publish(PreprocessingSettings settings, PreprocessingSettings active) throws IOException {
         String dataSourceId = settings.source().dataSourceId();
         String lock = dataSourceId + "_Preprocessing.lock";
         byte[] owner = mapper.writeValueAsBytes(Map.of("owner", UUID.randomUUID().toString(),
@@ -65,13 +84,14 @@ public final class PreprocessingPublisher {
         }
         // Locks never expire automatically: a timed-out invocation must not race a replacement publisher.
         try {
-            return publishLocked(settings);
+            return publishLocked(settings, active);
         } finally {
             storage.deleteResource(lock);
         }
     }
 
-    private DataManifest publishLocked(PreprocessingSettings settings) throws IOException {
+    private DataManifest publishLocked(PreprocessingSettings settings, PreprocessingSettings active) throws IOException {
+        boolean archive = active != null;
         DataSourceSettings source = settings.source();
         String manifestName = source.dataSourceId() + "_Manifest.json";
         PreprocessingSource parser = PreprocessingSource.forId(source.dataSourceId());
@@ -90,7 +110,7 @@ public final class PreprocessingPublisher {
         try {
             // Check every input belongs to the configured source and capture metadata for the final recheck.
             for (DataSourceSettings.Input input : source.inputs()) {
-                inputMetadata.put(input.objectName(), sourceMetadata(source, input));
+                inputMetadata.put(input.objectName(), sourceMetadata(source, input, archive));
             }
 
             // Keep the existing dataset scope intact when processing another download.
@@ -163,6 +183,7 @@ public final class PreprocessingPublisher {
             Set<Integer> yearsWithoutRecords = new TreeSet<>(settings.years());
             yearsWithoutRecords.removeAll(byYear.keySet());
             if (!yearsWithoutRecords.isEmpty()) {
+                if (archive) throw new IOException("Archive has no records for configured years: " + yearsWithoutRecords);
                 logger.info("Configured years with no records: dataSourceId={}, datasetId={}, years={}",
                         source.dataSourceId(), source.datasetId(), yearsWithoutRecords);
             }
@@ -200,8 +221,16 @@ public final class PreprocessingPublisher {
             Map<String, DataManifest.Dataset> datasets = new TreeMap<>();
             if (previous != null) datasets.putAll(previous.datasets());
             datasets.put(source.datasetId(), new DataManifest.Dataset(settings.datasetUrl(), settings.years(), inputs));
+            if (archive && !datasets.containsKey(active.source().datasetId())) {
+                Map<String, DataManifest.Input> activeInputs = new TreeMap<>();
+                for (DataSourceSettings.Input input : active.source().inputs()) {
+                    activeInputs.put(input.objectName(), new DataManifest.Input(input.url(),
+                            input.contentType().equals("text/csv") ? "CSV" : "GEOJSON", null));
+                }
+                datasets.put(active.source().datasetId(), new DataManifest.Dataset(active.datasetUrl(), active.years(), activeInputs));
+            }
             DataManifest next = new DataManifest(DataManifest.VERSION, source.dataSourceId(), revision,
-                    Instant.now().toString(), source.datasetId(), datasets, years);
+                    Instant.now().toString(), archive ? active.source().datasetId() : source.datasetId(), datasets, years);
 
             // Read back all referenced yearly Objects and verify their checksum, record count and year.
             ManifestValidation.validateManifest(next, source.dataSourceId());
@@ -212,8 +241,21 @@ public final class PreprocessingPublisher {
 
             // Abort if any source input was replaced while this publication was being prepared.
             for (DataSourceSettings.Input input : source.inputs()) {
-                if (!inputMetadata.get(input.objectName()).equals(sourceMetadata(source, input))) {
+                if (!inputMetadata.get(input.objectName()).equals(sourceMetadata(source, input, archive))) {
                     throw new IOException("Source changed while preprocessing: " + input.objectName());
+                }
+                if (archive) {
+                    String staged;
+                    try (InputStream content = Files.newInputStream(files.get(input.objectName()))) {
+                        staged = checksum(content);
+                    }
+                    try (InputStream content = storage.getResource(input.objectName())) {
+                        if (!staged.equals(checksum(content))) {
+                            throw new IOException("Archive content changed while preprocessing: " + input.objectName());
+                        }
+                    }
+                    logger.info("Validated archive input: dataSourceId={}, datasetId={}, input={}, sha256={}",
+                            source.dataSourceId(), source.datasetId(), input.objectName(), staged);
                 }
             }
 
@@ -235,16 +277,25 @@ public final class PreprocessingPublisher {
         }
     }
 
-    private Map<String, String> sourceMetadata(DataSourceSettings source, DataSourceSettings.Input input) throws IOException {
+    private Map<String, String> sourceMetadata(DataSourceSettings source, DataSourceSettings.Input input,
+                                              boolean archive) throws IOException {
         OOSResourceMetadata metadata = storage.getResourceMetadata(input.objectName());
         if (metadata == null) throw new IOException("Missing input: " + input.objectName());
         Map<String, String> values = metadata.getMetadata();
-        if (!source.dataSourceId().equals(values.get("datasource-id"))
-                || !input.url().equals(values.get("source-url"))
-                || values.get("downloaded-at") == null) {
+        boolean wrongDatasource = (!archive || values.containsKey("datasource-id"))
+                && !source.dataSourceId().equals(values.get("datasource-id"));
+        boolean wrongUrl = (!archive || values.containsKey("source-url"))
+                && !input.url().equals(values.get("source-url"));
+        if (wrongDatasource || wrongUrl || (!archive && values.get("downloaded-at") == null)) {
             throw new IOException("Input does not match configured source: " + input.objectName());
         }
         return Map.copyOf(values);
+    }
+
+    private String checksum(InputStream input) throws IOException {
+        MessageDigest hash = digest();
+        new DigestInputStream(input, hash).transferTo(java.io.OutputStream.nullOutputStream());
+        return HexFormat.of().formatHex(hash.digest());
     }
 
     private List<String> headers(Path file, PreprocessingSource source) throws IOException {
@@ -288,8 +339,12 @@ public final class PreprocessingPublisher {
         for (var feature : collection.getFeatures()) {
             Object id = feature.getProperty("code_centrale");
             if (id == null) id = feature.getProperty("gid");
-            if (id == null || feature.getGeometry() == null || locations.putIfAbsent(id.toString(), feature.getGeometry()) != null) {
-                throw new IOException("Missing or duplicate MMM geometry identifier");
+            if (id == null || id.toString().isBlank() || feature.getGeometry() == null) {
+                throw new IOException("Missing MMM geometry identifier or geometry");
+            }
+            GeoJsonObject previous = locations.putIfAbsent(id.toString(), feature.getGeometry());
+            if (previous != null && !mapper.valueToTree(previous).equals(mapper.valueToTree(feature.getGeometry()))) {
+                throw new IOException("Conflicting MMM geometry for " + id);
             }
         }
         for (Comptage count : counts) {

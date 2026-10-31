@@ -103,8 +103,17 @@ or publish them. `activeDatasetId` remains `current`. The archived input `url`
 fields retain the original publisher URLs as provenance, while `objectName`
 identifies the stored archive to read; those URLs are not archive download URLs.
 
-One-off historical dataset selection and any required legacy metadata handling
-remain to be implemented in preprocessing. The current dataset is scoped to
+One-off historical dataset selection and legacy metadata handling are implemented
+in preprocessing. After deploying the updated handler, import these datasets
+without changing `activeDatasetId`:
+
+```sh
+./scripts/invoke.sh preprocess MMM mmm-2011-2021
+./scripts/invoke.sh preprocess MMM mmm-2022-2024
+```
+
+See the [archive import procedure](../dsfunctions/README.md#importing-existing-archives-once)
+for deployment, validation and GeoJSON generation. The current dataset is scoped to
 2025–2026 so that recurring preprocessing does not replace the selected
 historical years. If an existing manifest already records `current` with the
 former 2021–2026 scope, preprocessing rejects shrinking that existing dataset;

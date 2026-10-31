@@ -68,6 +68,9 @@ the original segment; vertices are not averaged. Repeated positions are skipped,
 and a zero-length line becomes its repeated position. Lines with fewer than two
 positions or invalid longitude/latitude fail preprocessing. Other geometry types
 are preserved.
+MMM companion exports can repeat a station's geometry for several years or
+channels. Identical geometries for the same identifier are accepted; missing
+identifiers/geometries and conflicting geometries for one identifier are rejected.
 There is no additional count model or separate retrieval provenance Object.
 
 Properties and array records use deterministic ordering. Header order is retained
@@ -194,7 +197,8 @@ as described below.
 Deployment builds `PREPROCESSING_SETTINGS` from the active dataset's retrieval
 settings, `datasetInfoUrl`, and `years` under `datasets[activeDatasetId]` in
 `dsconfig.json`. Inactive entries remain in the file but are not passed to the
-function or published to the manifest until selected and processed:
+function or published to the manifest until selected and processed (including
+the one-off archive request described below):
 
 ```json
 {
@@ -226,13 +230,76 @@ NIM's established hourly aggregation, 1970 exclusion and conflicting-hour policy
 apply. Other sources retain their existing parser's annual/campaign semantics.
 No OSM enrichment or GeoJSON filtering occurs during preprocessing.
 
-All inputs must carry matching downloader metadata (datasource ID and source
+Normal active-dataset inputs must carry matching downloader metadata (datasource ID and source
 URL) and a download time. Dataset ID metadata is not checked: the same downloaded
 CSV can be processed under multiple datasets with different year scopes. Legacy
-inputs must be refreshed by the datasource function first. Inputs are staged locally and their metadata is checked again
+inputs in this normal mode must be refreshed by the datasource function first. Inputs are staged locally and their metadata is checked again
 before publication; a concurrent replacement aborts publication. This detects
 changes during a run, but does not turn multi-input retrieval into an atomic
 upstream snapshot.
+
+### One-off archive requests
+
+An empty preprocessing invocation body continues to process the deployed active
+dataset. A nonempty body must be an explicit request with this shape:
+
+```json
+{
+  "archive": {
+    "source": {
+      "dataSourceId": "MMM",
+      "datasetId": "mmm-2022-2024",
+      "inputs": [
+        {
+          "url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_MMM_Comptage.json",
+          "objectName": "MMM_MMM_Comptage_20250915.json",
+          "contentType": "application/json"
+        },
+        {
+          "url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_MMM_Comptage.csv",
+          "objectName": "MMM_MMM_Comptage_20250915.csv",
+          "contentType": "text/csv"
+        }
+      ]
+    },
+    "datasetUrl": "https://data.montpellier3m.fr/dataset/comptage-vehicules-particuliers-de-montpellier",
+    "years": [2022, 2023, 2024]
+  }
+}
+```
+
+`scripts/invoke.sh preprocess <datasourceId> <archiveDatasetId>` constructs this
+body from an inactive entry in `dsconfig.json`, requiring explicit input Object
+names. It does not change the local active selection or deployed configuration.
+The function validates the settings using the existing preprocessing rules and
+rejects another datasource, the deployed active dataset ID, or any input Object
+name shared with the active dataset. Bucket and namespace come exclusively from
+deployment, not from the request. Unknown or malformed request bodies fail.
+
+In archive mode only, missing downloader identity and download-time metadata are
+allowed; present datasource IDs and source URLs must match. The explicitly
+selected settings assert provenance where legacy metadata is absent. Raw archive
+Objects and their metadata are never rewritten. The existing manifest records
+the imported dataset, original URLs and exact named inputs; input hashes are
+logged, and yearly output checksums remain unchanged in format. No manifest
+schema extension is needed.
+
+Archives must contain records for every configured year. CSV/header, parsing,
+geometry and yearly readback checks remain in force. Before publication the
+publisher rechecks source metadata and compares SHA-256 hashes of each staged
+uncompressed source body with a fresh read, detecting content replacement even
+when legacy metadata stays empty. This adds source reads, not remote publisher
+downloads, and is a validation check rather than an atomic upstream snapshot.
+
+An archive import retains the deployed active dataset ID in the manifest. If
+that dataset has not been published, its configured definition is registered
+without reading its source Objects, with CSV headers initially null. Normal
+preprocessing populates those headers when it first processes the active source.
+If an active definition already exists, it is preserved; scope reduction still
+requires a new dataset ID. Other datasets and years are retained by the same
+publication rules. Retries of unchanged imports are no-ops, and both modes use
+the same exclusive lock and publish the manifest last. GeoJSON generation remains
+a separate invocation after import.
 
 Publication is serialized per datasource using atomic create-if-absent of the
 lock Object. There are no ETag-based updates. Normal completion or failure

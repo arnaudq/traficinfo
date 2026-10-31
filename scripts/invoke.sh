@@ -5,19 +5,24 @@ set -euo pipefail
 source "${TRAFICINFO_ROOT:?Run source ./scripts/setup.sh first}/scripts/oci-common.sh"
 
 usage() {
-  printf 'Usage: %s <ds|preprocess|geojson> <data-source-id>\n       %s osm\n' "$0" "$0" >&2
+  printf 'Usage: %s <ds|geojson> <data-source-id>\n       %s preprocess <data-source-id> [archive-dataset-id]\n       %s osm\n' "$0" "$0" "$0" >&2
 }
 
 main() {
-  local type source function_name application_id function_id timeout
-  local invocation_options=(--fn-invoke-type sync --body "" --file "-")
+  local type source function_name application_id function_id timeout body="" archive
+  local invocation_options=(--fn-invoke-type sync --file "-")
   type="${1:-}"
   case "$type" in
     ds|preprocess|geojson)
-      if [ "$#" -ne 2 ]; then usage; return 1; fi
+      if [ "$#" -ne 2 ] && { [ "$type" != preprocess ] || [ "$#" -ne 3 ]; }; then usage; return 1; fi
       source="$(get_data_source "$2")"
       function_name="$(data_source_function_name "$source" "$type")"
       if [ "$type" = preprocess ]; then invocation_options+=(--read-timeout 360); fi
+      if [ "$type" = preprocess ] && [ "$#" -eq 3 ]; then
+        archive="$(archive_preprocessing_settings "$source" "$3")" || return
+        body="$(jq -cn --argjson archive "$archive" '{archive: $archive}')"
+        log "Selected archive dataset $3 for one-off preprocessing."
+      fi
       if [ "$type" = ds ]; then
         timeout="$(jq -r '.datasets[.activeDatasetId].timeoutSeconds // 30' <<< "$source")"
         if [ "$timeout" -gt 30 ]; then invocation_options+=(--read-timeout "$((timeout + 60))"); fi
@@ -32,6 +37,7 @@ main() {
       ;;
     *) usage; return 1 ;;
   esac
+  invocation_options+=(--body "$body")
   application_id="$(resolve_application_id)"
   function_id="$(resolve_function_id "$application_id" "$function_name")"
   log "Invoking $function_name..."

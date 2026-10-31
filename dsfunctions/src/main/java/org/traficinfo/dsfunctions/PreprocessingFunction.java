@@ -2,6 +2,8 @@ package org.traficinfo.dsfunctions;
 
 import com.fnproject.fn.api.FnConfiguration;
 import com.fnproject.fn.api.RuntimeContext;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 
@@ -33,10 +35,23 @@ public class PreprocessingFunction {
     public String handleRequest(String input) {
         if (settings == null || storage == null) throw new IllegalStateException("Preprocessing function has not been configured");
         try {
-            new PreprocessingPublisher(storage).publish(settings);
+            PreprocessingPublisher publisher = new PreprocessingPublisher(storage);
+            if (input == null || input.isBlank()) {
+                publisher.publish(settings);
+            } else {
+                ArchiveRequest request = new ObjectMapper().enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+                        .readValue(input, ArchiveRequest.class);
+                if (request == null || request.archive() == null) {
+                    throw new IllegalArgumentException("Expected an archive preprocessing request");
+                }
+                publisher.publishArchive(request.archive(), settings);
+            }
             return "OK";
         } catch (IOException failure) {
             throw new UncheckedIOException("Preprocessing failed for " + settings.source().dataSourceId(), failure);
         }
     }
+
+    /** Invocation settings override the dataset for this import only, never runtime configuration. */
+    public record ArchiveRequest(PreprocessingSettings archive) {}
 }

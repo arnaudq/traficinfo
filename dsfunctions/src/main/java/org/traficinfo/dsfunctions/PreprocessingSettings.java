@@ -9,7 +9,7 @@ import java.time.Year;
 import java.util.HashSet;
 import java.util.List;
 
-/** Deployment supplies only the active dataset and its explicit expected years. */
+/** Settings for either the deployed active dataset or an explicitly requested archive import. */
 public record PreprocessingSettings(DataSourceSettings source, String datasetUrl, List<Integer> years) {
     public static final String CONFIG_KEY = "PREPROCESSING_SETTINGS";
 

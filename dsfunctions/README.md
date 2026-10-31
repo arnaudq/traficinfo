@@ -19,7 +19,7 @@ invocation before the CSV is published and is reported as a function failure.
 Each datasource in `dsconfig.json` selects an `activeDatasetId` from its
 `datasets` map. Each dataset contains `years`, `datasetInfoUrl`, an ordered
 `inputs` array, and optionally `timeoutSeconds`. Inactive datasets remain in the
-configuration; deployment and invocation select only `datasets[activeDatasetId]`.
+configuration; deployment and normal invocation select only `datasets[activeDatasetId]`.
 The selected map key becomes `datasetId` in the runtime settings. Inputs have
 `url`, `contentType`, and optionally `objectName`. CSV Object names default to the datasource's `csvObject` naming
 convention; MMM's companion JSON keeps its explicit legacy name.
@@ -188,6 +188,75 @@ lock. Inspect its owner/start time and confirm the previous publisher has stoppe
 before deleting it manually. Function permissions need Object read, create,
 update and delete access within the datasource bucket. Failed runs can leave
 unreferenced yearly Objects; cleanup is not automatic.
+
+### Importing existing archives once
+
+Pass an inactive dataset ID as the third argument to preprocessing. The script
+reads that entry from `dsconfig.json` and sends its settings in the invocation
+body. The deployed function's datasource and bucket stay fixed; no publisher
+download or function configuration update is performed. Archive inputs must have
+explicit `objectName` values and must be different from the active input Objects.
+
+For MMM, keep `activeDatasetId` set to `current` (years 2025–2026), then deploy
+the updated preprocessing handler once and import the two historical datasets:
+
+```sh
+# After source ./scripts/setup.sh
+./scripts/deploy-functions.sh preprocess MMM
+./scripts/invoke.sh preprocess MMM mmm-2011-2021
+./scripts/invoke.sh preprocess MMM mmm-2022-2024
+```
+
+These read the October 31, 2022 and September 15, 2025 archive pairs in
+`ds3mbucket`, respectively. They work even before current source inputs have
+been downloaded. The manifest retains `activeDatasetId: current`, registers the
+active dataset definition if necessary, and preserves years outside each import's
+scope. Current CSV header history is populated when current preprocessing runs.
+The import records its dataset ID, original source URLs and exact archive Object
+names in the existing manifest format; yearly records retain their checksums.
+
+Legacy archives may lack `datasource-id`, `source-url` and `downloaded-at`
+metadata. Only this explicit import mode permits those missing fields. Any
+present datasource ID or source URL must still match the selected settings.
+The archive's existing `dataset-id` is informational. No metadata is added to
+or changed on the raw archive Objects. Their source identity comes from the
+explicitly selected dataset when legacy identity metadata is missing.
+
+Preprocessing validates CSV headers, parsing and MMM geometry matches, and
+requires records for every configured import year. It rechecks metadata and
+SHA-256 hashes of both uncompressed source bodies before publishing the manifest;
+an archive replacement with unchanged metadata is therefore also detected.
+Input Object names and hashes are logged. Failures retain the previous manifest;
+immutable yearly Objects written before a failure may remain unreferenced.
+Repeating an unchanged successful import does not republish the manifest.
+Companion exports may repeat identical station geometries across years/channels;
+these are accepted, while conflicting geometries for one station are rejected.
+
+Generate the combined GeoJSON after importing, and process current data normally
+when its source Objects are available:
+
+```sh
+./scripts/invoke.sh geojson MMM
+# After a successful current source download:
+./scripts/invoke.sh preprocess MMM
+./scripts/invoke.sh geojson MMM
+```
+
+An empty preprocessing invocation body always uses the deployed active settings.
+The optional dataset argument is accepted only for `preprocess`, not `ds` or
+`geojson`. Invalid request bodies fail instead of silently processing current
+data. Direct callers can send `{"archive": <PreprocessingSettings>}` with the same
+settings structure documented in the [storage contract](../specs/datasource-storage-contract.md).
+The archive must belong to the deployed datasource and have a different dataset
+ID from the deployed active dataset. The same publication lock and manifest-last
+validation apply to both modes.
+
+If an existing manifest already defines `current` with a wider year scope,
+use a new active dataset ID before processing the narrower current period;
+the existing rule against shrinking a published dataset still applies. Archive
+imports preserve that existing active definition rather than silently rewriting
+its scope. Deploy the updated handler before using the new command: an older
+handler does not interpret the archive request body.
 
 ### Making past periods read-only
 

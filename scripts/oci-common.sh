@@ -192,3 +192,22 @@ preprocessing_settings() {
       elif ($dataset.datasetInfoUrl | test("^https?://[^/[:space:]]+") | not) then error("Invalid active dataset datasetInfoUrl")
       else {source: $settings, datasetUrl: $dataset.datasetInfoUrl, years: $years} end'
 }
+
+# Select an existing inactive dataset locally; never change the download configuration.
+archive_preprocessing_settings() {
+  local selected settings active
+  selected="$(jq -ce --arg dataset "$2" '
+    if .activeDatasetId == $dataset then error("Use preprocessing without a dataset ID for the active dataset")
+    elif (.datasets | has($dataset) | not) then error("Unknown archive dataset: \($dataset)")
+    elif any(.datasets[$dataset].inputs[]; (.objectName | type) != "string" or .objectName == "") then
+      error("Archive inputs require explicit objectName values")
+    else .activeDatasetId = $dataset end
+  ' <<< "$1")" || return
+  settings="$(preprocessing_settings "$selected")" || return
+  active="$(data_source_settings "$1")" || return
+  jq -cne --argjson settings "$settings" --argjson active "$active" '
+    [$active.inputs[].objectName] as $names
+    | if any($settings.source.inputs[]; .objectName as $name | $names | index($name) != null) then
+        error("Archive inputs must not reference active input Objects")
+      else $settings end'
+}
