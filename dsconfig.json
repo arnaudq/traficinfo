@@ -10,6 +10,38 @@
     "dataSourceLogoUrl": "https://data.montpellier3m.fr/sites/default/files/logo-m3m-opendata_0.svg",
     "activeDatasetId": "current",
     "datasets": {
+      "mmm-2011-2021": {
+        "years": [2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021],
+        "datasetInfoUrl": "https://data.montpellier3m.fr/dataset/comptage-vehicules-particuliers-de-montpellier",
+        "inputs": [
+          {
+            "url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_MMM_Comptage.json",
+            "objectName": "MMM_MMM_Comptage_20221031.json",
+            "contentType": "application/json"
+          },
+          {
+            "url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_MMM_Comptage.csv",
+            "objectName": "MMM_MMM_Comptage_20221031.csv",
+            "contentType": "text/csv"
+          }
+        ]
+      },
+      "mmm-2022-2024": {
+        "years": [2022, 2023, 2024],
+        "datasetInfoUrl": "https://data.montpellier3m.fr/dataset/comptage-vehicules-particuliers-de-montpellier",
+        "inputs": [
+          {
+            "url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_MMM_Comptage.json",
+            "objectName": "MMM_MMM_Comptage_20250915.json",
+            "contentType": "application/json"
+          },
+          {
+            "url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_MMM_Comptage.csv",
+            "objectName": "MMM_MMM_Comptage_20250915.csv",
+            "contentType": "text/csv"
+          }
+        ]
+      },
       "current": {
         "years": [2021, 2022, 2023, 2024, 2025, 2026],
         "datasetInfoUrl": "https://data.montpellier3m.fr/dataset/comptage-vehicules-particuliers-de-montpellier",
