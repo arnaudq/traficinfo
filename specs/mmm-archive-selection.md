@@ -81,6 +81,36 @@ April 28. For 2023, it loses three and gains eight relative to March 17. The
 single-file choice accepts these trade-offs to retain the most values overall
 among the shortlisted candidates without merging sources.
 
+## Observed speed coverage after historical dataset publication
+
+The following figures were supplied from the `MMM speed coverage` logs before
+and after implementing the yearly dataset publication and historical archive
+split. They describe input records and rendered GeoJSON features for
+`[VEHICULES, BICYCLES]`, rather than the archive-selection score above.
+
+| Metric | Before | After | Change |
+| --- | ---: | ---: | ---: |
+| Input records | 12,715 | 12,239 | −476 |
+| Input records with V85 | 5,877 (46.2%) | 7,164 (58.5%) | +1,287; +12.3 percentage points |
+| Input records with mean speed | 5,877 (46.2%) | 7,164 (58.5%) | +1,287; +12.3 percentage points |
+| GeoJSON features | 2,202 | 2,211 | +9 |
+| Features with V85 | 1,544 (70.1%) | 1,996 (90.3%) | +452; +20.2 percentage points |
+| Features with mean speed | 1,544 (70.1%) | 1,996 (90.3%) | +452; +20.2 percentage points |
+| Features without V85 | 658 | 215 | −443 |
+
+The output contains **29.3% more features with speed information**, despite
+processing fewer input records. This is consistent with the intended benefit
+of preserving historical measurements from richer archives: a larger or newer
+CSV does not necessarily retain more usable historical speed data. Identical
+V85 and mean-speed counts do not establish that the same features have both.
+
+These aggregate logs do not identify the 476 fewer input records or establish
+whether their omission matters. A record-level comparison is needed to explain
+that difference. The comparison also does not isolate the effect of the archive
+split from other changes between runs, and populated-value coverage does not
+establish measurement correctness. Percentage-point changes use the rounded
+percentages reported in the logs.
+
 ## Reproducibility and limits
 
 The tool and usage instructions are in
