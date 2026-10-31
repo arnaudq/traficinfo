@@ -181,18 +181,30 @@ supplied address has an active EMAIL subscription; it does not create a topic
 or subscription or change existing bucket Events rules. All subscribers to the
 chosen topic receive the alarm notifications.
 
-The `3MOpenDataProcessor-FunctionErrors` alarm monitors
-`oci_faas.FunctionResponseCount` with `responseType = "Error"`, filtered to the
-application and grouped by function OCID and display name. Emails show the
-function name, alarm state, time and a link to the alarm. One or more errors in a one-minute
-interval trigger an alert, with separate notifications for each function.
+Two alarms monitor `oci_faas.FunctionResponseCount` with `responseType = "Error"`,
+filtered to the application and grouped by function OCID, display name, error
+code and cause:
+
+| Alarm | Trigger per function and error category | Severity |
+| --- | --- | --- |
+| `TraficInfo-FunctionErrors` | At least 1 non-503 error in 1 minute | `CRITICAL` |
+| `TraficInfo-FunctionAvailability` | At least 3 HTTP 503 errors in 15 minutes | `WARNING` |
+
+Both use a one-minute pending duration. The 503 threshold reduces noise; it is
+not OCI's retry limit and does not determine whether a later retry succeeded.
+An isolated 503 that causes a missed run can remain without an email. Successful-run
+monitoring is separate. Emails show the function name, alarm state, time, error
+code and cause, and a link to the alarm.
 New functions in the application are covered automatically. Delivery takes
 several minutes because OCI must ingest and evaluate the metrics. Repeated
 failures while a function's alarm remains firing are grouped; this is not one
 email per failed invocation. OCI also sends alarm recovery notifications.
 
-Repeated setup runs skip matching alarms or reconcile the dedicated alarm's
-settings. Duplicate names, failed lookups, missing confirmed subscriptions and
+Repeated setup runs skip matching alarms or reconcile their settings. The
+script creates availability coverage before renaming and narrowing the legacy
+`3MOpenDataProcessor-FunctionErrors` alarm to non-503 errors. Both definitions
+are checked before any writes. Duplicate names, simultaneous legacy/replacement
+error alarms, failed lookups, missing confirmed subscriptions and
 existing alarm suppression stop setup. Credentials need access to read Functions
 applications and Notifications topics/subscriptions and manage Monitoring alarms.
 

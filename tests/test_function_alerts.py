@@ -21,7 +21,7 @@ elif command in [['monitoring', 'alarm', 'create'], ['monitoring', 'alarm', 'upd
             'notificationTitle': 'notification-title', 'alarmSummary': 'alarm-summary',
             'isNotificationsPerMetricDimensionEnabled': 'is-notifications-per-metric-dimension-enabled'}
     if args[2] == 'create':
-        alarm = {'id': 'ocid1.alarm.test'}
+        alarm = {'id': 'ocid1.alarm.' + payload['displayName']}
         state['alarms'].append(alarm)
     else: alarm = next(a for a in state['alarms'] if a['id'] == opt('--alarm-id'))
     alarm.update({keys.get(k, k): v for k, v in payload.items()})
@@ -53,21 +53,31 @@ class FunctionAlertsTest(unittest.TestCase):
 
     def test_preview_then_create_and_repeat(self):
         result = self.run_alerts('--dry-run')
-        self.assertEqual('create', json.loads(result.stdout)['operation'])
+        self.assertEqual(['create', 'create'], [a['operation'] for a in json.loads(result.stdout)])
         self.assertNotIn('writes', self.state)
         self.run_alerts()
-        alarm = self.state['alarms'][0]
+        availability, alarm = self.state['alarms']
         self.assertEqual(['ocid1.onstopic.test'], alarm['destinations'])
         self.assertEqual('FunctionResponseCount[1m]{applicationId = "ocid1.fnapp.test", '
-                         'responseType = "Error"}.groupBy(resourceId, resourceDisplayName).sum() > 0', alarm['query'])
+                         'responseType = "Error", ErrorCode != "503"}'
+                         '.groupBy(resourceId, resourceDisplayName, ErrorCode, ErrorMessage).sum() > 0', alarm['query'])
+        self.assertEqual('CRITICAL', alarm['severity'])
+        self.assertEqual('FunctionResponseCount[15m]{applicationId = "ocid1.fnapp.test", '
+                         'responseType = "Error", ErrorCode = "503"}'
+                         '.groupBy(resourceId, resourceDisplayName, ErrorCode, ErrorMessage).sum() >= 3', availability['query'])
+        self.assertEqual('WARNING', availability['severity'])
+        self.assertIn('does not mean retries are exhausted', availability['body'])
         self.assertTrue(alarm['is-notifications-per-metric-dimension-enabled'])
         self.assertEqual('PT1M', alarm['pending-duration'])
         self.assertIn('{{dimensions.resourceDisplayName}}', alarm['body'])
         self.assertIn('{{dimensions.resourceDisplayName}}', alarm['alarm-summary'])
         self.assertIn('{{status}}', alarm['notification-title'])
         self.assertIn('{{alarmUrl}}', alarm['body'])
+        self.assertIn('{{dimensions.ErrorCode}}', alarm['body'])
+        self.assertIn('{{dimensions.ErrorMessage}}', alarm['body'])
         self.run_alerts()
-        self.assertEqual([['alarm', 'create', '3MOpenDataProcessor-FunctionErrors']], self.state['writes'])
+        self.assertEqual([['alarm', 'create', 'TraficInfo-FunctionAvailability'],
+                          ['alarm', 'create', 'TraficInfo-FunctionErrors']], self.state['writes'])
 
     def test_update_disabled_alarm_and_wrong_destination(self):
         self.run_alerts()
@@ -75,7 +85,7 @@ class FunctionAlertsTest(unittest.TestCase):
                                         'overrides': [{'query': 'old rule'}]})
         self.save()
         self.run_alerts('--dry-run')
-        self.assertEqual(1, len(self.state['writes']))
+        self.assertEqual(2, len(self.state['writes']))
         self.run_alerts()
         self.assertEqual('update', self.state['writes'][-1][1])
         self.assertEqual([], self.state['alarms'][0]['overrides'])
@@ -109,8 +119,43 @@ class FunctionAlertsTest(unittest.TestCase):
             self.run_alerts(success=False)
             self.assertNotIn('writes', self.state)
         self.state.pop('fail_command')
-        self.state['alarms'] = [{'id': str(i), 'display-name': '3MOpenDataProcessor-FunctionErrors',
+        self.state['alarms'] = [{'id': str(i), 'display-name': 'TraficInfo-FunctionErrors',
                                  'lifecycle-state': 'ACTIVE'} for i in range(2)]
+        self.save()
+        self.run_alerts(success=False)
+        self.assertNotIn('writes', self.state)
+
+    def test_legacy_alarm_is_renamed_after_availability_is_created(self):
+        self.state['alarms'] = [{'id': 'legacy-id', 'display-name': '3MOpenDataProcessor-FunctionErrors',
+                                 'compartment-id': 'ocid1.compartment.test', 'lifecycle-state': 'ACTIVE'}]
+        self.save()
+        preview = json.loads(self.run_alerts('--dry-run').stdout)
+        self.assertEqual(['create', 'update'], [a['operation'] for a in preview])
+        self.assertEqual('legacy-id', preview[1]['alarmId'])
+        self.assertNotIn('writes', self.state)
+        self.run_alerts()
+        self.assertEqual([['alarm', 'create', 'TraficInfo-FunctionAvailability'],
+                          ['alarm', 'update', 'TraficInfo-FunctionErrors']], self.state['writes'])
+        migrated = next(a for a in self.state['alarms'] if a['id'] == 'legacy-id')
+        self.assertEqual('TraficInfo-FunctionErrors', migrated['display-name'])
+        self.assertIn('ErrorCode != "503"', migrated['query'])
+        self.run_alerts()
+        self.assertEqual(2, len(self.state['writes']))
+
+    def test_suppression_on_second_alarm_prevents_all_writes(self):
+        self.run_alerts()
+        self.state.pop('writes')
+        self.state['alarms'][0]['is-enabled'] = False
+        self.state['alarms'][1]['suppression'] = {'description': 'maintenance'}
+        self.save()
+        self.run_alerts(success=False)
+        self.assertNotIn('writes', self.state)
+
+    def test_simultaneous_legacy_and_replacement_stop_before_writes(self):
+        self.run_alerts()
+        self.state.pop('writes')
+        self.state['alarms'].append({'id': 'legacy-id', 'display-name': '3MOpenDataProcessor-FunctionErrors',
+                                     'lifecycle-state': 'ACTIVE'})
         self.save()
         self.run_alerts(success=False)
         self.assertNotIn('writes', self.state)
