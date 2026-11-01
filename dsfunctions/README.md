@@ -893,9 +893,9 @@ in one response; pagination is not implemented by the shared downloader.
 
 Deployment passes mandatory `DATA_SOURCE_SETTINGS`, `NAMESPACE` and
 `BUCKETNAME` configuration. `USE_RESOURCE_PRINCIPAL` defaults to `true`.
-DPT76 selects the Monthly retrieval tag. Its `geoJsonEnabled: false` setting
-keeps downstream event setup disabled. DPT76 preprocessing is available through
-the shared handler; the final GeoJSON output handler is not yet registered.
+DPT76 selects the Monthly retrieval tag. GeoJSON output is enabled, and
+`eventObject: DPT76_Manifest.json` selects the completed preprocessing manifest
+as the event trigger rather than the downloaded source GeoJSON.
 
 After `source ./scripts/setup.sh`:
 
@@ -930,15 +930,48 @@ its counts input by the expected content type: `application/geo+json` for DPT76,
 no companion CSV. Locking, checksums, provenance validation, readback checks and
 retention of previously published years use the shared publication logic.
 
-Do not deploy DPT76 GeoJSON output until that handler is implemented. There is
-no automatic preprocessing schedule or event wiring in this change.
+### DPT76 GeoJSON output
+
+`org.traficinfo.dsfunctions.dpt76.GeoJsonOutFunction::handleRequest` uses the
+shared manifest reader and GeoJSON writer. It reads `DPT76_Manifest.json` and
+the exact yearly objects it references from `dsdpt76`, validates checksums and
+record counts, then publishes gzip `DPT76_TraficInfo.geojson` to `traficinfo`.
+It also publishes `DPT76_TraficInfo_BICYCLES.geojson`, an empty collection for
+this vehicle-only source, following the shared output convention.
+
+The handler keeps different FIDs separate even when they share a station code.
+Records without geometry or positive traffic do not produce map features.
+Annual history, bidirectional markers and OSM enrichment use the shared rules.
+OSM cache defaults are `DPT76_OSMInfo.json` and `DPT76_OSMWayMapping.json` in
+`osminfo`. Configuration supports `NAMESPACE`, `BUCKETNAME_IN`, `BUCKETNAME_OUT`,
+`BUCKETNAME_OSM`, `OSM_CACHE_OBJECT`, `OSM_WAY_MAPPING_OBJECT` and
+`USE_RESOURCE_PRINCIPAL`. Failed manifest validation prevents output uploads;
+output or cache failures fail the invocation.
+
+After source retrieval and preprocessing:
+
+```sh
+./scripts/deploy-functions.sh geojson DPT76
+./scripts/invoke.sh geojson DPT76
+./scripts/setup-events.sh --dry-run
+./scripts/setup-events.sh
+```
+
+Event setup matches only create/update events for `DPT76_Manifest.json` in the
+configured input bucket. Raw downloads, dated archives and intermediate yearly
+objects do not trigger GeoJSON generation. Existing sources keep their event
+object defaults. Preprocessing remains manually invoked; source retrieval does
+not automatically run it. Publishing the manifest before setting up the event
+rule requires a manual GeoJSON invocation for the initial output.
 
 Tests use fake HTTP and storage clients, including Fn runtime configuration,
 first/unchanged downloads, dated archives, download failures and archive
 failures. Shell tests cover deployment, invocation, scheduling tags, explicit
-GeoJSON input names, preprocessing deployment/invocation and disabled event
+GeoJSON input names, preprocessing deployment/invocation and manifest event
 routing, without cloud changes. Preprocessing tests cover Fn configuration,
 manifest round trips, null measures and geometry, repeated station codes,
 year scope, unchanged retries and preservation of the manifest on failure.
+Output tests cover plain/gzip manifests and yearly records, gzip output,
+repeated station codes, annual history, OSM enrichment and failure handling.
 Run `mvn -o -pl dsfunctions -am test` and
 `python3 -m unittest discover -s tests -v` from the repository root.

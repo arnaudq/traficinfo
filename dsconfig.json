@@ -202,7 +202,8 @@
     "id": "DPT76",
     "name": "Comptages véhicules - Département de la Seine-Maritime",
     "schedule": "Monthly",
-    "geoJsonEnabled": false,
+    "geoJsonEnabled": true,
+    "eventObject": "DPT76_Manifest.json",
     "activeDatasetId": "dpt76-2022",
     "datasets": {
       "dpt76-2022": {

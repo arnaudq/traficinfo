@@ -58,11 +58,15 @@ public final class ManifestTestPublication {
             catch (NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
             years.put(year, new DataManifest.YearData(name, checksum, entry.getValue().size(), active, "1"));
             datasets.put(active, new DataManifest.Dataset("https://example.invalid/" + active, List.of(year),
-                    Map.of(source.getCsvObjectName(), new DataManifest.Input("https://example.invalid/counts", "CSV", List.of("year")))));
+                    Map.of(source.getInputObjectName(), new DataManifest.Input("https://example.invalid/counts",
+                            source == GeoJsonDataSource.DPT76 ? "GEOJSON" : "CSV",
+                            source == GeoJsonDataSource.DPT76 ? null : List.of("year")))));
         }
         if (byYear.isEmpty()) {
             datasets.put(active, new DataManifest.Dataset("https://example.invalid/empty", List.of(java.time.Year.now().getValue()),
-                    Map.of(source.getCsvObjectName(), new DataManifest.Input("https://example.invalid/counts", "CSV", List.of("year")))));
+                    Map.of(source.getInputObjectName(), new DataManifest.Input("https://example.invalid/counts",
+                            source == GeoJsonDataSource.DPT76 ? "GEOJSON" : "CSV",
+                            source == GeoJsonDataSource.DPT76 ? null : List.of("year")))));
         }
         objects.put(source.getDataSourceId() + "_Manifest.json", new ObjectMapper().writeValueAsBytes(
                 new DataManifest(1, source.getDataSourceId(), "publication", "2026-10-29T00:00:00Z", active, datasets, years)));

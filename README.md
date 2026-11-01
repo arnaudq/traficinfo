@@ -66,25 +66,29 @@ Use `./scripts/setup-buckets.sh --dry-run` to preview changes without submitting
 Enabling bucket events prepares each input bucket for an OCI Events rule; this script
 does not create the rule that invokes the GeoJSON function.
 
-## CSV events and GeoJSON generation
+## Object events and GeoJSON generation
 
 After running `./scripts/setup-buckets.sh` and deploying with `./scripts/deploy-functions.sh`,
 run `./scripts/setup-events.sh` to create or update one Events rule for every entry with
 GeoJSON enabled in `dsconfig.json`, targeting GeoJSON functions in `3MOpenDataProcessor`:
 
-| Source ID | Events rule | CSV object | GeoJSON function |
+| Source ID | Events rule | Trigger object | GeoJSON function |
 | --- | --- | --- | --- |
 | MMM | `3MComptageCsvToGeoJson` | `ds3mbucket/MMM_MMM_Comptage.csv` | `3MGeoJsonOut` |
 | DPT34 | `DPT34ComptageCsvToGeoJson` | `dsdpt34/DPT34_Comptage.csv` | `DPT34GeoJsonOut` |
 | DPT30 | `DPT30ComptageCsvToGeoJson` | `dsdpt30/DPT30_Comptage.csv` | `DPT30GeoJsonOut` |
 | MRN | `MRNComptageCsvToGeoJson` | `dsmrn/MRN_Comptage.csv` | `MRNGeoJsonOut` |
 | NIM | `NIMComptageCsvToGeoJson` | `dsnim/NIM_Comptage.csv` | `NIMGeoJsonOut` |
+| DPT76 | `DPT76ComptageCsvToGeoJson` | `dsdpt76/DPT76_Manifest.json` | `DPT76GeoJsonOut` |
 
 Names default to function `${id}GeoJsonOut`, rule `${id}ComptageCsvToGeoJson`,
 bucket `ds${lowercase(id)}`, and CSV `${id}_Comptage.csv`. Optional per-source
 `functionPrefix`, `inputBucket`, and `csvObject` fields override these defaults.
 MMM supplies all three overrides to retain its existing resource names; DPT34
 uses the defaults. `functionPrefix` affects both the rule and function name.
+The optional `eventObject` overrides the triggering object independently of the
+source input name; otherwise it defaults to `csvObject`. DPT76 selects its
+preprocessing manifest so output generation starts after a completed publication.
 
 NIM selects the `nim-2023-2025` dataset and enables GeoJSON in `dsconfig.json`.
 Use `./scripts/deploy-functions.sh ds NIM` and `./scripts/invoke.sh ds NIM`
@@ -99,11 +103,18 @@ Preprocessing remains manual: existing CSV events invoke GeoJSON against the
 latest published manifest. Run preprocessing after source changes; automatic
 source-to-preprocessing-to-GeoJSON routing remains a later step.
 
-Each rule matches create and update events for exactly its configured CSV in
+Each rule matches create and update events for exactly its configured object in
 its bucket, compartment, and Object Storage namespace. Archive objects,
 companion JSON, and output GeoJSON do not match. Input buckets must exist with
 object events enabled. Deployment bucket overrides must agree with the input
 bucket configured here.
+
+DPT76 downloads `DPT76_Comptage_2022.geojson`. Deploy and invoke preprocessing
+with `./scripts/deploy-functions.sh preprocess DPT76` and
+`./scripts/invoke.sh preprocess DPT76`, then deploy and invoke GeoJSON output
+with `./scripts/deploy-functions.sh geojson DPT76` and
+`./scripts/invoke.sh geojson DPT76`. After event setup, subsequent changes to
+`DPT76_Manifest.json` trigger the output function. Preprocessing remains manual.
 
 The script uses OCI CLI and `jq` directly, shell functions, and the environment
 exported by `source ./scripts/setup.sh`, including the data source config path,

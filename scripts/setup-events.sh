@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Reconcile one CSV -> GeoJSON OCI Events rule per configured data source.
+# Reconcile one input-object -> GeoJSON OCI Events rule per configured data source.
 set -euo pipefail
 
 source "${TRAFICINFO_ROOT:?Run source ./scripts/setup.sh first}/scripts/oci-common.sh"
@@ -124,7 +124,7 @@ reconcile_source() {
   validate_bucket "$compartment_id" "$namespace"
   step "Resolving function $function_name..."
   function_id="$(resolve_function_id "$application_id" "$function_name")"
-  step 'Building the CSV event condition and Functions action...'
+  step 'Building the object event condition and Functions action...'
   condition="$(build_condition "$compartment_id" "$namespace")"
   actions="$(build_actions "$function_id")"
   step "Looking for existing rule $rule_name..."
@@ -135,7 +135,7 @@ reconcile_source() {
     state="$(get_rule "$rule_id")"
     validate_existing_rule "$state" "$compartment_id"
     if rule_matches "$state" "$compartment_id" "$condition" "$function_id"; then
-      printf '%s already invokes %s for CSV create/update events.\n' "$rule_name" "$function_name"
+      printf '%s already invokes %s for object create/update events.\n' "$rule_name" "$function_name"
       return 0
     fi
   fi
@@ -157,7 +157,7 @@ reconcile_source() {
   fi
   step 'Verifying the active rule, event condition, and function action...'
   verify_rule "$rule_id" "$compartment_id" "$condition" "$function_id"
-  printf 'Verified %s (%s): CSV create/update events invoke %s.\n' \
+  printf 'Verified %s (%s): object create/update events invoke %s.\n' \
     "$rule_name" "$rule_id" "$function_name"
 }
 
@@ -185,7 +185,7 @@ main() {
     rule_name="$(jq -r '.eventRule' <<< "$source")"
     function_name="$(jq -r '.geoJsonFunction' <<< "$source")"
     bucket_name="$(jq -r '.inputBucket' <<< "$source")"
-    object_name="$(jq -r '.csvObject' <<< "$source")"
+    object_name="$(jq -r '.eventObject' <<< "$source")"
     step "Configuring events for $data_source_id..."
     reconcile_source
   done

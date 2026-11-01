@@ -77,7 +77,7 @@
       "url_template": "https://tile.jawg.io/light/{z}/{x}/{y}.png?api-key=community"
     },
     "captionBar": false,
-    "description": "Carte basée sur les données de comptage de véhicules et de vélos de la Métropole Rouen Normandie.\n\nLe label apparaissant au survol de la souris sur un compteur indique la dernière moyenne journalière annuelle connue. Si la valeur est suivie d'une double flèche, elle indique un comptage dans les 2 sens cumulés.\n\nEn cliquant sur un compteur, on obtient plus de détails sur la mesure.\n\nLe code couleur du compteur correspond à moins de 1000 véhicules/jour (vert), entre 1000 et 5000 véhicules/jour (violet), plus de 5000 véhicules/jour (rouge).\n\nPour filtrer les compteurs (année, nombre de véhicules/jour, vitesse pratiquée,...), cliquez sur \"Explorateur de données\" et choisissez \"Filtres\".",
+    "description": "Carte basée sur les données de comptage de véhicules et de vélos de la Métropole Rouen Normandie et de véhicules du département de la Seine-Maritime.\n\nLe label apparaissant au survol de la souris sur un compteur indique la dernière moyenne journalière annuelle connue. Si la valeur est suivie d'une double flèche, elle indique un comptage dans les 2 sens cumulés.\n\nEn cliquant sur un compteur, on obtient plus de détails sur la mesure.\n\nLe code couleur du compteur correspond à moins de 1000 véhicules/jour (vert), entre 1000 et 5000 véhicules/jour (violet), plus de 5000 véhicules/jour (rouge).\n\nPour filtrer les compteurs (année, nombre de véhicules/jour, vitesse pratiquée,...), cliquez sur \"Explorateur de données\" et choisissez \"Filtres\".",
     "limitBounds": {},
     "moreControl": true,
     "zoomControl": true,
@@ -162,6 +162,78 @@
         "browsable": true,
         "inCaption": true,
         "displayOnLoad": true,
+        "name": "Comptages véhicules - Département de la Seine-Maritime",
+        "description": "Comptages basés sur les données de [[https://www.opendata76.fr/datasets/seine-maritime::localisation-des-points-de-comptages-routiers-cd76-2022/about | Comptages véhicules - Département de la Seine-Maritime]]\n\nMise à jour mensuelle",
+        "remoteData": {
+          "url": "https://objectstorage.eu-frankfurt-1.oraclecloud.com/n/frivwhhfdcjn/b/traficinfo/o/DPT76_TraficInfo.geojson",
+          "format": "geojson"
+        }
+      },
+      "rank": 0
+    },
+    {
+      "type": "FeatureCollection",
+      "features": [],
+      "properties": {
+        "type": "Cluster",
+        "fields": [
+          {
+            "key": "type",
+            "type": "String"
+          },
+          {
+            "key": "code_centrale",
+            "type": "String"
+          },
+          {
+            "key": "name",
+            "type": "String"
+          },
+          {
+            "key": "description",
+            "type": "Text"
+          },
+          {
+            "key": "annee",
+            "type": "Number"
+          },
+          {
+            "key": "moyenne_jour_annuelle",
+            "type": "Number"
+          },
+          {
+            "key": "moyenne_pointe_matin",
+            "type": "String"
+          },
+          {
+            "key": "moyenne_pointe_soir",
+            "type": "String"
+          },
+          {
+            "key": "moyenne_annuelle_history",
+            "type": "String"
+          },
+          {
+            "key": "v85_speed",
+            "type": "Number"
+          },
+          {
+            "key": "mean_speed",
+            "type": "Number"
+          },
+          {
+            "key": "maximum_speed",
+            "type": "Number"
+          },
+          {
+            "key": "data_source",
+            "type": "String"
+          }
+        ],
+        "filters": [],
+        "browsable": true,
+        "inCaption": true,
+        "displayOnLoad": true,
         "name": "Comptages vélos - Métropole Rouen Normandie",
         "description": "Comptages basés sur les données de [[https://data.metropole-rouen-normandie.fr/explore/assets/comptages-et-enquetes-sur-le-reseau-routier/ | Comptages véhicules et vélos - Métropole Rouen Normandie]]\n\nMise à jour quotidienne",
         "iconUrl": "/uploads/pictogram/bicycle.svg",
@@ -171,7 +243,7 @@
           "format": "geojson"
         }
       },
-      "rank": 0
+      "rank": 1
     },
     {
       "type": "FeatureCollection",
@@ -243,7 +315,7 @@
           "format": "geojson"
         }
       },
-      "rank": 1
+      "rank": 2
     }
   ]
 }

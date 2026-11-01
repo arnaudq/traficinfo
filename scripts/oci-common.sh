@@ -92,7 +92,7 @@ load_data_sources() {
       | if type != "object" then error("Invalid data source \($key)") else . end
       | if .id != $key or (.id | nonempty_string | not) then
           error("Data source key must match its id: \($key)") else . end
-      | if all([.functionPrefix, .inputBucket, .csvObject][];
+      | if all([.functionPrefix, .inputBucket, .csvObject, .eventObject][];
           . == null or nonempty_string) then . else
           error("Overrides must be nonempty strings for \($key)") end
       | if .geoJsonEnabled != null and (.geoJsonEnabled | type) != "boolean" then
@@ -116,7 +116,8 @@ load_data_sources() {
           preprocessingFunction: ($prefix + "Preprocessing"),
           eventRule: ($prefix + "ComptageCsvToGeoJson"),
           inputBucket: (.inputBucket // ("ds" + (.id | ascii_downcase))),
-          csvObject: (.csvObject // (.id + "_Comptage.csv"))}
+          csvObject: (.csvObject // (.id + "_Comptage.csv")),
+          eventObject: (.eventObject // .csvObject // (.id + "_Comptage.csv"))}
     )
     | if (map(.eventRule) | unique | length) != length then
         error("Data sources must produce distinct Events rule names") else . end

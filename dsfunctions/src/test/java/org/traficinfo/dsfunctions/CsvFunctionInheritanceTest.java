@@ -33,7 +33,8 @@ public class CsvFunctionInheritanceTest {
             assertEquals(source.name(), id);
             assertEquals(id.equals("MMM") ? GeoJsonParser.DataSource.M3MV2 : GeoJsonParser.DataSource.valueOf(id), source.getParserDataSource());
             assertEquals(id.equals("MMM") ? "ds3mbucket" : "ds" + id.toLowerCase(java.util.Locale.ROOT), source.getDefaultInputBucket());
-            assertEquals(id.equals("MMM") ? "MMM_MMM_Comptage.csv" : id + "_Comptage.csv", source.getCsvObjectName());
+            assertEquals(id.equals("MMM") ? "MMM_MMM_Comptage.csv"
+                    : id.equals("DPT76") ? "DPT76_Comptage_2022.geojson" : id + "_Comptage.csv", source.getInputObjectName());
             assertEquals(id + "_TraficInfo.geojson", source.getGeoJsonObjectName());
             assertEquals(id + "_OSMInfo.json", source.getOsmCacheObjectName());
             assertEquals(id + "_OSMWayMapping.json", source.getOsmWayMappingObjectName());
@@ -42,7 +43,7 @@ public class CsvFunctionInheritanceTest {
 
     @Test
     public void fnLoadsInheritedMethodsForAllConcreteHandlers() throws Exception {
-        for (String name : List.of("dpt30", "dpt34", "mrn", "m3m", "nim")) {
+        for (String name : List.of("dpt30", "dpt34", "mrn", "m3m", "nim", "dpt76")) {
             for (String handler : List.of("DataSourceFunction", "GeoJsonOutFunction")) {
                 Class<?> type = Class.forName("org.traficinfo.dsfunctions." + name + "." + handler);
                 MethodWrapper wrapper = new FunctionLoader().loadClass(type.getName(), "handleRequest");
@@ -63,7 +64,7 @@ public class CsvFunctionInheritanceTest {
 
     @Test
     public void allSourceHandlersShareTheSameConfigurationLifecycle() throws Exception {
-        for (String name : List.of("dpt30", "dpt34", "mrn", "m3m", "nim")) {
+        for (String name : List.of("dpt30", "dpt34", "mrn", "m3m", "nim", "dpt76")) {
             Class<?> type = Class.forName("org.traficinfo.dsfunctions." + name + ".DataSourceFunction");
             assertEquals(AbstractDataSourceFunction.class, type.getSuperclass());
             assertEquals(1, type.getConstructors().length);

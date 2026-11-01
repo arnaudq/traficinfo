@@ -235,6 +235,7 @@ class OciScriptsTest(unittest.TestCase):
         dpt34 = next(s for s in sources if s['id'] == 'DPT34')
         self.assertEqual(dpt34['geoJsonFunction'], 'DPT34GeoJsonOut')
         self.assertEqual(dpt34['csvObject'], 'DPT34_Comptage.csv')
+        self.assertEqual(dpt34['eventObject'], dpt34['csvObject'])
         self.assertEqual(dpt34['inputBucket'], 'dsdpt34')
         mrn = next(s for s in sources if s['id'] == 'MRN')
         self.assertEqual(mrn['geoJsonFunction'], 'MRNGeoJsonOut')
@@ -333,13 +334,14 @@ class OciScriptsTest(unittest.TestCase):
             self.deploy(success=False)
             self.assertNotIn('calls', self.state)
 
-    def test_dpt76_geojson_retrieval_deployment_and_download_only_routing(self):
+    def test_dpt76_geojson_retrieval_deployment_and_manifest_event_routing(self):
         config = json.loads(self.config_file.read_text())
         self.config_file.write_text(json.dumps({'DPT76': config['DPT76']}))
         source = json.loads(self.common('get_data_source DPT76').stdout)
         settings = json.loads(self.common('data_source_settings "$(get_data_source DPT76)"').stdout)
         self.assertEqual(source['inputBucket'], 'dsdpt76')
-        self.assertFalse(source['geoJsonEnabled'])
+        self.assertTrue(source['geoJsonEnabled'])
+        self.assertEqual(source['eventObject'], 'DPT76_Manifest.json')
         self.assertEqual(settings['datasetId'], 'dpt76-2022')
         self.assertEqual(settings['inputs'][0]['objectName'], 'DPT76_Comptage_2022.geojson')
         self.assertEqual(settings['inputs'][0]['contentType'], 'application/geo+json')
@@ -355,12 +357,22 @@ class OciScriptsTest(unittest.TestCase):
             self.assertEqual(json.loads(function['config']['DATA_SOURCE_SETTINGS']), settings)
             self.assertEqual(function['defined-tags'], {'TraficInfo': {'DataSourceSchedule': 'Monthly'}})
         self.script('invoke.sh', 'ds', 'DPT76')
-        result = self.script('invoke.sh', 'geojson', 'DPT76', success=False)
-        self.assertIn('GeoJSON is not enabled for DPT76', result.stderr)
-        calls_before_events = len(self.state.get('calls', []))
+        self.env.pop('BUCKETNAME_DPT76')
+        self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main geojson DPT76')
+        function = next(f for f in self.state['functions'] if f['display-name'] == 'DPT76GeoJsonOut')
+        self.assertEqual(function['config']['BUCKETNAME_IN'], 'dsdpt76')
+        self.assertEqual(function['config']['BUCKETNAME_OUT'], 'traficinfo')
+        self.assertEqual(function['config']['OSM_CACHE_OBJECT'], 'DPT76_OSMInfo.json')
+        self.assertEqual(function['config']['OSM_WAY_MAPPING_OBJECT'], 'DPT76_OSMWayMapping.json')
+        self.script('invoke.sh', 'geojson', 'DPT76')
         self.script('setup-events.sh')
-        self.assertEqual(len(self.state.get('calls', [])), calls_before_events)
-        self.assertFalse(any('DPT76' in rule['display-name'] for rule in self.state['rules']))
+        rule = next(rule for rule in self.state['rules'] if 'DPT76' in rule['display-name'])
+        condition = json.loads(rule['condition'])
+        self.assertEqual(condition['data']['resourceName'], ['DPT76_Manifest.json'])
+        self.assertEqual(condition['data']['additionalDetails']['bucketName'], ['dsdpt76'])
+        writes = len(self.state['writes'])
+        self.script('setup-events.sh')
+        self.assertEqual(len(self.state['writes']), writes)
 
     def test_dpt76_preprocessing_deploys_geojson_settings_and_invokes_shared_handler(self):
         config = json.loads(self.config_file.read_text())
@@ -596,7 +608,7 @@ class OciScriptsTest(unittest.TestCase):
                     self.state['writes'] = []
                     self.save()
                 self.deploy()
-                self.assertEqual(len(self.state['writes']), 12)
+                self.assertEqual(len(self.state['writes']), 13)
                 functions = {f['display-name']: f for f in self.state['functions']}
                 self.assertEqual(functions['OSMInfoFunction']['config'],
                                  {'NAMESPACE': 'testnamespace', 'BUCKETNAME_OSM': 'osminfo',
