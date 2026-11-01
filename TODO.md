@@ -1,7 +1,34 @@
 # TODOs
 
+## switch to a model where we have a single Function for each steps.
+
+For Schedule based function, one can configure the schedule with a payload ("Add invocation payload").
+So could have multiple schedules instead of multiple functions.
+
+For functions triggered by a change in objectstore, the event is sent to the function as input.
+It contains info like bucket, object,...
+
+```
+{
+  "eventType": "com.oraclecloud.objectstorage.createobject",
+  "source": "ObjectStorage",
+  "data": {
+    "compartmentId": "ocid1.compartment.oc1...",
+    "resourceName": "sales_report_2026.csv",
+    "additionalDetails": {
+      "bucketName": "finance-dropzone",
+      "namespace": "axiamain"
+    }
+  }
+}
+```
+
+For preprocessing, it looks like we no longer have a trigger
+
 ## create diff in ds function
 so that we can anticipate bogus csv and abort further processing
+
+## Setup github dependabot
 
 ## store and preserve historical data
 some data gets changed
@@ -12,6 +39,19 @@ Environ 300 lignes « sens cumulés » (canal Z) ont été supprimées sur les a
 Des sens 0 et 1 sont inversés sur des données historiques. Les valeurs sont permutées exactement : Bd Berthelot 2023 (108 :left_right_arrow: 7 090), Av. de Maurin 2023, Route de Lavérune 2023, Allée Henri II de Montmorency 2012 (1 :left_right_arrow: 1 169). C’est soit une correction, soit une erreur, et ça vaut le coup de demander à la Métropole.
 La période de Rue du Faubourg du Courreau 2025 a changé (juin devient septembre) et les valeurs s’effondrent : de 866 à 16 véh/j pour le canal 1, de 1 774 à 226 pour le cumul.
 Rue de la Thériaque : le libellé devient « RM986-E2 » et la commune passe de Lattes à Grabels. Les deux valeurs sont douteuses pour une rue de Montpellier.
+
+Before implementation of per year dataset:
+Filtering on "MMM speed coverage" in the logs gave the following:
+````
+MMM speed coverage (input records): total=12715, v85=5877 (46.2%), mean=5877 (46.2%)```
+MMM speed coverage (GeoJSON features [VEHICULES, BICYCLES]): total=2202, v85=1544 (70.1%), mean=1544 (70.1%)"
+````
+
+After implementation
+````
+MMM speed coverage (input records): total=12239, v85=7164 (58.5%), mean=7164 (58.5%)
+MMM speed coverage (GeoJSON features [VEHICULES, BICYCLES]): total=2211, v85=1996 (90.3%), mean=1996 (90.3%)
+````
 
 ## Redundancy of some of the CsvDataSource fields
 things have moved to dsconfig.json
@@ -78,9 +118,11 @@ https://data.lillemetropole.fr/catalogue/dataset/19a68c5f-2914-4422-be83-d88fd99
 https://data.lillemetropole.fr/catalogue/dataset/comptages-voirie
 https://data.lillemetropole.fr/public/logo-mel.jpg (already in bucket)
 
-DPT76: https://www.opendata76.fr/search?tags=comptage or https://www.data.gouv.fr/datasets/comptages-routiers-cd76-2022 (2022 only)
-
 Données nationales: https://transport.data.gouv.fr/datasets/etat-de-circulation-en-temps-reel-sur-le-reseau-national-routier-non-concede
+
+Telraam: https://telraam.net/api/segments/snapshot/traffic
+https://www.eco-compteur.com/actualites/quanteo-eco-compteur-acquisition-societe-belge-telraam
+https://millavois.com/2026/06/23/millau-invd-releve-des-vitesses-elevees-et-reclame-de-vrais-amenagements-cyclables
 
 ## list non compliant routes based on CEREMA criteria
 
@@ -89,6 +131,8 @@ https://www.cerema.fr/fr/actualites/velos-voitures-separation-ou-mixite-cles-cho
 ## Other projects
 
 https://avatar.cerema.fr/
+
+https://github.com/orbisgis
 
 https://cyclopolis.fr/carte-interactive?modal=filters (https://github.com/lavilleavelo/cyclopolis/tree/main)
 
