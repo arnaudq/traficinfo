@@ -19,7 +19,11 @@ public class ComptageJsonTest {
     public void roundTripsStoredFieldsForEveryDatasourceWithoutLosingNullMeasures() throws Exception {
         ComptageJson json = new ComptageJson();
         for (GeoJsonParser.DataSource source : GeoJsonParser.DataSource.values()) {
-            String fixture = source.getId().equals("MMM") ? "M3MSample.csv" : source.getId() + "Sample.csv";
+            String fixture = switch (source) {
+                case M3MV2 -> "M3MSample.csv";
+                case DPT76 -> "DPT76_Comptage_2022.geojson";
+                default -> source.getId() + "Sample.csv";
+            };
             try (Reader reader = new InputStreamReader(getClass().getResourceAsStream("/" + fixture), StandardCharsets.UTF_8)) {
                 List<? extends Comptage> counts = source.getParser().parseComptages(reader);
                 assertFalse(source.getId(), counts.isEmpty());

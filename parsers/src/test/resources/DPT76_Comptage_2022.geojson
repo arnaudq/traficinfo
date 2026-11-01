@@ -1,0 +1,89 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": 1,
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          1.13819767843498,
+          49.9304738120914
+        ]
+      },
+      "properties": {
+        "FID": 1,
+        "axe": "76 D0925",
+        "cumuld": 98691,
+        "plod": "104",
+        "absd": 200,
+        "x": 566222,
+        "y": 6982892,
+        "Pourcenta_": 5,
+        "Trafic_Mo_": 14793,
+        "Type_de_c_": "BC",
+        "Annee_de_": "2022",
+        "Pourcent_0": 5,
+        "Pourcent_1": 5,
+        "Tmja_sens_": 7387,
+        "Tmja_sen_2": 7406,
+        "Code_stat_": 1235,
+        "objectid": 5401
+      }
+    },
+    {
+      "type": "Feature",
+      "id": 236,
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          1.2394107905937,
+          49.9645878144106
+        ]
+      },
+      "properties": {
+        "FID": 236,
+        "axe": "76 D0925",
+        "cumuld": 106978,
+        "plod": "112",
+        "absd": 510,
+        "x": 573578,
+        "y": 6986522,
+        "Pourcenta_": 6,
+        "Trafic_Mo_": 7730,
+        "Type_de_c_": " ",
+        "Annee_de_": "2022",
+        "Pourcent_0": 6,
+        "Pourcent_1": 6,
+        "Tmja_sens_": 3882,
+        "Tmja_sen_2": 3848,
+        "Code_stat_": 1235,
+        "objectid": 5289
+      }
+    },
+    {
+      "type": "Feature",
+      "id": 11,
+      "geometry": null,
+      "properties": {
+        "FID": 11,
+        "axe": "76 D6382VP",
+        "cumuld": 0,
+        "plod": "0",
+        "absd": 950,
+        "x": 0,
+        "y": 0,
+        "Pourcenta_": 6,
+        "Trafic_Mo_": 11659,
+        "Type_de_c_": " ",
+        "Annee_de_": "2022",
+        "Pourcent_0": 6,
+        "Pourcent_1": 0,
+        "Tmja_sens_": 11659,
+        "Tmja_sen_2": 0,
+        "Code_stat_": 1302,
+        "objectid": 5397
+      }
+    }
+  ]
+}

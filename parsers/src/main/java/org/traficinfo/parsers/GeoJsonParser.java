@@ -8,6 +8,8 @@ import org.traficinfo.parsers.nim.NIMComptage;
 import org.traficinfo.parsers.nim.NIMComptageParser;
 import org.traficinfo.parsers.dpt30.DPT30Comptage;
 import org.traficinfo.parsers.dpt30.DPT30ComptageParser;
+import org.traficinfo.parsers.dpt76.DPT76Comptage;
+import org.traficinfo.parsers.dpt76.DPT76ComptageParser;
 import org.traficinfo.parsers.m3m.M3MComptage;
 import org.traficinfo.parsers.m3m.M3MComptageParser;
 
@@ -29,6 +31,7 @@ public class GeoJsonParser {
         M3MV2("MMM", new M3MComptageParser(), M3MComptage.class),
         DPT34("DPT34", new DPT34ComptageParser(), DPT34Comptage.class),
         DPT30("DPT30", new DPT30ComptageParser(), DPT30Comptage.class),
+        DPT76("DPT76", new DPT76ComptageParser(), DPT76Comptage.class),
         MRN("MRN", new MRNComptageParser(), MRNComptage.class),
         NIM("NIM", new NIMComptageParser(), NIMComptage.class);
 
