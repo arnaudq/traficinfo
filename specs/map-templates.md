@@ -80,3 +80,10 @@ also update `popupContentTemplate` in the shared template or map properties.
 The generator owns the full configured output files. Store persistent changes
 in the registry or shared templates. It never edits `dsconfig.json`, fetches
 remote data, updates a hosted uMap instance, or deletes unconfigured files.
+
+Import the generated `.umap` file manually into uMap. Imported map-level filter
+changes may revert or disappear after saving and reopening due to
+[uMap bug #3531](https://github.com/umap-project/umap/issues/3531). Work around
+this in the map's **Manage filters**: temporarily change the affected filter's
+label and save, then restore its original label and save again. Reopen the map
+from the dashboard to verify that the imported filter persists.

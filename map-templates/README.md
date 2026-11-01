@@ -18,14 +18,13 @@ It reads the root `mapconfig.json` and the exported `TRAFICINFO_DSCONFIG`.
 Import the resulting `.umap` file into uMap to create or update a map; the
 generator does not publish anything. Its remote GeoJSON must already be public.
 
-When updating an existing map, check new map-level filters after a full reload.
-uMap's import path can apply map settings in memory without recording a map
-change for saving, while the imported layers are saved. If a filter disappears
-after reopening, open the map's **Manage filters**, temporarily change that
-filter's label and save, then restore its label and save again. Editing the
-filter records a map change and saves the imported map settings too. See
-[uMap's import and map property handling](https://github.com/umap-project/umap/blob/master/umap/static/umap/js/modules/app.js)
-and [filter saving](https://github.com/umap-project/umap/blob/master/umap/static/umap/js/modules/filters.js).
+After importing, work around [uMap bug #3531: changes to filters are not
+preserved after saving](https://github.com/umap-project/umap/issues/3531).
+An imported filter can appear correct in the editor but revert or disappear
+after returning from the dashboard. Open the map's **Manage filters**,
+temporarily change the affected filter's label and save, then restore its
+original label and save again. This explicitly records a map change for saving.
+Reopen the map from the dashboard to verify that the filter persists.
 
 Edit map metadata in `mapconfig.json`, shared map settings in
 `templates/map.json`, shared layer settings in `templates/layer.json`, and

@@ -7,6 +7,12 @@
 the MMM (MMM + DPT34) and NIM (NIM + DPT30) uMap files. See the
 [map template README](map-templates/README.md) for usage and customization.
 
+When importing a generated file into uMap, account for
+[bug #3531](https://github.com/umap-project/umap/issues/3531): imported filter
+changes can be lost after saving and reopening. In **Manage filters**, temporarily
+rename the affected filter and save, then restore its original label and save
+again. Reopen the map from the dashboard to verify persistence.
+
 ## Setup
 
 Install JDK 25, the Fn Project CLI, OCI CLI, and `jq`, and place your OCI configuration at `~/.oci/config.arnaudq`. Then, from the project root, run:
