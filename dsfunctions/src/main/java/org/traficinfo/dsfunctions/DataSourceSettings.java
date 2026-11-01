@@ -58,8 +58,8 @@ public record DataSourceSettings(
                 throw new IllegalArgumentException("Input URL must be an absolute HTTP(S) URL");
             }
             requireText(objectName, "objectName");
-            if (!objectName.endsWith(".csv") && !objectName.endsWith(".json")) {
-                throw new IllegalArgumentException("Input Object must end in .csv or .json");
+            if (!objectName.endsWith(".csv") && !objectName.endsWith(".json") && !objectName.endsWith(".geojson")) {
+                throw new IllegalArgumentException("Input Object must end in .csv, .json or .geojson");
             }
             requireText(contentType, "contentType");
         }

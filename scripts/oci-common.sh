@@ -165,8 +165,8 @@ data_source_settings() {
         | . + {objectName: (.objectName //
             (if .contentType == "text/csv" then $source.csvObject else
               error("Non-CSV inputs require an objectName") end))}
-        | if (.objectName | type) != "string" or (.objectName | test("\\.(csv|json)$") | not)
-            then error("Input Object name must end in .csv or .json") else . end
+        | if (.objectName | type) != "string" or (.objectName | test("\\.(csv|json|geojson)$") | not)
+            then error("Input Object name must end in .csv, .json or .geojson") else . end
       )
     | if (.inputs | map(.objectName) | unique | length) != (.inputs | length) then
         error("Duplicate input Object names") else . end

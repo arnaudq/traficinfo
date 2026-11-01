@@ -64,7 +64,8 @@ publish its manifest before invoking the GeoJSON handler or enabling events.
 `org.traficinfo.dsfunctions.HttpClient`, `ObjectStoreClient` and
 `OOSResourceMetadata` are shared by the M3M, DPT30, DPT34, MRN and NIM source functions.
 The HTTP client sends `If-None-Match` for real server ETags and returns no body
-for HTTP 304. When the server supplies no ETag, it stages the complete response
+for HTTP 304. When the server supplies no ETag or a malformed ETag (such as an
+unquoted ArcGIS validator), it stages the complete response
 in a temporary file and exposes `sha256:<hex-digest>` through `getEtag()`.
 It returns no body when this synthetic validator matches the previous value.
 Synthetic validators are never sent in `If-None-Match`; their comparison requires
@@ -867,3 +868,51 @@ failure so OCI records an error for the function failure alarm. OSM refresh
 continues processing other caches before throwing if any cache failed.
 Recoverable OSM HTTP lookup failures keep their retry behavior. Set up email
 alerts using `scripts/setup-function-alerts.sh` as described in the root README.
+
+## DPT76 data source function
+
+`org.traficinfo.dsfunctions.dpt76.DataSourceFunction::handleRequest` downloads
+Seine-Maritime's 2022 counting-point GeoJSON using the active `dpt76-2022`
+dataset in `dsconfig.json`. Its ArcGIS query requests all fields and WGS84
+geometry (`outSR=4326`). The configured input is
+`DPT76_Comptage_2022.geojson`, with content type `application/geo+json`, in
+bucket `dsdpt76` by default. Deployment accepts `BUCKETNAME_DPT76` as an input
+bucket override; keep it consistent with the configured input bucket when
+using the bucket setup script.
+
+The handler uses the shared downloader, change detection and gzip storage.
+Unchanged content is skipped. Before replacement, the previous object is
+archived as `DPT76_Comptage_2022_yyyymmdd.geojson`, using its previous download
+date in UTC. Archive metadata is retained, and an archive failure prevents
+replacement. Multiple versions from the same day share an archive name.
+Empty or failed downloads fail the invocation and leave existing content intact.
+Source metadata records the URL, dataset ID, datasource ID and download time.
+As with other download handlers, retrieval stores source bytes; parsing and
+GeoJSON completeness checks belong to preprocessing. The query currently fits
+in one response; pagination is not implemented by the shared downloader.
+
+Deployment passes mandatory `DATA_SOURCE_SETTINGS`, `NAMESPACE` and
+`BUCKETNAME` configuration. `USE_RESOURCE_PRINCIPAL` defaults to `true`.
+DPT76 selects the Monthly retrieval tag. Its `geoJsonEnabled: false` setting
+keeps downstream event setup disabled: preprocessing still requires a counts
+CSV, so the DPT76 parser is not yet connected to manifest publication or the
+final GeoJSON output handler.
+
+After `source ./scripts/setup.sh`:
+
+```sh
+./scripts/setup-buckets.sh --dry-run
+./scripts/setup-buckets.sh
+./scripts/deploy-functions.sh ds DPT76
+./scripts/invoke.sh ds DPT76
+```
+
+These commands download the raw source only. Do not deploy DPT76 preprocessing
+or GeoJSON output until those stages support the new source format.
+
+Tests use fake HTTP and storage clients, including Fn runtime configuration,
+first/unchanged downloads, dated archives, download failures and archive
+failures. Shell tests cover deployment, invocation, scheduling tags, explicit
+GeoJSON input names and disabled event routing, without cloud changes.
+Run `mvn -o -pl dsfunctions -am test` and
+`python3 -m unittest discover -s tests -v` from the repository root.

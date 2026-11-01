@@ -52,8 +52,9 @@ public class ManifestComptageReaderTest {
     }
 
     @Test
-    public void readsPlainAndGzipPublicationsForEveryDatasource() throws Exception {
-        for (GeoJsonParser.DataSource source : GeoJsonParser.DataSource.values()) {
+    public void readsPlainAndGzipPublicationsForEveryPreprocessingSource() throws Exception {
+        for (PreprocessingSource preprocessing : PreprocessingSource.values()) {
+            GeoJsonParser.DataSource source = preprocessing.parser;
             for (boolean gzip : new boolean[]{false, true}) {
                 Fixture fixture = new Fixture(source, gzip);
                 List<? extends Comptage> records = fixture.read();

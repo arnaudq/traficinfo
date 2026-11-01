@@ -131,7 +131,7 @@ class OciScriptsTest(unittest.TestCase):
                         OCI_OBJECT_STORAGE_NAMESPACE='testnamespace',
                         OCI_FN_APPLICATION_NAME='3MOpenDataProcessor')
         for key in ['OCI_FN_APPLICATION_ID', 'BUCKETNAME_IN', 'BUCKETNAME_DPT34', 'BUCKETNAME_MRN',
-                    'BUCKETNAME_NIM', 'BUCKETNAME_OUT', 'BUCKETNAME_OSM', 'OSM_CACHE_OBJECT', 'OSM_WAY_MAPPING_OBJECT', 'MAX_LOOP_DURATION_SECONDS', 'MAX_WAY_MAPPINGS_PER_RESOURCE']:
+                    'BUCKETNAME_NIM', 'BUCKETNAME_DPT76', 'BUCKETNAME_OUT', 'BUCKETNAME_OSM', 'OSM_CACHE_OBJECT', 'OSM_WAY_MAPPING_OBJECT', 'MAX_LOOP_DURATION_SECONDS', 'MAX_WAY_MAPPINGS_PER_RESOURCE']:
             self.env.pop(key, None)
         self.state = {
             'applications': [{'id': 'ocid1.fnapp.test', 'display-name': '3MOpenDataProcessor',
@@ -332,6 +332,35 @@ class OciScriptsTest(unittest.TestCase):
             self.config_file.write_text(json.dumps(config))
             self.deploy(success=False)
             self.assertNotIn('calls', self.state)
+
+    def test_dpt76_geojson_retrieval_deployment_and_download_only_routing(self):
+        config = json.loads(self.config_file.read_text())
+        self.config_file.write_text(json.dumps({'DPT76': config['DPT76']}))
+        source = json.loads(self.common('get_data_source DPT76').stdout)
+        settings = json.loads(self.common('data_source_settings "$(get_data_source DPT76)"').stdout)
+        self.assertEqual(source['inputBucket'], 'dsdpt76')
+        self.assertFalse(source['geoJsonEnabled'])
+        self.assertEqual(settings['datasetId'], 'dpt76-2022')
+        self.assertEqual(settings['inputs'][0]['objectName'], 'DPT76_Comptage_2022.geojson')
+        self.assertEqual(settings['inputs'][0]['contentType'], 'application/geo+json')
+        self.assertIn('Localisation_Comptage_2022/FeatureServer/0/query?', settings['inputs'][0]['url'])
+        self.script('setup-buckets.sh')
+        bucket = next(b for b in self.state['buckets'] if b['name'] == 'dsdpt76')
+        self.assertTrue(bucket['object-events-enabled'])
+        self.env['BUCKETNAME_DPT76'] = 'custom-dpt76'
+        for _ in range(2):
+            self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main ds DPT76')
+            function = next(f for f in self.state['functions'] if f['display-name'] == 'DPT76OpenDataSource')
+            self.assertEqual(function['config']['BUCKETNAME'], 'custom-dpt76')
+            self.assertEqual(json.loads(function['config']['DATA_SOURCE_SETTINGS']), settings)
+            self.assertEqual(function['defined-tags'], {'TraficInfo': {'DataSourceSchedule': 'Monthly'}})
+        self.script('invoke.sh', 'ds', 'DPT76')
+        result = self.script('invoke.sh', 'geojson', 'DPT76', success=False)
+        self.assertIn('GeoJSON is not enabled for DPT76', result.stderr)
+        calls_before_events = len(self.state.get('calls', []))
+        self.script('setup-events.sh')
+        self.assertEqual(len(self.state.get('calls', [])), calls_before_events)
+        self.assertFalse(any('DPT76' in rule['display-name'] for rule in self.state['rules']))
 
     def test_nim_defaults_and_download_only_routing(self):
         source = json.loads(self.common('get_data_source NIM').stdout)
@@ -548,7 +577,7 @@ class OciScriptsTest(unittest.TestCase):
                     self.state['writes'] = []
                     self.save()
                 self.deploy()
-                self.assertEqual(len(self.state['writes']), 10)
+                self.assertEqual(len(self.state['writes']), 12)
                 functions = {f['display-name']: f for f in self.state['functions']}
                 self.assertEqual(functions['OSMInfoFunction']['config'],
                                  {'NAMESPACE': 'testnamespace', 'BUCKETNAME_OSM': 'osminfo',

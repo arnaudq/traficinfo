@@ -17,6 +17,7 @@ functions=(
   'MMM|ds|org.traficinfo.dsfunctions.m3m.DataSourceFunction::handleRequest'
   'DPT34|ds|org.traficinfo.dsfunctions.dpt34.DataSourceFunction::handleRequest'
   'DPT30|ds|org.traficinfo.dsfunctions.dpt30.DataSourceFunction::handleRequest'
+  'DPT76|ds|org.traficinfo.dsfunctions.dpt76.DataSourceFunction::handleRequest'
   'MRN|ds|org.traficinfo.dsfunctions.mrn.DataSourceFunction::handleRequest'
   'NIM|ds|org.traficinfo.dsfunctions.nim.DataSourceFunction::handleRequest'
   'MMM|geojson|org.traficinfo.dsfunctions.m3m.GeoJsonOutFunction::handleRequest'
@@ -104,6 +105,7 @@ input_bucket_for_source() {
     MMM) bucket="${BUCKETNAME_IN:-$bucket}" ;;
     DPT34) bucket="${BUCKETNAME_DPT34:-$bucket}" ;;
     DPT30) bucket="${BUCKETNAME_DPT30:-$bucket}" ;;
+    DPT76) bucket="${BUCKETNAME_DPT76:-$bucket}" ;;
     MRN) bucket="${BUCKETNAME_MRN:-$bucket}" ;;
     NIM) bucket="${BUCKETNAME_NIM:-$bucket}" ;;
   esac

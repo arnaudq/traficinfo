@@ -3,6 +3,7 @@ package org.traficinfo.dsfunctions;
 import jakarta.ws.rs.client.Client;
 import jakarta.ws.rs.client.ClientBuilder;
 import jakarta.ws.rs.client.Invocation;
+import jakarta.ws.rs.core.EntityTag;
 import jakarta.ws.rs.core.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,10 +51,11 @@ public class HttpClient implements Closeable {
         try {
             switch (response.getStatus()) {
                 case 200:
-                    if (response.getEntityTag() == null) {
+                    EntityTag entityTag = usableEntityTag(response);
+                    if (entityTag == null) {
                         return hashResponse(response, etag);
                     }
-                    return new EntityBody(response.getEntityTag().getValue(),
+                    return new EntityBody(entityTag.getValue(),
                             response.getLastModified(),
                             response.readEntity(InputStream.class), response, null);
                 case 304:
@@ -70,6 +72,17 @@ public class HttpClient implements Closeable {
                 throw (IOException) failure;
             }
             throw new IOException("Failed to read " + url.toASCIIString(), failure);
+        }
+    }
+
+    private static EntityTag usableEntityTag(Response response) {
+        try {
+            return response.getEntityTag();
+        } catch (IllegalArgumentException invalid) {
+            // Some publishers send an unquoted ETag. Treat it like a missing validator
+            // rather than losing a successful download or forwarding a malformed tag.
+            LOG.warn("Invalid HTTP ETag; using SHA-256 content change detection");
+            return null;
         }
     }
 

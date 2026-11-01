@@ -17,6 +17,54 @@ import static org.junit.Assert.*;
 public class HttpClientTest {
 
     @Test
+    public void malformedServerEtagsUseContentHashesInsteadOfFailingTheDownload() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        AtomicReference<String> serverEtag = new AtomicReference<>("sd1099_-1549957653");
+        AtomicReference<byte[]> content = new AtomicReference<>("geojson content".getBytes(StandardCharsets.UTF_8));
+        AtomicReference<String> conditionalHeader = new AtomicReference<>();
+        server.createContext("/geojson", exchange -> {
+            conditionalHeader.set(exchange.getRequestHeaders().getFirst("If-None-Match"));
+            exchange.getResponseHeaders().set("ETag", serverEtag.get());
+            exchange.getResponseHeaders().set("Last-Modified", "Fri, 16 Oct 2026 10:00:00 GMT");
+            byte[] bytes = content.get();
+            exchange.sendResponseHeaders(200, bytes.length);
+            try (var output = exchange.getResponseBody()) {
+                output.write(bytes);
+            }
+        });
+        server.start();
+        try (HttpClient client = new HttpClient()) {
+            URI uri = URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/geojson");
+            String expectedHash = "sha256:" + HexFormat.of().formatHex(
+                    MessageDigest.getInstance("SHA-256").digest(content.get()));
+            for (String malformed : new String[]{"sd1099_-1549957653", "W/unquoted"}) {
+                serverEtag.set(malformed);
+                OOSResourceMetadata metadata = new OOSResourceMetadata();
+                try (HttpClient.EntityBody body = client.get(uri, null)) {
+                    assertEquals(expectedHash, body.getEtag());
+                    assertEquals(LocalDate.of(2026, 10, 16), body.getLastModified());
+                    assertArrayEquals(content.get(), body.getInputStream().readAllBytes());
+                    metadata.setETag(body.getEtag());
+                }
+                try (HttpClient.EntityBody body = client.get(uri, metadata.getETag())) {
+                    assertNull(body.getInputStream());
+                    assertEquals(expectedHash, body.getEtag());
+                }
+                assertNull(conditionalHeader.get());
+            }
+            content.set("changed geojson".getBytes(StandardCharsets.UTF_8));
+            try (HttpClient.EntityBody body = client.get(uri, expectedHash)) {
+                assertNotEquals(expectedHash, body.getEtag());
+                assertTrue(body.getEtag().startsWith("sha256:"));
+                assertArrayEquals(content.get(), body.getInputStream().readAllBytes());
+            }
+            assertNull(conditionalHeader.get());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     public void followsResourceRedirectAndForwardsConditionalEtag() throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         String etag = "\"gard-csv-version\"";
