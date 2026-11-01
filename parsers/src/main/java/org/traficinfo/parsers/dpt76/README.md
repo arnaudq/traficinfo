@@ -6,7 +6,7 @@ It reads UTF-8 GeoJSON (optional BOM), not CSV.
 
 ## Source and identifiers
 
-The source is [Localisation des points de comptages routiers CD76 2022](https://www.data.gouv.fr/datasets/localisation-des-points-de-comptages-routiers-cd76-2022),
+The source is [Localisation des points de comptages routiers CD76 2022](https://www.opendata76.fr/datasets/seine-maritime::localisation-des-points-de-comptages-routiers-cd76-2022/about),
 available from the [ArcGIS GeoJSON query](https://services-eu1.arcgis.com/Nt9PzCzX9tz2k5Lq/arcgis/rest/services/Localisation_Comptage_2022/FeatureServer/0/query?outFields=*&where=1%3D1&f=geojson).
 The inspected response contains 357 records for 2022, including 352 points and
 five null geometries. There are 243 distinct `Code_stat_` values; repeated

@@ -24,12 +24,14 @@ public record PreprocessingSettings(DataSourceSettings source, String datasetUrl
                 || years.stream().anyMatch(year -> year < 1900 || year > Year.now().getValue())) {
             throw new IllegalArgumentException("Expected distinct, explicit preprocessing years");
         }
-        PreprocessingSource.forId(source.dataSourceId());
-        long csvInputs = source.inputs().stream().filter(input -> input.contentType().equals("text/csv")).count();
+        PreprocessingSource parser = PreprocessingSource.forId(source.dataSourceId());
+        long countsInputs = source.inputs().stream()
+                .filter(input -> input.contentType().equals(parser.countsContentType)).count();
         boolean mmm = source.dataSourceId().equals("MMM");
-        if (csvInputs != 1 || source.inputs().size() != (mmm ? 2 : 1)
+        if (countsInputs != 1 || source.inputs().size() != (mmm ? 2 : 1)
                 || (mmm && source.inputs().stream().noneMatch(input -> input.objectName().endsWith(".json")))) {
-            throw new IllegalArgumentException("Expected one counts CSV and, for MMM, one companion geometry input");
+            throw new IllegalArgumentException("Expected one counts input of type " + parser.countsContentType
+                    + " and, for MMM, one companion geometry input");
         }
     }
 

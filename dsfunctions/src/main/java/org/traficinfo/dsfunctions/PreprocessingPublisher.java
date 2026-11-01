@@ -155,10 +155,10 @@ public final class PreprocessingPublisher {
             }
 
             // Parse source-specific counts and attach companion geometry for MMM.
-            DataSourceSettings.Input csv = source.inputs().stream()
-                    .filter(input -> input.contentType().equals("text/csv")).findFirst().orElseThrow();
+            DataSourceSettings.Input countsInput = source.inputs().stream()
+                    .filter(input -> input.contentType().equals(parser.countsContentType)).findFirst().orElseThrow();
             List<? extends Comptage> counts;
-            try (Reader reader = reader(files.get(csv.objectName()))) {
+            try (Reader reader = reader(files.get(countsInput.objectName()))) {
                 counts = parser.parser.getParser().parseComptages(reader, new Properties());
             }
             if (parser == PreprocessingSource.MMM) {

@@ -894,9 +894,8 @@ in one response; pagination is not implemented by the shared downloader.
 Deployment passes mandatory `DATA_SOURCE_SETTINGS`, `NAMESPACE` and
 `BUCKETNAME` configuration. `USE_RESOURCE_PRINCIPAL` defaults to `true`.
 DPT76 selects the Monthly retrieval tag. Its `geoJsonEnabled: false` setting
-keeps downstream event setup disabled: preprocessing still requires a counts
-CSV, so the DPT76 parser is not yet connected to manifest publication or the
-final GeoJSON output handler.
+keeps downstream event setup disabled. DPT76 preprocessing is available through
+the shared handler; the final GeoJSON output handler is not yet registered.
 
 After `source ./scripts/setup.sh`:
 
@@ -907,12 +906,39 @@ After `source ./scripts/setup.sh`:
 ./scripts/invoke.sh ds DPT76
 ```
 
-These commands download the raw source only. Do not deploy DPT76 preprocessing
-or GeoJSON output until those stages support the new source format.
+After the source has been downloaded, deploy and invoke preprocessing manually:
+
+```sh
+./scripts/deploy-functions.sh preprocess DPT76
+./scripts/invoke.sh preprocess DPT76
+```
+
+Preprocessing reads `DPT76_Comptage_2022.geojson` from the configured source
+bucket, uses `DPT76ComptageParser`, and publishes the 2022 yearly counts under
+an immutable `data/<revision>/DPT76_Comptage_2022.json` path. It publishes
+`DPT76_Manifest.json` last, recording the input format as `GEOJSON` with no CSV
+headers. Records retain `DPT76_<FID>` identity, traffic attributes and WGS84
+geometry; records with null geometry or missing counts remain in yearly storage.
+Only the configured year scope `[2022]` is processed. The original downloaded
+GeoJSON is not modified. Reordering features or repeating an unchanged run does
+not republish yearly data or the manifest. Malformed, duplicate-FID or explicitly
+truncated input fails before replacing an existing publication.
+
+CSV sources retain their CSV header checks. Each preprocessing source selects
+its counts input by the expected content type: `application/geo+json` for DPT76,
+`text/csv` for existing sources. DPT76 requires exactly one GeoJSON input, with
+no companion CSV. Locking, checksums, provenance validation, readback checks and
+retention of previously published years use the shared publication logic.
+
+Do not deploy DPT76 GeoJSON output until that handler is implemented. There is
+no automatic preprocessing schedule or event wiring in this change.
 
 Tests use fake HTTP and storage clients, including Fn runtime configuration,
 first/unchanged downloads, dated archives, download failures and archive
 failures. Shell tests cover deployment, invocation, scheduling tags, explicit
-GeoJSON input names and disabled event routing, without cloud changes.
+GeoJSON input names, preprocessing deployment/invocation and disabled event
+routing, without cloud changes. Preprocessing tests cover Fn configuration,
+manifest round trips, null measures and geometry, repeated station codes,
+year scope, unchanged retries and preservation of the manifest on failure.
 Run `mvn -o -pl dsfunctions -am test` and
 `python3 -m unittest discover -s tests -v` from the repository root.

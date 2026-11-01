@@ -13,6 +13,7 @@ enum PreprocessingSource {
             List.of("code_centrale", "annee", "mja_jo", "type_compteur")),
     DPT30(GeoJsonParser.DataSource.DPT30, ',',
             List.of("id_tmja", "annee", "tmja_tous_vehicules")),
+    DPT76(GeoJsonParser.DataSource.DPT76, "application/geo+json"),
     DPT34(GeoJsonParser.DataSource.DPT34, ';',
             List.of("Identifiant du compteur", "Année", "mja_tv_tcj")),
     MRN(GeoJsonParser.DataSource.MRN, ';',
@@ -23,12 +24,21 @@ enum PreprocessingSource {
     final GeoJsonParser.DataSource parser;
     final char separator;
     final List<String> requiredHeaders;
+    final String countsContentType;
     final String parserVersion = "1";
 
     PreprocessingSource(GeoJsonParser.DataSource parser, char separator, List<String> requiredHeaders) {
         this.parser = parser;
         this.separator = separator;
         this.requiredHeaders = requiredHeaders;
+        this.countsContentType = "text/csv";
+    }
+
+    PreprocessingSource(GeoJsonParser.DataSource parser, String countsContentType) {
+        this.parser = parser;
+        this.countsContentType = countsContentType;
+        this.separator = '\0';
+        this.requiredHeaders = List.of();
     }
 
     String headerKey(String header) {

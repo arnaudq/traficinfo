@@ -362,6 +362,25 @@ class OciScriptsTest(unittest.TestCase):
         self.assertEqual(len(self.state.get('calls', [])), calls_before_events)
         self.assertFalse(any('DPT76' in rule['display-name'] for rule in self.state['rules']))
 
+    def test_dpt76_preprocessing_deploys_geojson_settings_and_invokes_shared_handler(self):
+        config = json.loads(self.config_file.read_text())
+        self.config_file.write_text(json.dumps({'DPT76': config['DPT76']}))
+        settings = json.loads(self.common('preprocessing_settings "$(get_data_source DPT76)"').stdout)
+        self.assertEqual(settings['years'], [2022])
+        self.assertEqual(settings['source']['inputs'][0]['objectName'], 'DPT76_Comptage_2022.geojson')
+        self.assertEqual(settings['source']['inputs'][0]['contentType'], 'application/geo+json')
+        self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main preprocess DPT76')
+        function = next(f for f in self.state['functions'] if f['display-name'] == 'DPT76Preprocessing')
+        self.assertEqual(function['config']['BUCKETNAME'], 'dsdpt76')
+        self.assertEqual(json.loads(function['config']['PREPROCESSING_SETTINGS']), settings)
+        self.assertEqual(function['timeout-in-seconds'], 300)
+        self.assertTrue(any('--handler' in call and call[call.index('--handler') + 1]
+                            == 'org.traficinfo.dsfunctions.PreprocessingFunction::handleRequest'
+                            for call in self.state['calls']))
+        self.script('invoke.sh', 'preprocess', 'DPT76')
+        call = self.state['calls'][-1]
+        self.assertEqual(call[call.index('--function-id') + 1], function['id'])
+
     def test_nim_defaults_and_download_only_routing(self):
         source = json.loads(self.common('get_data_source NIM').stdout)
         settings = json.loads(self.common('data_source_settings "$(get_data_source NIM)"').stdout)
