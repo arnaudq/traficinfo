@@ -48,3 +48,26 @@ The JSON remains grouped by year. Each group contains record counts,
 with `+` for added values and `-` for deleted values.
 
 Run the module tests with `mvn -o -pl parsers test`.
+
+## Auditing missing count measurements
+
+Run the test-source main class `org.traficinfo.parsers.ComptageMeasurementProgram`
+with `datasource file` arguments, for example `MRN ~/Downloads/MRN_Comptage.csv`.
+With no arguments it uses that MRN file. Supported source IDs are `MMM`, `DPT34`,
+`DPT30`, `MRN` and `NIM` (enum names such as `M3MV2` also work).
+Compile with `mvn -o -pl parsers test-compile`, then run the main class with the
+module's test runtime classpath, for example through your IDE.
+
+The report groups parsed records by `VEHICULES`, `BICYCLES`, `PIETONS_VELOS` and
+`UNKNOWN`, with totals, positive-count records, missing-count records and their
+percentage. A significant count means a strictly positive shared daily average
+or morning/evening peak volume. MRN also checks all source TV/UVP TMJA, TMJO,
+HPM and HPS volumes. Blanks, zero and negative volumes do not qualify; speeds,
+percentages, evolution indicators and hour labels alone do not qualify.
+`No annual avg` separately counts records without a positive shared annual daily
+average (MRN's `TV_TMJA`), even when another volume exists. Other sources are
+checked through the shared model's daily average and peaks only.
+
+The audit includes every parsed record across all years and types, without
+merging repeated sites or applying map filters. Rows skipped by the source
+parser are excluded; parser warnings remain visible in the console.
