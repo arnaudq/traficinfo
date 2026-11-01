@@ -52,6 +52,25 @@
         }
       ],
       "uri": "http://umap.openstreetmap.fr/en/map/comptage-vehicules-nimes_1478574"
+    },
+    "MRN": {
+      "id": "MRN",
+      "name": "Comptages véhicules et vélos - Métropole Rouen Normandie",
+      "description": "Carte basée sur les données de comptage de véhicules et de vélos de la Métropole Rouen Normandie.",
+      "center": [
+        1.09266,
+        49.435218
+      ],
+      "zoom": 11,
+      "dataSources": [
+        {
+          "id": "MRN",
+          "types": [
+            "VEHICULES",
+            "BICYCLES"
+          ]
+        }
+      ]
     }
   }
 }

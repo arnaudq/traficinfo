@@ -4,7 +4,8 @@
 
 `mapconfig.json` defines maps and their ordered data source IDs from
 `dsconfig.json`. Run `./scripts/generate-map-templates.sh` after setup to generate
-the MMM (MMM + DPT34) and NIM (NIM + DPT30) uMap files. See the
+the MMM (MMM + DPT34), NIM (NIM + DPT30), and MRN (vehicles and bicycles)
+uMap files. See the
 [map template README](map-templates/README.md) for usage and customization.
 
 When importing a generated file into uMap, account for

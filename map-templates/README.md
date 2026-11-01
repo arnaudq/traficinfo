@@ -1,7 +1,10 @@
 # uMap templates
 
-`MMM.umap` and `NIM.umap` are generated, importable uMap files. MMM combines
-`MMM` and `DPT34`; NIM combines `NIM` and `DPT30`. A map ID is independent of
+`MMM.umap`, `NIM.umap`, and `MRN.umap` are generated, importable uMap files.
+MMM combines `MMM` and `DPT34`; NIM combines `NIM` and `DPT30`; MRN includes
+vehicle and bicycle counts from `MRN`. Its initial center uses the Quai Jean
+Moulin counter coordinates in `parsers/src/test/resources/MRNSample.csv`, at
+zoom 11. A map ID is independent of
 its data source IDs, so `MMM` can name both a map and a source.
 
 After the repository setup (`source ./scripts/setup.sh`), run:
@@ -44,7 +47,7 @@ Vehicles use
 `<sourceId>_TraficInfo.geojson` and inherit the map popup; bicycles use
 `<sourceId>_TraficInfo_BICYCLES.geojson` and a popup showing daily counts and
 history without speed fields. Publish the files referenced by the selected
-layers before importing the templates. MMM includes vehicles and bicycles;
+layers before importing the templates. MMM and MRN include vehicles and bicycles;
 DPT34, NIM and DPT30 include only vehicles.
 Layers use `"type": "Cluster"` by default, with uMap's default clustering
 radius. Set `layerProperties.<sourceId>.type` to `"Default"` in a map's
