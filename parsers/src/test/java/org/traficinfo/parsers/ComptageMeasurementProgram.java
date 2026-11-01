@@ -5,7 +5,6 @@ import org.traficinfo.parsers.mrn.MRNComptage;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
@@ -32,11 +31,7 @@ public final class ComptageMeasurementProgram {
   }
 
   static GeoJsonParser.DataSource dataSource(String argument) {
-    return Arrays.stream(GeoJsonParser.DataSource.values())
-        .filter(source -> source.getId().equalsIgnoreCase(argument)
-            || source.name().equalsIgnoreCase(argument))
-        .findFirst().orElseThrow(() -> new IllegalArgumentException(
-            "Unknown data source: " + argument + "; expected MMM, DPT34, DPT30, MRN or NIM"));
+    return GeoJsonParser.DataSource.fromId(argument);
   }
 
   private static Path expandHome(String argument) {

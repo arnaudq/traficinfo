@@ -1,12 +1,9 @@
 package org.traficinfo.parsers;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.traficinfo.parsers.m3m.M3MComptageParser;
-import org.traficinfo.parsers.m3m.M3MComptage;
 
 import java.io.IOException;
 import java.io.PrintStream;
-import java.io.Reader;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -18,8 +15,9 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.Properties;
 
-/** Run manually with no arguments for the two MMM snapshots in ~/Downloads. */
+/** Compare snapshots for any registered data source; no arguments use the configured MRN snapshots. */
 public final class ComptageDiffProgram {
   private static final List<String> SUMMARY_FIELDS = List.of("meanSpeed", "moyenneHeureDePointeMatin",
       "moyenneHeureDePointeSoir", "moyenneJourAnnuelle", "v85Speed");
@@ -27,27 +25,29 @@ public final class ComptageDiffProgram {
   private ComptageDiffProgram() {
   }
 
-  /** Optionally supply CSV paths, comma-separated years, and an output JSON path. */
+  /** Supply a data source ID, CSV paths, optional years and optional output path. */
   public static void main(String[] args) throws IOException {
-    if (args.length != 0 && args.length != 2 && args.length != 3 && args.length != 4) {
-      throw new IllegalArgumentException("Usage: ComptageDiffProgram [before.csv after.csv [2024,2025 [diff.json]]]");
+    if (args.length != 0 && args.length != 3 && args.length != 4 && args.length != 5) {
+      throw new IllegalArgumentException(
+          "Usage: ComptageDiffProgram [datasource before.csv after.csv [2024,2025 [diff.json]]]");
     }
+    GeoJsonParser.DataSource source = GeoJsonParser.DataSource.fromId(args.length == 0 ? "MRN" : args[0]);
     Path downloads = Path.of(System.getProperty("user.home"), "Downloads");
-    Path before = args.length >= 2 ? Path.of(args[0])
-        : downloads.resolve("MMM_MMM_Comptage_20221031.csv");
-    Path after = args.length >= 2 ? Path.of(args[1])
-        : downloads.resolve("MMM_MMM_Comptage_20240312.csv");
-    Set<Integer> years = args.length >= 3 ? parseYears(args[2]) : Set.of(2011,2012,2013,2014,2015,2016,2017,2018,2019,2020,2021);
-    List<ComptageDiffer.Diff> differences = ComptageDiffer.diff(
-        filterYears(parse(before), years), filterYears(parse(after), years),
-        M3MComptage::getCodeCanal);
+    Path before = args.length >= 3 ? expandHome(args[1])
+        : downloads.resolve("MRN_Comptage_20261022.csv");
+    Path after = args.length >= 3 ? expandHome(args[2])
+        : downloads.resolve("MRN_Comptage.csv");
+    Set<Integer> years = args.length >= 4 ? parseYears(args[3]) : Set.of();
+    List<ComptageDiffer.Diff> differences = ComptageDiffer.diff(source,
+        filterYears(parse(source, before), years), filterYears(parse(source, after), years));
+    System.out.println("Data source: " + source.getId());
     System.out.println("Before: " + before);
     System.out.println("After: " + after);
     if (!years.isEmpty()) {
       System.out.println("Years: " + years);
     }
     printSummary(differences, System.out);
-    Path output = args.length == 4 ? Path.of(args[3]) : downloads.resolve("diff.json");
+    Path output = args.length == 5 ? expandHome(args[4]) : downloads.resolve("diff.json");
     try (Writer writer = Files.newBufferedWriter(output, StandardCharsets.UTF_8)) {
       writeDiff(differences, writer);
     }
@@ -107,10 +107,13 @@ public final class ComptageDiffProgram {
     return counts;
   }
 
-  private static List<M3MComptage> parse(Path file) throws IOException {
-    try (Reader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
-      return new M3MComptageParser().parseComptages(reader);
-    }
+  private static List<? extends Comptage> parse(GeoJsonParser.DataSource source, Path file) throws IOException {
+    return source.getParser().parseComptages(file.toFile(), new Properties());
+  }
+
+  private static Path expandHome(String argument) {
+    return argument.startsWith("~/")
+        ? Path.of(System.getProperty("user.home"), argument.substring(2)) : Path.of(argument);
   }
 
   static Set<Integer> parseYears(String argument) {
@@ -129,7 +132,7 @@ public final class ComptageDiffProgram {
     return years;
   }
 
-  static List<M3MComptage> filterYears(List<M3MComptage> records, Set<Integer> years) {
+  static <T extends Comptage> List<T> filterYears(List<T> records, Set<Integer> years) {
     return years.isEmpty() ? records : records.stream()
         .filter(record -> years.contains(record.getAnnee())).toList();
   }

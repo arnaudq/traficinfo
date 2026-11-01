@@ -15,22 +15,31 @@ and `/uploads/pictogram/bicycle.svg`) per population.
 The model also supports `PIETONS_VELOS` (mixed pedestrian and bicycle counts)
 and `UNKNOWN`; these remain excluded by the export's existing type filter.
 
-## Comparing MMM snapshots
+## Comparing data-source snapshots
 
 Run the test-source main class `org.traficinfo.parsers.ComptageDiffProgram`
 with these arguments:
 
 ```text
-before.csv after.csv [2020,2022,2024 [output.json]]
+datasource before.csv after.csv [2020,2022,2024 [output.json]]
 ```
 
-The optional third argument selects the exact years to compare on both sides;
-omitting it uses the configured default years (currently 2011–2021). Spaces around years and repeated years are
-accepted. The optional output path is the fourth argument and defaults to
-`~/Downloads/diff.json`. With no arguments, the program uses its configured
-snapshot filenames in Downloads.
+The first argument selects the parser: `MMM`, `DPT34`, `DPT30`, `MRN`, or `NIM`.
+IDs are case-insensitive; enum names such as `M3MV2` also work. For example:
 
-Records match by central code, year and MMM channel code. Duplicate keys log a
+```text
+MRN ~/Downloads/MRN_Comptage_20261022.csv ~/Downloads/MRN_Comptage.csv 2025,2026
+```
+
+The optional fourth argument selects the exact years to compare on both sides;
+omitting it compares all years. Spaces around years and repeated years are
+accepted. The optional output path is the fifth argument and defaults to
+`~/Downloads/diff.json`. Paths starting with `~/` are expanded. With no arguments,
+the program uses its configured MRN snapshot filenames in Downloads.
+
+`ComptageDiffer.diff(source, before, after)` selects the matching key automatically:
+MMM uses central code, year and channel code; the other sources use central code
+and year. Records must belong to the selected source. Duplicate keys log a
 warning and retain the first record. `ComptageDiffer.IGNORED_FIELDS` currently
 contains only `altStreetName`; changes to that field alone produce no diff.
 The full source objects retain the field when other changes are reported.

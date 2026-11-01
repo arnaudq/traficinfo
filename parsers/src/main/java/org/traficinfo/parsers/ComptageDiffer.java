@@ -2,6 +2,7 @@ package org.traficinfo.parsers;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.traficinfo.parsers.m3m.M3MComptage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -99,6 +100,24 @@ public final class ComptageDiffer {
    */
   public static List<Diff> diff(List<? extends Comptage> before, List<? extends Comptage> after) {
     return diff(before, after, Comptage::getDirectionType);
+  }
+
+  /** Matches MMM by channel; other sources encode identity in central code and year. */
+  public static List<Diff> diff(GeoJsonParser.DataSource source,
+                                List<? extends Comptage> before, List<? extends Comptage> after) {
+    Objects.requireNonNull(source, "Data source is required");
+    validateSource(source, before);
+    validateSource(source, after);
+    return diff(before, after, source == GeoJsonParser.DataSource.M3MV2
+        ? count -> ((M3MComptage) count).getCodeCanal() : count -> null);
+  }
+
+  private static void validateSource(GeoJsonParser.DataSource source, List<? extends Comptage> records) {
+    for (Comptage record : records) {
+      if (!source.getDsComptageClass().isInstance(record)) {
+        throw new IllegalArgumentException("Expected " + source.getId() + " comptages, got: " + record);
+      }
+    }
   }
 
   /** Uses a source-specific discriminator, such as M3MComptage::getCodeCanal. */

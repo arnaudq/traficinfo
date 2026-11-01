@@ -46,6 +46,16 @@ public class GeoJsonParser {
             return id;
         }
 
+        /** Resolves published source IDs or enum names, without case sensitivity. */
+        public static DataSource fromId(String identifier) {
+            return Arrays.stream(values())
+                .filter(source -> source.id.equalsIgnoreCase(identifier)
+                    || source.name().equalsIgnoreCase(identifier))
+                .findFirst().orElseThrow(() -> new IllegalArgumentException(
+                    "Unknown data source: " + identifier + "; expected "
+                        + Arrays.stream(values()).map(DataSource::getId).collect(Collectors.joining(", "))));
+        }
+
         public Class<? extends Comptage> getDsComptageClass() {
             return dsComptageClass;
         }

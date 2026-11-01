@@ -61,11 +61,11 @@ public class ComptageDifferTest {
     afterOne.setCodeCanal("1");
 
     assertEquals(List.of(new ComptageDiffer.Diff(beforeZero, afterZero)),
-        ComptageDiffer.diff(List.of(beforeZero, beforeOne), List.of(afterOne, afterZero),
-            M3MComptage::getCodeCanal));
+        ComptageDiffer.diff(GeoJsonParser.DataSource.M3MV2,
+            List.of(beforeZero, beforeOne), List.of(afterOne, afterZero)));
     assertEquals(List.of(new ComptageDiffer.Diff(beforeZero, null),
         new ComptageDiffer.Diff(null, afterOne)),
-        ComptageDiffer.diff(List.of(beforeZero), List.of(afterOne), M3MComptage::getCodeCanal));
+        ComptageDiffer.diff(GeoJsonParser.DataSource.M3MV2, List.of(beforeZero), List.of(afterOne)));
   }
 
   @Test
