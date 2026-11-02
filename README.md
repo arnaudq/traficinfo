@@ -46,6 +46,31 @@ argument parsing. Deployment permits missing functions so it can create them;
 invocation and event setup require existing active functions. Duplicate matches
 and failed lookups are errors.
 
+## Functions application
+
+Run `./scripts/setup-application.sh` to set the existing Functions application's
+logging line format to JSON. OCI then parses the JSON emitted by the Java
+functions as structured fields under `data.message`, including
+`data.message.mdc.datasourceId` and `data.message.mdc.stage`.
+This is an application logging property, not an environment variable in
+the application's `config` map. See
+[OCI structured logging](https://blogs.oracle.com/cloud-infrastructure/structured-logging-in-oci-functions).
+
+```sh
+source ./scripts/setup.sh
+./scripts/setup-application.sh --dry-run
+./scripts/setup-application.sh
+```
+
+The script uses the shared `OCI_COMPARTMENT_ID` and `OCI_FN_APPLICATION_NAME`
+(`3MOpenDataProcessor` for now), with `OCI_FN_APPLICATION_ID` as an optional
+lookup override. It validates the existing application, skips an already applied
+setting, waits for updates and verifies the result. It only manages
+`logging.lineFormat`; it does not create or rename the application, deploy
+functions, enable log collection, or change log groups and retention.
+Function Invocation Logs must already be enabled to collect the output.
+The script can be extended to manage application creation in a future change.
+
 ## Object Storage buckets
 
 Run `./scripts/setup-buckets.sh` to create or update the configured input buckets and
