@@ -58,10 +58,12 @@ public abstract class AbstractDataSourceFunction {
     }
 
     public final String handleRequest(String input) {
-        if (settings == null || httpClient == null || objectStore == null) {
-            throw new IllegalStateException("Datasource function has not been configured");
+        try (var logging = LoggingContext.forSource("retrieval", dataSourceId)) {
+            if (settings == null || httpClient == null || objectStore == null) {
+                throw new IllegalStateException("Datasource function has not been configured");
+            }
+            new SourceObjectPublisher(httpClient, objectStore).publish(settings);
+            return "OK";
         }
-        new SourceObjectPublisher(httpClient, objectStore).publish(settings);
-        return "OK";
     }
 }

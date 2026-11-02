@@ -33,22 +33,24 @@ public class PreprocessingFunction {
     }
 
     public String handleRequest(String input) {
-        if (settings == null || storage == null) throw new IllegalStateException("Preprocessing function has not been configured");
-        try {
-            PreprocessingPublisher publisher = new PreprocessingPublisher(storage);
-            if (input == null || input.isBlank()) {
-                publisher.publish(settings);
-            } else {
-                ArchiveRequest request = new ObjectMapper().enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
-                        .readValue(input, ArchiveRequest.class);
-                if (request == null || request.archive() == null) {
-                    throw new IllegalArgumentException("Expected an archive preprocessing request");
+        try (var logging = LoggingContext.forSource("preprocess", settings == null ? null : settings.source().dataSourceId())) {
+            if (settings == null || storage == null) throw new IllegalStateException("Preprocessing function has not been configured");
+            try {
+                PreprocessingPublisher publisher = new PreprocessingPublisher(storage);
+                if (input == null || input.isBlank()) {
+                    publisher.publish(settings);
+                } else {
+                    ArchiveRequest request = new ObjectMapper().enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+                            .readValue(input, ArchiveRequest.class);
+                    if (request == null || request.archive() == null) {
+                        throw new IllegalArgumentException("Expected an archive preprocessing request");
+                    }
+                    publisher.publishArchive(request.archive(), settings);
                 }
-                publisher.publishArchive(request.archive(), settings);
+                return "OK";
+            } catch (IOException failure) {
+                throw new UncheckedIOException("Preprocessing failed for " + settings.source().dataSourceId(), failure);
             }
-            return "OK";
-        } catch (IOException failure) {
-            throw new UncheckedIOException("Preprocessing failed for " + settings.source().dataSourceId(), failure);
         }
     }
 

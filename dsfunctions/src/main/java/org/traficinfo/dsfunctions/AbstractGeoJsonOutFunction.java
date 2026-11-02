@@ -72,30 +72,32 @@ public abstract class AbstractGeoJsonOutFunction {
     }
 
     public final String handleRequest(String input) {
-        try {
-            var comptages = new ManifestComptageReader(inputClient).read(source.getDataSourceId());
-            osmInfoProvider.loadCache();
-            for (Comptage.Type type : List.of(Comptage.Type.VEHICULES, Comptage.Type.BICYCLES)) {
-                Path mergedFile = Files.createTempFile(source.getDataSourceId() + "-geojson-", ".geojson");
-                try {
-                    try (Writer geojsonMergedWriter = Files.newBufferedWriter(mergedFile, StandardCharsets.UTF_8)) {
-                        GeoJsonParser.writeGeoJson(source.getParserDataSource(), comptages,
-                                new FeatureCollection(), geojsonMergedWriter, osmInfoProvider, type);
+        try (var logging = LoggingContext.forSource("geojson", source.getDataSourceId())) {
+            try {
+                var comptages = new ManifestComptageReader(inputClient).read(source.getDataSourceId());
+                osmInfoProvider.loadCache();
+                for (Comptage.Type type : List.of(Comptage.Type.VEHICULES, Comptage.Type.BICYCLES)) {
+                    Path mergedFile = Files.createTempFile(source.getDataSourceId() + "-geojson-", ".geojson");
+                    try {
+                        try (Writer geojsonMergedWriter = Files.newBufferedWriter(mergedFile, StandardCharsets.UTF_8)) {
+                            GeoJsonParser.writeGeoJson(source.getParserDataSource(), comptages,
+                                    new FeatureCollection(), geojsonMergedWriter, osmInfoProvider, type);
+                        }
+                        try (InputStream mergedInput = Files.newInputStream(mergedFile)) {
+                            outputClient.putResource(source.getGeoJsonObjectName(type), "application/geo+json",
+                                    new OOSResourceMetadata(), mergedInput);
+                        }
+                    } finally {
+                        Files.deleteIfExists(mergedFile);
                     }
-                    try (InputStream mergedInput = Files.newInputStream(mergedFile)) {
-                        outputClient.putResource(source.getGeoJsonObjectName(type), "application/geo+json",
-                                new OOSResourceMetadata(), mergedInput);
-                    }
-                } finally {
-                    Files.deleteIfExists(mergedFile);
                 }
+                osmInfoProvider.refreshCache();
+                return "OK";
+            } catch (Exception failure) {
+                LOG.warn("Error while generating {} GeoJSON: {}", source.getDataSourceId(),
+                        failure.getMessage(), failure);
+                throw new IllegalStateException("GeoJSON generation failed for " + source.getDataSourceId(), failure);
             }
-            osmInfoProvider.refreshCache();
-            return "OK";
-        } catch (Exception failure) {
-            LOG.warn("Error while generating {} GeoJSON: {}", source.getDataSourceId(),
-                    failure.getMessage(), failure);
-            throw new IllegalStateException("GeoJSON generation failed for " + source.getDataSourceId(), failure);
         }
     }
 }

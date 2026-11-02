@@ -98,6 +98,12 @@ public class OSMInfoFunction {
     }
 
     public String handleRequest(String input) {
+        try (var logging = LoggingContext.forSource("osminfo", null)) {
+            return refreshMappings();
+        }
+    }
+
+    private String refreshMappings() {
         int caches = 0;
         int failures = 0;
         boolean completeReview = false;
@@ -115,18 +121,20 @@ public class OSMInfoFunction {
                     continue;
                 }
                 String datasourceName = osResourceName.substring(0, osResourceName.length() - MAPPING_SUFFIX.length());
-                OSMInfoProviderImpl osmProvider = new OSMInfoProviderImpl(osmCacheOSClient,
-                        osmClient, datasourceName + "_OSMInfo.json", osResourceName);
-                try {
-                    osmProvider.loadCache();
-                    osmProvider.applyReviewedWayMappings(reviewed.getOrDefault(datasourceName, Map.of()));
-                    osmProvidersMap.put(datasourceName, osmProvider);
-                    LOG.info("OSM way mapping cache {}: {} unknown entries out of {} entries",
-                            osResourceName, osmProvider.getUnknownWayMappingCount(), osmProvider.getWayMappingCount());
-                    LOG.info("OSM info cache {}_OSMInfo.json: {} entries", datasourceName, osmProvider.getWayInfoCount());
-                } catch (Exception failure) {
-                    failures++;
-                    LOG.warn("Could not load or apply reviews to OSM way mapping cache {}", osResourceName, failure);
+                try (var sourceLogging = LoggingContext.forSource("osminfo", datasourceName)) {
+                    OSMInfoProviderImpl osmProvider = new OSMInfoProviderImpl(osmCacheOSClient,
+                            osmClient, datasourceName + "_OSMInfo.json", osResourceName);
+                    try {
+                        osmProvider.loadCache();
+                        osmProvider.applyReviewedWayMappings(reviewed.getOrDefault(datasourceName, Map.of()));
+                        osmProvidersMap.put(datasourceName, osmProvider);
+                        LOG.info("OSM way mapping cache {}: {} unknown entries out of {} entries",
+                                osResourceName, osmProvider.getUnknownWayMappingCount(), osmProvider.getWayMappingCount());
+                        LOG.info("OSM info cache {}_OSMInfo.json: {} entries", datasourceName, osmProvider.getWayInfoCount());
+                    } catch (Exception failure) {
+                        failures++;
+                        LOG.warn("Could not load or apply reviews to OSM way mapping cache {}", osResourceName, failure);
+                    }
                 }
             }
             // Preserve shuffled resource order when sharing indivisible remainder requests.
@@ -159,26 +167,28 @@ public class OSMInfoFunction {
                     continue;
                 }
                 String datasourceName = osResourceName.substring(0, osResourceName.length() - MAPPING_SUFFIX.length());
-                OSMInfoProviderImpl osmProvider = osmProvidersMap.get(datasourceName);
-                if (osmProvider == null) {
-                    LOG.info("Skipping OSM resource {} for data source {}: no loaded OSM provider",
-                            osResourceName, datasourceName);
-                    continue;
-                }
-                try {
-                    osmProvider.refreshWayMappings(reverseLookupAllocations.getOrDefault(datasourceName, 0));
-                    osmProvider.refreshWayInfo();
-                    caches++;
-                } catch (InterruptedException interrupted) {
-                    Thread.currentThread().interrupt();
-                    failures++;
-                    LOG.warn("OSM mapping refresh interrupted", interrupted);
-                    break;
-                } catch (Exception failure) {
-                    failures++;
-                    // Do not replace the review file if mapping persistence may have failed.
-                    completeReview = false;
-                    LOG.warn("Could not refresh OSM way mapping cache {}", osResourceName, failure);
+                try (var sourceLogging = LoggingContext.forSource("osminfo", datasourceName)) {
+                    OSMInfoProviderImpl osmProvider = osmProvidersMap.get(datasourceName);
+                    if (osmProvider == null) {
+                        LOG.info("Skipping OSM resource {} for data source {}: no loaded OSM provider",
+                                osResourceName, datasourceName);
+                        continue;
+                    }
+                    try {
+                        osmProvider.refreshWayMappings(reverseLookupAllocations.getOrDefault(datasourceName, 0));
+                        osmProvider.refreshWayInfo();
+                        caches++;
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                        failures++;
+                        LOG.warn("OSM mapping refresh interrupted", interrupted);
+                        break;
+                    } catch (Exception failure) {
+                        failures++;
+                        // Do not replace the review file if mapping persistence may have failed.
+                        completeReview = false;
+                        LOG.warn("Could not refresh OSM way mapping cache {}", osResourceName, failure);
+                    }
                 }
             }
         } catch (Exception failure) {
@@ -188,11 +198,13 @@ public class OSMInfoFunction {
         Map<String, Map<String, OSMWayMapping>> review = new TreeMap<>();
         for (Map.Entry<String, OSMInfoProviderImpl> entry : osmProvidersMap.entrySet()) {
             String datasourceName = entry.getKey();
-            OSMInfoProviderImpl osmProvider = entry.getValue();
-            LOG.info("OSM mapping statuses for {} processed records: {}", datasourceName,
-                    osmProvider.getProcessedWayMappingStatusCounts());
-            LOG.info("OSM mapping statuses for {} all records: {}", datasourceName, osmProvider.getWayMappingStatusCounts());
-            review.put(datasourceName, osmProvider.getWayMappingsNeedingReview());
+            try (var sourceLogging = LoggingContext.forSource("osminfo", datasourceName)) {
+                OSMInfoProviderImpl osmProvider = entry.getValue();
+                LOG.info("OSM mapping statuses for {} processed records: {}", datasourceName,
+                        osmProvider.getProcessedWayMappingStatusCounts());
+                LOG.info("OSM mapping statuses for {} all records: {}", datasourceName, osmProvider.getWayMappingStatusCounts());
+                review.put(datasourceName, osmProvider.getWayMappingsNeedingReview());
+            }
         }
         if (completeReview) {
             try {

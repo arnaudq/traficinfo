@@ -14,6 +14,28 @@ The source function checks and publishes `MMM_MMM_Comptage.json` before
 triggers downstream processing. A JSON download or upload failure stops the
 invocation before the CSV is published and is reported as a function failure.
 
+## Logging
+
+Functions emit one JSON event per line to standard output using SLF4J 2.0.20
+and Logback 1.6.6. `src/main/resources/logback.xml` configures the console
+appender and INFO threshold. Existing SLF4J calls, including shared parser and
+storage logs, use the same encoder; messages and exceptions are JSON-escaped.
+The rendered message is in `formattedMessage`, and exception details are in
+`throwable`. Events retain one epoch-millisecond `timestamp`; logger-context
+metadata, sequence numbers and nanosecond precision are omitted.
+
+During retrieval, preprocessing and GeoJSON invocations, the `mdc` object
+contains `datasourceId` and `stage` (`retrieval`, `preprocess`, or `geojson`).
+The OSM function uses stage `osminfo` and adds `datasourceId` while processing each
+source; cross-source summary logs have no datasource ID. Startup and runtime
+logs outside these scopes can also lack datasource context. The context is
+restored when a scope exits, including on failure, so reused invocation threads
+do not retain the previous source. New background tasks must explicitly propagate
+and restore MDC; it is scoped to the executing thread.
+
+This configures Java output only. OCI application logging settings and log
+destinations are managed separately.
+
 ## Source retrieval configuration
 
 Each datasource in `dsconfig.json` selects an `activeDatasetId` from its
