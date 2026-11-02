@@ -13,6 +13,10 @@
 
     <artifactId>dsfunctions</artifactId>
 
+    <properties>
+        <datasource.config.directory>${project.basedir}/..</datasource.config.directory>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>org.traficinfo</groupId>
@@ -62,6 +66,17 @@
 
 
     <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+            <resource>
+                <directory>${datasource.config.directory}</directory>
+                <includes>
+                    <include>dsconfig.json</include>
+                </includes>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

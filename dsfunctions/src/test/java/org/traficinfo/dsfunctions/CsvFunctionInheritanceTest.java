@@ -13,7 +13,6 @@ import org.traficinfo.parsers.GeoJsonParser;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.lang.reflect.Modifier;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -42,77 +41,51 @@ public class CsvFunctionInheritanceTest {
     }
 
     @Test
-    public void fnLoadsInheritedMethodsForAllConcreteHandlers() throws Exception {
+    public void fnLoadsInheritedMethodsForGeoJsonHandlers() throws Exception {
         for (String name : List.of("dpt30", "dpt34", "mrn", "m3m", "nim", "dpt76")) {
-            for (String handler : List.of("DataSourceFunction", "GeoJsonOutFunction")) {
-                Class<?> type = Class.forName("org.traficinfo.dsfunctions." + name + "." + handler);
-                MethodWrapper wrapper = new FunctionLoader().loadClass(type.getName(), "handleRequest");
-                Class<?> base = handler.equals("DataSourceFunction")
-                        ? AbstractDataSourceFunction.class : AbstractGeoJsonOutFunction.class;
-                assertEquals(base, wrapper.getTargetMethod().getDeclaringClass());
-                assertTrue(Modifier.isFinal(wrapper.getTargetMethod().getModifiers()));
-                var config = type.getMethod("config", com.fnproject.fn.api.RuntimeContext.class);
-                assertEquals(base, config.getDeclaringClass());
-                assertNotNull(config.getAnnotation(FnConfiguration.class));
-                assertTrue(Modifier.isFinal(config.getModifiers()));
-                // Fn requires exactly one public constructor; test constructors stay package-private.
-                assertEquals(1, type.getConstructors().length);
-                assertNotNull(type.getConstructor().newInstance());
-            }
-        }
-    }
-
-    @Test
-    public void allSourceHandlersShareTheSameConfigurationLifecycle() throws Exception {
-        for (String name : List.of("dpt30", "dpt34", "mrn", "m3m", "nim", "dpt76")) {
-            Class<?> type = Class.forName("org.traficinfo.dsfunctions." + name + ".DataSourceFunction");
-            assertEquals(AbstractDataSourceFunction.class, type.getSuperclass());
+            Class<?> type = Class.forName("org.traficinfo.dsfunctions." + name + ".GeoJsonOutFunction");
+            MethodWrapper wrapper = new FunctionLoader().loadClass(type.getName(), "handleRequest");
+            assertEquals(AbstractGeoJsonOutFunction.class, wrapper.getTargetMethod().getDeclaringClass());
+            assertTrue(Modifier.isFinal(wrapper.getTargetMethod().getModifiers()));
+            var config = type.getMethod("config", com.fnproject.fn.api.RuntimeContext.class);
+            assertEquals(AbstractGeoJsonOutFunction.class, config.getDeclaringClass());
+            assertNotNull(config.getAnnotation(FnConfiguration.class));
+            assertTrue(Modifier.isFinal(config.getModifiers()));
             assertEquals(1, type.getConstructors().length);
-            MethodWrapper method = new FunctionLoader().loadClass(type.getName(), "handleRequest");
-            assertEquals(AbstractDataSourceFunction.class, method.getTargetMethod().getDeclaringClass());
-            var configure = type.getMethod("config", com.fnproject.fn.api.RuntimeContext.class);
-            assertNotNull(configure.getAnnotation(FnConfiguration.class));
-            assertEquals(AbstractDataSourceFunction.class, configure.getDeclaringClass());
-            AbstractDataSourceFunction function = (AbstractDataSourceFunction) type.getConstructor().newInstance();
-            try {
-                function.config(new FunctionRuntimeContext(method, Map.of()));
-                fail("Expected mandatory configuration for " + name);
-            } catch (IllegalArgumentException expected) {
-                assertEquals("Missing DATA_SOURCE_SETTINGS", expected.getMessage());
-            }
+            assertNotNull(type.getConstructor().newInstance());
         }
     }
 
     @Test
-    public void fnConfiguresAndInvokesInheritedMrnDownloadWithDeploymentSettingsAndOverrides() throws Exception {
+    public void fnConfiguresAndInvokesSharedRetrievalWithBucketOverrides() throws Exception {
         for (boolean overrides : new boolean[]{false, true}) {
             Map<String, String> config = overrides ? Map.of("NAMESPACE", "testns",
-                    "BUCKETNAME", "custom-input", "USE_RESOURCE_PRINCIPAL", "false") : Map.of();
+                    "INPUT_BUCKET_OVERRIDES", "{\"MRN\":\"custom-input\"}", "USE_RESOURCE_PRINCIPAL", "false") : Map.of();
             FunctionRuntimeContext runtime = configuredRuntime(SourceProbe.class, config);
             SourceProbe function = (SourceProbe) runtime.getInvokeInstance().orElseThrow();
-            assertEquals(List.of((overrides ? "false:testns:custom-input" : "true::dsmrn")),
-                    function.clients);
-            assertEquals("OK", runtime.getMethod().getTargetMethod().invoke(function, ""));
+            assertTrue(function.clients.isEmpty());
+            assertEquals("OK", runtime.getMethod().getTargetMethod().invoke(function, "{\"datasourceId\":\"MRN\"}"));
+            assertEquals(List.of((overrides ? "false:testns:custom-input" : "true::dsmrn")), function.clients);
             assertEquals(List.of("MRN_Comptage.csv"), function.writes);
             assertTrue(function.closed);
             assertEquals("\"sha256:" + "a".repeat(64) + "\"",
                     function.metadata.get("MRN_Comptage.csv").getETag());
 
             function.unchanged = true;
-            assertEquals("OK", function.handleRequest(""));
+            assertEquals("OK", function.handleRequest("{\"datasourceId\":\"MRN\"}"));
             assertEquals(1, function.writes.size());
             function.unchanged = false;
-            assertEquals("OK", function.handleRequest(""));
+            assertEquals("OK", function.handleRequest("{\"datasourceId\":\"MRN\"}"));
             assertEquals(3, function.writes.size());
             assertTrue(function.writes.get(1).startsWith("MRN_Comptage_"));
             assertEquals("MRN_Comptage.csv", function.writes.get(2));
 
             function.empty = true;
             try {
-                function.handleRequest("");
+                function.handleRequest("{\"datasourceId\":\"MRN\"}");
                 fail("Empty CSV must fail before archive or replacement");
-            } catch (UncheckedIOException expected) {
-                assertTrue(expected.getMessage().contains("MRN_Comptage.csv"));
+            } catch (IllegalStateException expected) {
+                assertTrue(expected.getCause().getMessage().contains("MRN_Comptage.csv"));
             }
             assertEquals(3, function.writes.size());
         }
@@ -181,9 +154,6 @@ public class CsvFunctionInheritanceTest {
     private static FunctionRuntimeContext configuredRuntime(Class<?> handler, Map<String, String> config) {
         MethodWrapper wrapper = new FunctionLoader().loadClass(handler.getName(), "handleRequest");
         Map<String, String> settings = new HashMap<>();
-        if (AbstractDataSourceFunction.class.isAssignableFrom(handler)) {
-            settings.putAll(DataSourceTestSettings.configuration("MRN"));
-        }
         settings.putAll(config);
         FunctionRuntimeContext runtime = new FunctionRuntimeContext(wrapper, settings);
         new FunctionConfigurer().configure(runtime);
@@ -191,7 +161,7 @@ public class CsvFunctionInheritanceTest {
     }
 
     /** Only client factories are overridden; Fn discovers the actual inherited lifecycle methods. */
-    public static class SourceProbe extends org.traficinfo.dsfunctions.mrn.DataSourceFunction {
+    public static class SourceProbe extends DataSourceFunction {
         final List<String> clients = new ArrayList<>();
         final List<String> writes = new ArrayList<>();
         final Map<String, OOSResourceMetadata> metadata = new HashMap<>();

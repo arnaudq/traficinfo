@@ -2,21 +2,17 @@ package org.traficinfo.dsfunctions;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fnproject.fn.api.RuntimeContext;
 
-import java.io.IOException;
 import java.net.URI;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-/** Retrieval settings passed by deployment, rather than reading dsconfig.json at runtime. */
+/** Validated inputs selected from a datasource configuration for retrieval or preprocessing. */
 public record DataSourceSettings(
         @JsonProperty("dataSourceId") String dataSourceId,
         @JsonProperty("datasetId") String datasetId,
         @JsonProperty("inputs") List<Input> inputs) {
-    public static final String CONFIG_KEY = "DATA_SOURCE_SETTINGS";
 
     @JsonCreator
     public DataSourceSettings {
@@ -30,20 +26,6 @@ public record DataSourceSettings(
                 throw new IllegalArgumentException("Duplicate input Object: " + input.objectName());
             }
         }
-    }
-
-    public static DataSourceSettings from(RuntimeContext context, String dataSourceId) {
-        return context.getConfigurationByKey(CONFIG_KEY).map(json -> {
-            try {
-                DataSourceSettings settings = new ObjectMapper().readValue(json, DataSourceSettings.class);
-                if (!settings.dataSourceId().equals(dataSourceId)) {
-                    throw new IllegalArgumentException("Datasource ID does not match handler: " + settings.dataSourceId());
-                }
-                return settings;
-            } catch (IOException invalid) {
-                throw new IllegalArgumentException("Invalid " + CONFIG_KEY, invalid);
-            }
-        }).orElseThrow(() -> new IllegalArgumentException("Missing " + CONFIG_KEY));
     }
 
     public record Input(

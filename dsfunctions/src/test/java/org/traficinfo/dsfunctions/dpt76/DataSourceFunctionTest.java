@@ -1,11 +1,10 @@
 package org.traficinfo.dsfunctions.dpt76;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fnproject.fn.runtime.FunctionConfigurer;
 import com.fnproject.fn.runtime.FunctionLoader;
 import com.fnproject.fn.runtime.FunctionRuntimeContext;
 import org.junit.Test;
-import org.traficinfo.dsfunctions.DataSourceSettings;
+import org.traficinfo.dsfunctions.DataSourceFunction;
 import org.traficinfo.dsfunctions.DataSourceTestSettings;
 import org.traficinfo.dsfunctions.HttpClient;
 import org.traficinfo.dsfunctions.ObjectStoreClient;
@@ -14,7 +13,6 @@ import org.traficinfo.dsfunctions.OOSResourceMetadata;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -33,8 +31,8 @@ public class DataSourceFunctionTest {
     @Test
     public void fnUsesConfiguredDownloadAndMetadata() {
         Probe function = configured(Map.of());
+        assertEquals("OK", function.handleRequest("{\"datasourceId\":\"DPT76\"}"));
         assertEquals("/dsdpt76", function.bucket);
-        assertEquals("OK", function.handleRequest(""));
         assertEquals(List.of(GEOJSON_URI), function.requests);
         assertEquals(List.of("DPT76_Comptage_2022.geojson"), function.writes);
         assertArrayEquals(GEOJSON, function.contents.get("DPT76_Comptage_2022.geojson"));
@@ -47,24 +45,23 @@ public class DataSourceFunctionTest {
     }
 
     @Test
-    public void configuredDatasetAndBucketAreUsed() throws Exception {
-        DataSourceSettings settings = new DataSourceSettings("DPT76", "dpt76-later", List.of(
-                new DataSourceSettings.Input("https://example.invalid/later.geojson", "DPT76_Comptage_2022.geojson", "application/geo+json")));
-        Probe function = configured(Map.of("NAMESPACE", "testns", "BUCKETNAME", "custom-dpt76",
-                DataSourceSettings.CONFIG_KEY, new ObjectMapper().writeValueAsString(settings)));
-        function.handleRequest("");
-        assertEquals("testns/custom-dpt76", function.bucket);
-        assertEquals(URI.create("https://example.invalid/later.geojson"), function.requests.get(0));
-        assertEquals("dpt76-later", function.metadata.get("DPT76_Comptage_2022.geojson").getMetadata().get("dataset-id"));
+    public void bundledDatasetAndBucketOverrideAreUsed() {
+        Probe function = configured(Map.of("NAMESPACE", "testns", "INPUT_BUCKET_OVERRIDES",
+                "{\"DPT76\":\"custom-input\"}"));
+        function.handleRequest("{\"datasourceId\":\"DPT76\"}");
+        assertEquals("testns/custom-input", function.bucket);
+        assertEquals(GEOJSON_URI, function.requests.get(0));
+        assertEquals(DataSourceTestSettings.settings("DPT76").datasetId(),
+                function.metadata.values().iterator().next().getMetadata().get("dataset-id"));
     }
 
     @Test
     public void unchangedGeoJsonIsNotUploadedAgain() {
         Probe function = configured(Map.of());
-        function.handleRequest("");
+        function.handleRequest("{\"datasourceId\":\"DPT76\"}");
         function.writes.clear();
         function.unchanged = true;
-        function.handleRequest("");
+        function.handleRequest("{\"datasourceId\":\"DPT76\"}");
         assertEquals("\"dpt76-validator\"", function.validators.get(1));
         assertTrue(function.writes.isEmpty());
     }
@@ -73,15 +70,15 @@ public class DataSourceFunctionTest {
     public void emptyOrFailedDownloadsDoNotReplaceThePreviousGeoJson() {
         for (boolean empty : new boolean[]{false, true}) {
             Probe function = configured(Map.of());
-            function.handleRequest("");
+            function.handleRequest("{\"datasourceId\":\"DPT76\"}");
             function.writes.clear();
             function.empty = empty;
             function.fail = !empty;
             try {
-                function.handleRequest("");
+                function.handleRequest("{\"datasourceId\":\"DPT76\"}");
                 fail("Expected download failure");
-            } catch (UncheckedIOException expected) {
-                assertTrue(expected.getMessage().contains("DPT76_Comptage_2022.geojson"));
+            } catch (IllegalStateException expected) {
+                assertTrue(expected.getCause().getMessage().contains("DPT76_Comptage_2022.geojson"));
             }
             assertTrue(function.writes.isEmpty());
             assertArrayEquals(GEOJSON, function.contents.get("DPT76_Comptage_2022.geojson"));
@@ -92,19 +89,19 @@ public class DataSourceFunctionTest {
     public void archivesPreviousGeoJsonBeforeReplacingItAndKeepsCurrentOnArchiveFailure() {
         Probe function = configured(Map.of());
         String current = "DPT76_Comptage_2022.geojson";
-        function.handleRequest("");
+        function.handleRequest("{\"datasourceId\":\"DPT76\"}");
         function.metadata.get(current).setLastModified(java.time.LocalDate.of(2026, 10, 23));
         function.writes.clear();
-        function.handleRequest("");
+        function.handleRequest("{\"datasourceId\":\"DPT76\"}");
         assertEquals(List.of("DPT76_Comptage_2022_20261023.geojson", current), function.writes);
         assertArrayEquals(GEOJSON, function.contents.get("DPT76_Comptage_2022_20261023.geojson"));
         byte[] previous = function.contents.get(current);
         function.writes.clear();
         function.failArchive = true;
         try {
-            function.handleRequest("");
+            function.handleRequest("{\"datasourceId\":\"DPT76\"}");
             fail("Expected archive failure");
-        } catch (UncheckedIOException expected) {
+        } catch (IllegalStateException expected) {
             assertTrue(function.writes.isEmpty());
             assertSame(previous, function.contents.get(current));
             assertTrue(function.closed);
@@ -112,7 +109,7 @@ public class DataSourceFunctionTest {
     }
 
     private static Probe configured(Map<String, String> configuration) {
-        Map<String, String> settings = new HashMap<>(DataSourceTestSettings.configuration("DPT76"));
+        Map<String, String> settings = new HashMap<>();
         settings.putAll(configuration);
         FunctionRuntimeContext runtime = new FunctionRuntimeContext(
                 new FunctionLoader().loadClass(Probe.class.getName(), "handleRequest"), settings);

@@ -24,7 +24,8 @@ main() {
         log "Selected archive dataset $3 for one-off preprocessing."
       fi
       if [ "$type" = ds ]; then
-        timeout="$(jq -r '.datasets[.activeDatasetId].timeoutSeconds // 30' <<< "$source")"
+        body="$(jq -cn --arg id "$2" '{datasourceId: $id}')"
+        timeout="$(load_data_sources | jq -r '[.[] | .datasets[.activeDatasetId].timeoutSeconds // 30] | max')"
         if [ "$timeout" -gt 30 ]; then invocation_options+=(--read-timeout "$((timeout + 60))"); fi
       fi
       ;;

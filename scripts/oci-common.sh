@@ -92,6 +92,8 @@ load_data_sources() {
       | if type != "object" then error("Invalid data source \($key)") else . end
       | if .id != $key or (.id | nonempty_string | not) then
           error("Data source key must match its id: \($key)") else . end
+      | if (.id | test("^[A-Z][A-Z0-9_]*$")) then .
+        else error("Data source IDs must use uppercase letters, digits and underscores: \($key)") end
       | if all([.functionPrefix, .inputBucket, .csvObject, .eventObject][];
           . == null or nonempty_string) then . else
           error("Overrides must be nonempty strings for \($key)") end
@@ -111,7 +113,7 @@ load_data_sources() {
           error("Active dataset timeoutSeconds must be an integer from 1 to 300 for \($key)") else . end
       | (.functionPrefix // .id) as $prefix
       | . + {functionPrefix: $prefix,
-          dataSourceFunction: ($prefix + "OpenDataSource"),
+          dataSourceFunction: "DataSourceFunction",
           geoJsonFunction: ($prefix + "GeoJsonOut"),
           preprocessingFunction: ($prefix + "Preprocessing"),
           eventRule: ($prefix + "ComptageCsvToGeoJson"),

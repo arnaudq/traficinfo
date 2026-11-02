@@ -35,7 +35,7 @@ import java.util.zip.GZIPInputStream;
 /**
  * ObjectStore client.
  */
-public class ObjectStoreClient {
+public class ObjectStoreClient implements AutoCloseable {
 
     private static final Logger LOG = LoggerFactory.getLogger(ObjectStoreClient.class);
 
@@ -44,6 +44,15 @@ public class ObjectStoreClient {
     private final ObjectStorage client;
     private final String namespaceName;
     private final String bucketName;
+
+    @Override
+    public void close() throws IOException {
+        try {
+            if (client != null) client.close();
+        } catch (Exception failure) {
+            throw new IOException("Could not close Object Storage client", failure);
+        }
+    }
 
     public ObjectStoreClient(final boolean usePrincipalAuth, final String namespace, final String bucketName) {
 

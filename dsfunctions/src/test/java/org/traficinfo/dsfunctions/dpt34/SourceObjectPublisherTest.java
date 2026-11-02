@@ -12,6 +12,7 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import org.traficinfo.dsfunctions.HttpClient;
+import org.traficinfo.dsfunctions.SourceObjectPublisher;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -23,7 +24,7 @@ import java.util.Map;
 
 import static org.junit.Assert.*;
 
-public class DataSourceFunctionTest {
+public class SourceObjectPublisherTest {
 
     private static final String ETAG = "sha256:" + "a".repeat(64);
     private static final DataSourceSettings SETTINGS = DataSourceTestSettings.settings("DPT34");
@@ -35,7 +36,7 @@ public class DataSourceFunctionTest {
     @Test
     public void firstDownloadPublishesCsvAndValidator() throws Exception {
         SourceStub stub = new SourceStub();
-        assertEquals("OK", stub.function().handleRequest(""));
+        stub.publisher().publish(SETTINGS);
         assertEquals(List.of(OBJECT), stub.uploads);
         assertArrayEquals(CSV, stub.contents.get(OBJECT));
         OOSResourceMetadata metadata = stub.metadata.get(OBJECT);
@@ -50,11 +51,11 @@ public class DataSourceFunctionTest {
     @Test
     public void identicalDownloadDoesNotUploadOrArchive() {
         SourceStub stub = new SourceStub();
-        DataSourceFunction function = stub.function();
-        function.handleRequest("");
+        SourceObjectPublisher publisher = stub.publisher();
+        publisher.publish(SETTINGS);
         stub.uploads.clear();
         stub.unchanged = true;
-        assertEquals("OK", function.handleRequest(""));
+        publisher.publish(SETTINGS);
         assertEquals(2, stub.downloads);
         assertTrue(stub.uploads.isEmpty());
         assertEquals(0, stub.archiveReads);
@@ -63,12 +64,12 @@ public class DataSourceFunctionTest {
     @Test
     public void changedDownloadArchivesBeforeReplacingCurrentObject() throws Exception {
         SourceStub stub = new SourceStub();
-        DataSourceFunction function = stub.function();
-        function.handleRequest("");
+        SourceObjectPublisher publisher = stub.publisher();
+        publisher.publish(SETTINGS);
         stub.metadata.get(OBJECT).setLastModified(LocalDate.of(2026, 10, 17));
         stub.uploads.clear();
         stub.downloadBytes = "new CSV content".getBytes(StandardCharsets.UTF_8);
-        assertEquals("OK", function.handleRequest(""));
+        publisher.publish(SETTINGS);
         String archive = "DPT34_Comptage_20261017.csv";
         assertEquals(List.of(archive, OBJECT), stub.uploads);
         assertArrayEquals(CSV, stub.contents.get(archive));
@@ -117,14 +118,14 @@ public class DataSourceFunctionTest {
 
     private static SourceStub initializedStub() {
         SourceStub stub = new SourceStub();
-        stub.function().handleRequest("");
+        stub.publisher().publish(SETTINGS);
         stub.uploads.clear();
         return stub;
     }
 
     private static void assertFailure(SourceStub stub) {
         try {
-            stub.function().handleRequest("");
+            stub.publisher().publish(SETTINGS);
             fail("Expected publication failure");
         } catch (UncheckedIOException expected) {
             assertTrue(expected.getMessage().contains(OBJECT));
@@ -144,7 +145,7 @@ public class DataSourceFunctionTest {
         boolean failArchiveUpload;
         boolean failCurrentUpload;
 
-        DataSourceFunction function() {
+        SourceObjectPublisher publisher() {
             ObjectStoreClient storage = new ObjectStoreClient(null, "namespace", "dsdpt34") {
                 @Override
                 public OOSResourceMetadata getResourceMetadata(String name) {
@@ -192,7 +193,7 @@ public class DataSourceFunctionTest {
                     });
                 }
             };
-            return new DataSourceFunction(SETTINGS, http, storage);
+            return new SourceObjectPublisher(http, storage);
         }
     }
 }

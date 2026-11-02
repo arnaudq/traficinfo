@@ -3,6 +3,7 @@
     "id": "MMM",
     "name": "Comptages véhicules - Montpellier Méditerrannée Métropole",
     "schedule": "Daily",
+    "scheduleClock": "BYHOUR=15;BYMINUTE=30;BYSECOND=0",
     "functionPrefix": "3M",
     "inputBucket": "ds3mbucket",
     "csvObject": "MMM_MMM_Comptage.csv",
@@ -63,6 +64,7 @@
     "id": "DPT30",
     "name": "Comptages véhicules - Département du Gard",
     "schedule": "Monthly",
+    "scheduleClock": "BYHOUR=15;BYMINUTE=35;BYSECOND=0",
     "dataSourceLogoUrl": "https://udata-avatars.s3.rbx.io.cloud.ovh.net/cf/d340e45e8c4d3cb8796f0227c5a257-100.jpg",
     "activeDatasetId": "current",
     "datasets": {
@@ -82,6 +84,7 @@
     "id": "MRN",
     "name": "Comptages véhicules et vélos - Métropole Rouen Normandie",
     "schedule": "Daily",
+    "scheduleClock": "BYHOUR=15;BYMINUTE=40;BYSECOND=0",
     "dataSourceLogoUrl": "https://data.metropole-rouen-normandie.fr/assets/theme_image/logo.png",
     "activeDatasetId": "mrn-2026",
     "datasets": {
@@ -121,6 +124,7 @@
     "id": "DPT34",
     "name": "Comptages véhicules - Département de l'Hérault",
     "schedule": "Monthly",
+    "scheduleClock": "BYHOUR=15;BYMINUTE=45;BYSECOND=0",
     "dataSourceLogoUrl": "https://www.herault-data.fr/assets/theme_image/logo%20herault%20data%20vfinal_petite.png",
     "activeDatasetId": "dpt34-2026",
     "datasets": {
@@ -160,6 +164,7 @@
     "id": "NIM",
     "name": "Comptages véhicules - Nîmes Métropole",
     "schedule": "Monthly",
+    "scheduleClock": "BYHOUR=15;BYMINUTE=50;BYSECOND=0",
     "dataSourceLogoUrl": "https://data.nimes-metropole.fr/assets/logo?tstamp=161855394019",
     "activeDatasetId": "nim-2023-2025",
     "datasets": {
@@ -202,6 +207,7 @@
     "id": "DPT76",
     "name": "Comptages véhicules - Département de la Seine-Maritime",
     "schedule": "Monthly",
+    "scheduleClock": "BYHOUR=15;BYMINUTE=55;BYSECOND=0",
     "geoJsonEnabled": true,
     "eventObject": "DPT76_Manifest.json",
     "activeDatasetId": "dpt76-2022",

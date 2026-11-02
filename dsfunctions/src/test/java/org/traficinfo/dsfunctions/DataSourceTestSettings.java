@@ -8,10 +8,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Locale;
-import java.util.Map;
 
-/** Supplies deployment-equivalent test settings from the repository config, without network requests. */
+/** Supplies expected retrieval settings from the repository config, without network requests. */
 public final class DataSourceTestSettings {
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final JsonNode SOURCES = readSources();
@@ -35,15 +33,6 @@ public final class DataSourceTestSettings {
         }
         try {
             return JSON.treeToValue(settings, DataSourceSettings.class);
-        } catch (IOException invalid) {
-            throw new IllegalStateException(invalid);
-        }
-    }
-
-    public static Map<String, String> configuration(String id) {
-        try {
-            return Map.of(DataSourceSettings.CONFIG_KEY, JSON.writeValueAsString(settings(id)),
-                    "BUCKETNAME", SOURCES.get(id).path("inputBucket").asText("ds" + id.toLowerCase(Locale.ROOT)));
         } catch (IOException invalid) {
             throw new IllegalStateException(invalid);
         }

@@ -1,9 +1,6 @@
 package org.traficinfo.dsfunctions;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fnproject.fn.runtime.FunctionConfigurer;
-import com.fnproject.fn.runtime.FunctionLoader;
-import com.fnproject.fn.runtime.FunctionRuntimeContext;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
@@ -23,26 +20,6 @@ import static org.junit.Assert.*;
 public class DataSourceSettingsTest {
     private static final DataSourceSettings.Input CSV = new DataSourceSettings.Input(
             "https://example.invalid/counts.csv", "custom-counts.csv", "text/csv");
-
-    @Test
-    public void fnReceivesDeploymentSettingsAndUsesConfiguredInput() throws Exception {
-        DataSourceSettings settings = settings("dataset-2022", CSV);
-        String json = new ObjectMapper().writeValueAsString(settings);
-        FunctionRuntimeContext runtime = new FunctionRuntimeContext(
-                new FunctionLoader().loadClass(Probe.class.getName(), "handleRequest"),
-                Map.of("NAMESPACE", "testns", "BUCKETNAME", "custom-bucket",
-                        DataSourceSettings.CONFIG_KEY, json));
-        new FunctionConfigurer().configure(runtime);
-        Probe probe = (Probe) runtime.getInvokeInstance().orElseThrow();
-        assertEquals("OK", runtime.getMethod().getTargetMethod().invoke(probe, ""));
-        assertEquals("testns/custom-bucket", probe.bucket);
-        assertEquals(List.of(URI.create(CSV.url())), probe.stub.requests);
-        assertEquals(List.of(CSV.objectName()), probe.stub.writes);
-        OOSResourceMetadata metadata = probe.stub.metadata.get(CSV.objectName());
-        assertEquals("dataset-2022", metadata.getMetadata().get("dataset-id"));
-        assertEquals(CSV.url(), metadata.getMetadata().get("source-url"));
-        assertEquals("MRN", metadata.getMetadata().get("datasource-id"));
-    }
 
     @Test
     public void sourceSwitchDoesNotReuseValidatorAndArchivesPreviousContents() {
@@ -149,23 +126,16 @@ public class DataSourceSettingsTest {
     }
 
     @Test
-    public void invalidInputsPreventStorageConfigurationAndDownloads() throws Exception {
+    public void invalidInputsAndDuplicateObjectsAreRejected() throws Exception {
         for (String json : List.of(
-                new ObjectMapper().writeValueAsString(settings("current", CSV)).replace("MRN", "WRONG"),
-                "{\"dataSourceId\":\"WRONG\",\"datasetId\":\"x\",\"inputs\":[]}",
                 "{\"dataSourceId\":\"MRN\",\"datasetId\":\"x\",\"inputs\":[]}",
                 "{\"dataSourceId\":\"MRN\",\"datasetId\":\"x\",\"inputs\":["
                         + "{\"url\":\"file:///tmp/counts.csv\",\"objectName\":\"x.csv\",\"contentType\":\"text/csv\"}]}")) {
-            Probe probe = new Probe();
-            FunctionRuntimeContext runtime = new FunctionRuntimeContext(
-                    new FunctionLoader().loadClass(Probe.class.getName(), "handleRequest"),
-                    Map.of(DataSourceSettings.CONFIG_KEY, json));
             try {
-                probe.config(runtime);
-                fail("Expected invalid configuration");
-            } catch (IllegalArgumentException expected) {
-                assertNull(probe.bucket);
-                assertTrue(probe.stub.requests.isEmpty());
+                new ObjectMapper().readValue(json, DataSourceSettings.class);
+                fail("Expected invalid settings");
+            } catch (IOException expected) {
+                // Invalid retrieval settings cannot reach the publisher.
             }
         }
         try {
@@ -176,51 +146,8 @@ public class DataSourceSettingsTest {
         }
     }
 
-    @Test
-    public void retrievalSettingsAndBucketAreRequiredBeforeClientsAreConfigured() throws Exception {
-        for (Map<String, String> config : List.of(
-                Map.<String, String>of(),
-                Map.of("BUCKETNAME", "bucket"),
-                Map.of(DataSourceSettings.CONFIG_KEY,
-                        new ObjectMapper().writeValueAsString(settings("current", CSV))))) {
-            Probe probe = new Probe();
-            FunctionRuntimeContext runtime = new FunctionRuntimeContext(
-                    new FunctionLoader().loadClass(Probe.class.getName(), "handleRequest"), config);
-            try {
-                probe.config(runtime);
-                fail("Expected missing configuration failure");
-            } catch (IllegalArgumentException expected) {
-                assertTrue(expected.getMessage().startsWith("Missing "));
-                assertNull(probe.bucket);
-                assertTrue(probe.stub.requests.isEmpty());
-            }
-        }
-    }
-
-    @Test
-    public void unconfiguredHandlerCannotDownloadWithFallbackSettings() {
-        Probe probe = new Probe();
-        try {
-            probe.handleRequest("");
-            fail("Expected missing configuration failure");
-        } catch (IllegalStateException expected) {
-            assertTrue(probe.stub.requests.isEmpty());
-            assertTrue(probe.stub.writes.isEmpty());
-        }
-    }
-
     private static DataSourceSettings settings(String datasetId, DataSourceSettings.Input... inputs) {
         return new DataSourceSettings("MRN", datasetId, List.of(inputs));
-    }
-
-    public static class Probe extends org.traficinfo.dsfunctions.mrn.DataSourceFunction {
-        final Stub stub = new Stub();
-        String bucket;
-        @Override protected HttpClient createHttpClient() { return stub.http; }
-        @Override protected ObjectStoreClient createObjectStoreClient(boolean principal, String ns, String name) {
-            bucket = ns + "/" + name;
-            return stub.storage;
-        }
     }
 
     private static class Stub {

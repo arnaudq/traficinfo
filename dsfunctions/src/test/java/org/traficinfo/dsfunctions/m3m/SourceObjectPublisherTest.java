@@ -1,9 +1,11 @@
 package org.traficinfo.dsfunctions.m3m;
 
 import org.traficinfo.dsfunctions.HttpClient;
+import org.traficinfo.dsfunctions.SourceObjectPublisher;
 import org.traficinfo.dsfunctions.ObjectStoreClient;
 import org.traficinfo.dsfunctions.OOSResourceMetadata;
 import org.traficinfo.dsfunctions.DataSourceTestSettings;
+import org.traficinfo.dsfunctions.DataSourceSettings;
 
 import org.junit.Test;
 
@@ -21,22 +23,23 @@ import java.util.HashMap;
 
 import static org.junit.Assert.*;
 
-public class DataSourceFunctionTest {
+public class SourceObjectPublisherTest {
+    private static final DataSourceSettings SETTINGS = DataSourceTestSettings.settings("MMM");
     @Test
     public void publishesJsonBeforeCsv() {
         SourceStub stub = new SourceStub();
-        assertEquals("OK", stub.function().handleRequest(""));
+        stub.publisher().publish(SETTINGS);
         assertEquals(Arrays.asList("MMM_MMM_Comptage.json", "MMM_MMM_Comptage.csv"), stub.uploads);
     }
 
     @Test
     public void unchangedSourcesDoNotUpload() {
         SourceStub stub = new SourceStub();
-        stub.function().handleRequest("");
+        stub.publisher().publish(SETTINGS);
         stub.uploads.clear();
         stub.downloads.clear();
         stub.unchanged = true;
-        assertEquals("OK", stub.function().handleRequest(""));
+        stub.publisher().publish(SETTINGS);
         assertTrue(stub.uploads.isEmpty());
         assertEquals(Arrays.asList("MMM_MMM_Comptage.json", "MMM_MMM_Comptage.csv"), stub.downloads);
     }
@@ -57,7 +60,7 @@ public class DataSourceFunctionTest {
 
     private static void assertJsonFailure(SourceStub stub) {
         try {
-            stub.function().handleRequest("");
+            stub.publisher().publish(SETTINGS);
             fail("Expected failure");
         } catch (UncheckedIOException expected) {
             assertTrue(expected.getMessage().contains("MMM_MMM_Comptage.json"));
@@ -75,7 +78,7 @@ public class DataSourceFunctionTest {
         boolean failDownload;
         boolean failUpload;
 
-        DataSourceFunction function() {
+        SourceObjectPublisher publisher() {
             HttpClient http = new HttpClient() {
                 @Override
                 public EntityBody get(URI uri, String etag) throws IOException {
@@ -111,7 +114,7 @@ public class DataSourceFunctionTest {
                     uploads.add(name);
                 }
             };
-            return new DataSourceFunction(DataSourceTestSettings.settings("MMM"), http, storage);
+            return new SourceObjectPublisher(http, storage);
         }
     }
 }

@@ -1,20 +1,14 @@
 #!/usr/bin/env bash
-# Ensure Hourly, Daily, Weekly and Monthly schedules use defined-tag resource filters.
+# Reconcile per-datasource retrieval schedules and the existing hourly OSM schedule.
 set -euo pipefail
 
 source "${TRAFICINFO_ROOT:?Run source ./scripts/setup.sh first}/scripts/oci-common.sh"
 
-# Recorded from OCI during script preparation; no schedule is a runtime template.
-hourly_clock='BYMINUTE=0;BYSECOND=0'
-schedule_clock='BYHOUR=15;BYMINUTE=30;BYSECOND=0'
-schedule_timezone=UTC
-tag_namespace=TraficInfo
-tag_key=DataSourceSchedule
 wait_options=(--wait-for-state SUCCEEDED --wait-for-state FAILED --wait-for-state CANCELED
   --max-wait-seconds 600 --wait-interval-seconds 5)
 
 find_schedule_id() {
-  # Match case-insensitively: the existing project schedule is named Daily.
+  # OCI permits duplicate names; require a unique case-insensitive match.
   jq -er --arg name "$1" '
     [.data.items[] | select((."display-name" | ascii_downcase) == ($name | ascii_downcase)
       and ."lifecycle-state" != "DELETED")]
@@ -23,17 +17,41 @@ find_schedule_id() {
   ' <<< "$schedules"
 }
 
-build_configuration() {
-  jq -cn --arg compartment "$compartment_id" --arg name "$1" --arg rule "$2" \
-    --arg timezone "$schedule_timezone" --arg namespace "$tag_namespace" --arg key "$tag_key" '{
-      compartmentId: $compartment, displayName: $name, action: "START_RESOURCE",
-      recurrenceType: "ICAL", recurrenceDetails: $rule, localTimeZone: $timezone,
-      resourceFilters: [
+build_configurations() {
+  jq -ce --arg compartment "$compartment_id" --arg function "$retrieval_function_id" \
+    '
+    def configuration($name; $rule; $resource):
+      {compartmentId: $compartment, displayName: $name, action: "START_RESOURCE",
+       recurrenceType: "ICAL", recurrenceDetails: $rule, localTimeZone: "UTC",
+       resources: [$resource], resourceFilters: []};
+    [(configuration("Hourly"; "FREQ=HOURLY;BYMINUTE=0;BYSECOND=0"; {})
+      | .resources = [] | .resourceFilters = [
         {attribute: "COMPARTMENT_ID", value: $compartment, shouldIncludeChildCompartments: false},
         {attribute: "RESOURCE_TYPE", value: ["FunctionsFunction"]},
-        {attribute: "DEFINED_TAGS", value: [{namespace: $namespace, tagKey: $key, value: $name}]}
-      ]
-    }'
+        {attribute: "DEFINED_TAGS", value: [{namespace: "TraficInfo", tagKey: "DataSourceSchedule", value: "Hourly"}]}
+      ])]
+    + map(
+      .schedule as $cadence
+      | if .scheduleClock != null and (.scheduleClock | type) != "string" then
+          error("scheduleClock must be a string for \(.id)") else . end
+      | (.scheduleClock // (if $cadence == "Hourly" then "BYMINUTE=0;BYSECOND=0"
+         else "BYHOUR=15;BYMINUTE=30;BYSECOND=0" end)) as $clock
+      | if ($clock | type) != "string" then error("scheduleClock must be a string for \(.id)")
+        elif $cadence == "Hourly" then
+          if ($clock | test("^BYMINUTE=([0-9]|[0-5][0-9]);BYSECOND=0$")) then .
+          else error("Invalid hourly scheduleClock for \(.id)") end
+        elif (["Daily", "Weekly", "Monthly"] | index($cadence)) != null then
+          if ($clock | test("^BYHOUR=([0-9]|[01][0-9]|2[0-3]);BYMINUTE=([0-9]|[0-5][0-9]);BYSECOND=0$")) then .
+          else error("Invalid scheduleClock for \(.id)") end
+        else error("Invalid schedule for \(.id)") end
+      | ((if $cadence == "Hourly" then "FREQ=HOURLY;"
+         elif $cadence == "Daily" then "FREQ=DAILY;"
+         elif $cadence == "Weekly" then "FREQ=WEEKLY;BYDAY=WE;"
+         else "FREQ=MONTHLY;BYMONTHDAY=5;" end) + $clock) as $rule
+      | configuration(.id + "Retrieval"; $rule;
+          {id: $function, parameters: [{parameterType: "BODY", value: {datasourceId: .id}}]})
+    )
+  ' <<< "$sources"
 }
 
 validate_existing_schedule() {
@@ -47,24 +65,27 @@ validate_existing_schedule() {
 }
 
 schedule_matches() {
-  # Only convert schema field names; tag names and values remain literal.
   jq -e --argjson expected "$2" '
-    def normalized_filters:
+    def filters:
       map(if .attribute == "COMPARTMENT_ID" then
-            {attribute, value, shouldIncludeChildCompartments:
-              (.shouldIncludeChildCompartments // ."should-include-child-compartments" // false)}
-          elif .attribute == "DEFINED_TAGS" then
-            {attribute, value: [.value[] | {namespace, value, tagKey: (.tagKey // ."tag-key")}]}
-          else . end) | sort_by(.attribute);
+        {attribute, value, shouldIncludeChildCompartments:
+          (.shouldIncludeChildCompartments // ."should-include-child-compartments" // false)}
+      elif .attribute == "DEFINED_TAGS" then
+        {attribute, value: [.value[] | {namespace, value, tagKey: (.tagKey // ."tag-key")}]}
+      else . end) | sort_by(.attribute);
+    def resources:
+      map({id, parameters: ((.parameters // []) | map(
+        {parameterType: (.parameterType // ."parameter-type"),
+         value: (.value | . as $value |
+           if type == "string" then try fromjson catch $value else . end)}))});
     .data | ."lifecycle-state" == "ACTIVE"
       and ."compartment-id" == $expected.compartmentId
       and .action == $expected.action
       and ."recurrence-type" == $expected.recurrenceType
       and ."recurrence-details" == $expected.recurrenceDetails
       and (."local-time-zone" // "UTC") == $expected.localTimeZone
-      and ((.resources // []) | length == 0)
-      and ((."resource-filters" // [] | normalized_filters)
-        == ($expected.resourceFilters | normalized_filters))
+      and ((."resource-filters" // [] | filters) == ($expected.resourceFilters | filters))
+      and ((.resources // [] | resources) == ($expected.resources | resources))
   ' <<< "$1" >/dev/null
 }
 
@@ -91,7 +112,7 @@ create_schedule() {
     log "$name appeared during this run; rerun to reconcile it."
     return 1
   fi
-  log "Creating $name with tag filters and waiting for completion..."
+  log "Creating $name with invocation payload and waiting for completion..."
   result="$(oci resource-scheduler schedule create --from-json "$payload" "${wait_options[@]}")"
   check_work_request "$result"
   schedules="$(list_schedules)"
@@ -101,16 +122,13 @@ create_schedule() {
 }
 
 update_schedule() {
-  local id="$1" payload="$2" result filters
-  filters="$(jq -c '.resourceFilters' <<< "$payload")"
-  log "Updating $id to use tag filters and waiting for completion..."
-  # Empty the previous static target list when switching to dynamic selection.
-  # Preserve tags, description and start/end dates.
+  local id="$1" payload="$2" result
+  log "Updating $id and waiting for completion..."
   result="$(oci resource-scheduler schedule update --schedule-id "$id" \
-    --resource-filters "$filters" --resources '[]' \
+    --resource-filters "$(jq -c '.resourceFilters' <<< "$payload")" --resources "$(jq -c '.resources' <<< "$payload")" \
     --action START_RESOURCE --recurrence-type ICAL \
     --recurrence-details "$(jq -r '.recurrenceDetails' <<< "$payload")" \
-    --local-time-zone "$schedule_timezone" --force "${wait_options[@]}")"
+    --local-time-zone UTC --force "${wait_options[@]}")"
   check_work_request "$result"
   verify_schedule "$id" "$payload"
 }
@@ -127,46 +145,43 @@ list_schedules() {
 }
 
 main() {
-  local dry_run=false compartment_id schedules
-  local name id recurrence payload index state
-  local names=(Hourly Daily Weekly Monthly) ids=() payloads=() operations=()
+  local dry_run compartment_id schedules sources configurations
+  local name id payload index state retrieval_function_id application_id
+  local names=() ids=() payloads=() operations=()
   dry_run="$(parse_dry_run_arguments "$@")"
   compartment_id="${OCI_COMPARTMENT_ID:?Run source ./scripts/setup.sh first}"
-  log 'Reading existing schedules...'
+  sources="$(load_data_sources)"
+  # Validate all clocks before OCI discovery; placeholders are replaced after lookup.
+  retrieval_function_id=VALIDATION
+  build_configurations >/dev/null
+  application_id="$(resolve_application_id)"
+  retrieval_function_id="$(resolve_function_id "$application_id" DataSourceFunction)"
+  configurations="$(build_configurations)"
   schedules="$(list_schedules)"
-  # Check all names for ambiguity before submitting any creation.
-  for name in "${names[@]}"; do ids+=("$(find_schedule_id "$name")"); done
-  log "Using hourly timing $hourly_clock; other schedules $schedule_clock; timezone $schedule_timezone."
-  for index in "${!names[@]}"; do
-    name="${names[$index]}"
-    case "$name" in
-      Hourly) recurrence="FREQ=HOURLY;$hourly_clock" ;;
-      Daily) recurrence="FREQ=DAILY;$schedule_clock" ;;
-      Weekly) recurrence="FREQ=WEEKLY;BYDAY=WE;$schedule_clock" ;;
-      Monthly) recurrence="FREQ=MONTHLY;BYMONTHDAY=5;$schedule_clock" ;;
-    esac
-    payload="$(build_configuration "$name" "$recurrence")"
-    payloads+=("$payload")
-    if [ -n "${ids[$index]}" ]; then
-      state="$(oci resource-scheduler schedule get --schedule-id "${ids[$index]}")"
+  while IFS= read -r payload; do
+    name="$(jq -r '.displayName' <<< "$payload")"
+    id="$(find_schedule_id "$name")"
+    names+=("$name"); ids+=("$id"); payloads+=("$payload")
+    if [ -n "$id" ]; then
+      state="$(oci resource-scheduler schedule get --schedule-id "$id")"
       validate_existing_schedule "$state"
-      if schedule_matches "$state" "$payload"; then
-        operations+=(skip)
-        log "$name already uses the requested timing and tag filters."
-      else
-        operations+=(update)
-        log "$name will be updated to use $tag_namespace.$tag_key=$name; $recurrence ($schedule_timezone)."
-      fi
+      if schedule_matches "$state" "$payload"; then operations+=(skip)
+      else operations+=(update); fi
     else
       operations+=(create)
-      log "Missing $name: $recurrence; $tag_namespace.$tag_key=$name"
     fi
+  done < <(jq -c '.[]' <<< "$configurations")
+  for index in "${!names[@]}"; do
+    log "${operations[$index]} ${names[$index]}: $(jq -r '.recurrenceDetails' <<< "${payloads[$index]}") (UTC)"
     if [ "$dry_run" = true ] && [ "${operations[$index]}" != skip ]; then
       jq --arg operation "${operations[$index]}" --arg id "${ids[$index]}" \
-        '. + {operation: $operation, scheduleId: $id, resources: []}' <<< "$payload"
+        '. + {operation: $operation, scheduleId: $id}' <<< "${payloads[$index]}"
     fi
   done
-  if [ "$dry_run" = true ]; then log 'Dry run complete; no changes submitted.'; return 0; fi
+  if [ "$dry_run" = true ]; then
+    log 'Dry run complete; no changes submitted.'
+    return 0
+  fi
   for index in "${!names[@]}"; do
     case "${operations[$index]}" in
       create) create_schedule "${names[$index]}" "${payloads[$index]}" ;;
@@ -174,7 +189,7 @@ main() {
       skip) ;;
     esac
   done
-  log 'Hourly, Daily, Weekly and Monthly schedules use the configured tag filters.'
+  log 'Per-datasource retrieval schedules and the hourly OSM schedule are ready.'
 }
 
 main "$@"

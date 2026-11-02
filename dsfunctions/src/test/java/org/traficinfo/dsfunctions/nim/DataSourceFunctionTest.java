@@ -1,11 +1,10 @@
 package org.traficinfo.dsfunctions.nim;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fnproject.fn.runtime.FunctionConfigurer;
 import com.fnproject.fn.runtime.FunctionLoader;
 import com.fnproject.fn.runtime.FunctionRuntimeContext;
 import org.junit.Test;
-import org.traficinfo.dsfunctions.DataSourceSettings;
+import org.traficinfo.dsfunctions.DataSourceFunction;
 import org.traficinfo.dsfunctions.DataSourceTestSettings;
 import org.traficinfo.dsfunctions.HttpClient;
 import org.traficinfo.dsfunctions.ObjectStoreClient;
@@ -14,7 +13,6 @@ import org.traficinfo.dsfunctions.OOSResourceMetadata;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -33,8 +31,8 @@ public class DataSourceFunctionTest {
     @Test
     public void fnUsesConfiguredDownloadAndMetadata() {
         Probe function = configured(Map.of());
+        assertEquals("OK", function.handleRequest("{\"datasourceId\":\"NIM\"}"));
         assertEquals("/dsnim", function.bucket);
-        assertEquals("OK", function.handleRequest(""));
         assertEquals(List.of(CSV_URI), function.requests);
         assertEquals(List.of("NIM_Comptage.csv"), function.writes);
         assertArrayEquals(CSV, function.contents.get("NIM_Comptage.csv"));
@@ -47,24 +45,23 @@ public class DataSourceFunctionTest {
     }
 
     @Test
-    public void configuredDatasetAndBucketAreUsed() throws Exception {
-        DataSourceSettings settings = new DataSourceSettings("NIM", "nim-later", List.of(
-                new DataSourceSettings.Input("https://example.invalid/later.csv", "NIM_Comptage.csv", "text/csv")));
-        Probe function = configured(Map.of("NAMESPACE", "testns", "BUCKETNAME", "custom-nim",
-                DataSourceSettings.CONFIG_KEY, new ObjectMapper().writeValueAsString(settings)));
-        function.handleRequest("");
-        assertEquals("testns/custom-nim", function.bucket);
-        assertEquals(URI.create("https://example.invalid/later.csv"), function.requests.get(0));
-        assertEquals("nim-later", function.metadata.get("NIM_Comptage.csv").getMetadata().get("dataset-id"));
+    public void bundledDatasetAndBucketOverrideAreUsed() {
+        Probe function = configured(Map.of("NAMESPACE", "testns", "INPUT_BUCKET_OVERRIDES",
+                "{\"NIM\":\"custom-input\"}"));
+        function.handleRequest("{\"datasourceId\":\"NIM\"}");
+        assertEquals("testns/custom-input", function.bucket);
+        assertEquals(CSV_URI, function.requests.get(0));
+        assertEquals(DataSourceTestSettings.settings("NIM").datasetId(),
+                function.metadata.values().iterator().next().getMetadata().get("dataset-id"));
     }
 
     @Test
     public void unchangedCsvIsNotUploadedAgain() {
         Probe function = configured(Map.of());
-        function.handleRequest("");
+        function.handleRequest("{\"datasourceId\":\"NIM\"}");
         function.writes.clear();
         function.unchanged = true;
-        function.handleRequest("");
+        function.handleRequest("{\"datasourceId\":\"NIM\"}");
         assertEquals("\"nim-validator\"", function.validators.get(1));
         assertTrue(function.writes.isEmpty());
     }
@@ -73,15 +70,15 @@ public class DataSourceFunctionTest {
     public void emptyOrFailedDownloadsDoNotReplaceThePreviousCsv() {
         for (boolean empty : new boolean[]{false, true}) {
             Probe function = configured(Map.of());
-            function.handleRequest("");
+            function.handleRequest("{\"datasourceId\":\"NIM\"}");
             function.writes.clear();
             function.empty = empty;
             function.fail = !empty;
             try {
-                function.handleRequest("");
+                function.handleRequest("{\"datasourceId\":\"NIM\"}");
                 fail("Expected download failure");
-            } catch (UncheckedIOException expected) {
-                assertTrue(expected.getMessage().contains("NIM_Comptage.csv"));
+            } catch (IllegalStateException expected) {
+                assertTrue(expected.getCause().getMessage().contains("NIM_Comptage.csv"));
             }
             assertTrue(function.writes.isEmpty());
             assertArrayEquals(CSV, function.contents.get("NIM_Comptage.csv"));
@@ -89,7 +86,7 @@ public class DataSourceFunctionTest {
     }
 
     private static Probe configured(Map<String, String> configuration) {
-        Map<String, String> settings = new HashMap<>(DataSourceTestSettings.configuration("NIM"));
+        Map<String, String> settings = new HashMap<>();
         settings.putAll(configuration);
         FunctionRuntimeContext runtime = new FunctionRuntimeContext(
                 new FunctionLoader().loadClass(Probe.class.getName(), "handleRequest"), settings);

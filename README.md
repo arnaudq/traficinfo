@@ -116,9 +116,9 @@ source input name; otherwise it defaults to `csvObject`. DPT76 selects its
 preprocessing manifest so output generation starts after a completed publication.
 
 NIM selects the `nim-2023-2025` dataset and enables GeoJSON in `dsconfig.json`.
-Use `./scripts/deploy-functions.sh ds NIM` and `./scripts/invoke.sh ds NIM`
+Use `./scripts/deploy-functions.sh ds` and `./scripts/invoke.sh ds NIM`
 to retrieve it. The source uses bucket `dsnim`, Object `NIM_Comptage.csv`,
-a 300-second runtime timeout and the Monthly schedule tag.
+the shared 300-second runtime timeout and a monthly retrieval schedule.
 Deploy and run preprocessing with `./scripts/deploy-functions.sh preprocess NIM`
 and `./scripts/invoke.sh preprocess NIM` to publish its yearly Objects and manifest.
 Then deploy `NIMGeoJsonOut` with `./scripts/deploy-functions.sh geojson NIM`
@@ -161,49 +161,56 @@ an error. No ETags or tool-availability checks are used. The script waits for
 active rules and verifies their conditions and enabled function actions.
 Existing CSV objects are not processed until the next matching object event.
 
-## Hourly, daily, weekly and monthly schedules
+## Retrieval schedules
 
-Run `./scripts/setup-schedules.sh` to create or reconcile `Hourly` (at **the start of every hour**),
-`Daily`, `Weekly` (Wednesdays), and `Monthly` (the 5th of each month). The latter
-three run at **15:30 UTC**; all schedules use UTC. Each uses dynamic
-resource filters selecting only `FunctionsFunction` resources in `TraficInfo`
-(excluding child compartments) with defined tag `TraficInfo.DataSourceSchedule`
-equal to its name: `Hourly`, `Daily`, `Weekly`, or `Monthly`.
+Retrieval is deployed once as `DataSourceFunction`. Its JAR bundles `dsconfig.json`;
+requests select the source with a minimal JSON payload, such as
+`{"datasourceId":"DPT34"}`. Preprocessing and GeoJSON deployment remain per source.
 
-Create the `TraficInfo` tag namespace and `DataSourceSchedule` key definition
-first, with allowed values `Hourly`, `Daily`, `Weekly`, and `Monthly`. Apply the
-appropriate value directly to each data source function. The script does not tag functions
-or attach function OCIDs; OCI selects matching functions dynamically at run time.
-Untagged functions do not match. Deployment with `./scripts/deploy-functions.sh` reads
-`dsconfig.json` and sets `TraficInfo.DataSourceSchedule` on the data source
-functions: `MMM` maps to `3MOpenDataSource`, and `DPT34` maps to
-`DPT34OpenDataSource`. Current schedules are Daily and Monthly respectively.
-Both creation and updates set the data source function's complete defined-tag
-map to the configured scheduling tag. Deployment also tags `OSMInfoFunction` as
-`Hourly` so it refreshes incomplete OSM way mappings at the start of every hour.
-GeoJSON functions receive no scheduling tag from deployment. Deploy the intended
-functions before converting an existing schedule from static targets to filters.
+After `source ./scripts/setup.sh`, deploy the shared retrieval function before
+reconciling schedules:
 
 ```sh
+./scripts/deploy-functions.sh ds
 ./scripts/setup-schedules.sh --dry-run
 ./scripts/setup-schedules.sh
+./scripts/invoke.sh ds DPT34
 ```
 
-Timing is defined directly in the script, using settings recorded previously
-from Daily. No schedule serves as a template, and Daily may be missing.
-Existing schedules are reconciled to the configured timing and filters, clearing
-any explicit resource list. Tags, descriptions, and start/end dates are preserved.
-Already matching schedules are skipped. Duplicate names (matched
-case-insensitively) cause an error. Updates do not use ETags.
+`setup-schedules.sh` generates `<datasourceId>Retrieval` for each entry in
+`dsconfig.json`. Each schedule targets the shared function OCID and supplies a
+BODY parameter containing only `datasourceId`. The `schedule` field still selects
+`Hourly`, `Daily`, `Weekly` (Wednesday), or `Monthly` (day 5).
+All schedules use UTC. Daily, weekly and monthly retrieval default to 15:30;
+hourly retrieval defaults to minute 0.
+The current datasource clocks are spaced five minutes apart in configuration
+order, from 15:30 to 15:55 UTC; each keeps its configured daily or monthly cadence.
 
-Uses shell functions, OCI CLI, and `jq`, without checking tool availability.
-Uses the OCI credentials and `OCI_COMPARTMENT_ID` exported by
-`source ./scripts/setup.sh`.
+Set an optional `scheduleClock` independently on each datasource to spread runs:
 
-Dry runs read OCI and show proposed creates and updates without submitting them.
-Normal runs wait for each operation to succeed and verify timing, filters, and
-absence of static targets. OCI permits duplicate names; avoid simultaneous runs,
-as the pre-creation recheck cannot make creation atomic.
+```json
+"schedule": "Daily",
+"scheduleClock": "BYHOUR=16;BYMINUTE=10;BYSECOND=0"
+```
+
+Hourly sources instead accept, for example, `"scheduleClock":
+"BYMINUTE=25;BYSECOND=0"`. Hours must be 0–23 and minutes 0–59; seconds are 0.
+Changing a clock needs only schedule setup; changing retrieval URLs, selected
+datasets or default buckets requires redeploying the shared JAR.
+
+The existing `Hourly` schedule continues selecting `OSMInfoFunction` through
+`TraficInfo.DataSourceSchedule=Hourly`; deployment still applies that tag.
+The shared retrieval function has an empty managed defined-tag map and is
+selected by its per-source schedules instead. Other old schedules are untouched.
+
+Dry runs show proposed changes without submitting them. Normal runs wait for
+operations and verify recurrence, targets and payloads. Matching schedules are
+skipped, duplicate names are rejected, and updates preserve descriptions, tags
+and start/end dates. The script does not create IAM policies: the scheduler
+principals must be allowed to invoke the shared function. When policies enumerate
+schedule OCIDs, include the newly created schedules.
+The shared function's resource principal also needs read/write access to all
+configured input buckets.
 
 ## Function failure emails
 

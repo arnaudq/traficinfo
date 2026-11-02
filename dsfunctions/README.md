@@ -1,6 +1,8 @@
-The M3M function in the dsfunctions module downloads Montpellier Méditerranée
-Métropole traffic counts in CSV and GeoJSON format and stores them in the
-`ds3mbucket` Object Storage bucket.
+# Data source functions
+
+The module provides shared retrieval, per-source preprocessing and GeoJSON
+deployments, and an OSM cache refresh function. Retrieval selects its datasource
+from each request and loads the source settings from the bundled configuration.
 
 Files are gzip-compressed before upload, keeping their original object names and
 content types with `Content-Encoding: gzip`. Compression uses a temporary file
@@ -46,20 +48,36 @@ The selected map key becomes `datasetId` in the runtime settings. Inputs have
 `url`, `contentType`, and optionally `objectName`. CSV Object names default to the datasource's `csvObject` naming
 convention; MMM's companion JSON keeps its explicit legacy name.
 
-Deployment passes these settings as a JSON string in `DATA_SOURCE_SETTINGS`,
-alongside `NAMESPACE` and `BUCKETNAME`. Functions read configuration through the
-Fn runtime; they do not read `dsconfig.json` at runtime. `DATA_SOURCE_SETTINGS`
-and `BUCKETNAME` are mandatory. Missing or invalid settings fail configuration
-before clients are created; there are no hardcoded retrieval URL fallbacks.
+Maven includes the repository `dsconfig.json` as `/dsconfig.json` in the JAR,
+without maintaining a second copy. The shared handler
+`org.traficinfo.dsfunctions.DataSourceFunction::handleRequest` loads an immutable
+registry at startup and accepts only `{"datasourceId":"DPT34"}`-style requests.
+Unknown IDs, malformed requests and caller-supplied settings are rejected before
+creating clients. Adding a retrieval source using the existing input lifecycle
+needs configuration and a new schedule, with no per-source Java wrapper.
 
-Only the selected datasource's active retrieval settings are passed to the
-function. Headers and manifest history stay in Object Storage. Deployment checks
-OCI's 4096-byte configuration budget before building or changing functions,
-counting UTF-8 bytes in keys and values. It checks the function settings locally,
-then reads the application settings and checks the combined configuration with
-function-level overrides applied. An oversized configuration or an application
-configuration read failure stops the deployment before any function changes.
-See [OCI configuration limits](https://docs.oracle.com/en-us/iaas/tools/oci-cli/latest/oci_cli_docs/cmdref/fn/function/create/archive-function/object-storage/fn-update-runtime-config.html).
+Each request resolves the active dataset, ordered inputs and bucket from the
+bundle. CSV object names default to `<id>_Comptage.csv`; non-CSV inputs require
+explicit names. Input buckets default to `ds<lowercase-id>`, with `inputBucket`
+for exceptions such as MMM. The root key must match `id`; IDs use uppercase
+letters, digits and underscores. Registry loading validates every active source
+and rejects conflicting destination objects. Inactive datasets remain bundled.
+
+Deployment passes `NAMESPACE` and optionally the sparse JSON string
+`INPUT_BUCKET_OVERRIDES` for existing `BUCKETNAME_IN` (MMM) and `BUCKETNAME_<ID>`
+script overrides. `USE_RESOURCE_PRINCIPAL` still defaults to `true`.
+Datasource URLs and datasets no longer consume the OCI 4096-byte runtime
+configuration budget. That guard still applies to environment settings and
+unchanged preprocessing/GeoJSON deployments. The shared function timeout is the
+maximum active-dataset timeout (default 30 seconds per source), currently 300
+seconds. Synchronous retrieval invocation allows that maximum plus 60 seconds.
+
+Clients are created for the selected source inside its logging scope and closed
+after every invocation. No mutable source selection survives between requests.
+Configuration changes require rebuilding/redeploying the shared JAR; clock
+changes require only schedule setup. `setup-schedules.sh` generates
+`<id>Retrieval` schedules with minimal BODY payloads. See the root README for
+per-source `scheduleClock` overrides and scheduler IAM requirements.
 
 `SourceObjectPublisher` streams changed inputs to the existing current Object
 names, with gzip storage and copy-before-replace archival. Each upload records
@@ -75,16 +93,15 @@ the invocation before replacement. MMM still publishes its JSON before CSV;
 a failure stops subsequent inputs but does not roll back earlier uploads.
 Archive dates use the previous download date, including for MMM.
 
-The datasource function does not use the manifest. Event routing remains the
-existing CSV-to-GeoJSON flow until manifest-based routing is enabled. Changing current
-Object names also requires matching consumers/event configuration; use existing
-names during this step. Preprocessing is invoked explicitly, including for NIM;
-publish its manifest before invoking the GeoJSON handler or enabling events.
+Retrieval does not use the manifest or run preprocessing. Event rules use each
+source's configured `eventObject`; changing Object names requires updating the
+matching consumers and event configuration. Publish a manifest with preprocessing
+before invoking GeoJSON or enabling events.
 
 ## Shared infrastructure
 
-`org.traficinfo.dsfunctions.HttpClient`, `ObjectStoreClient` and
-`OOSResourceMetadata` are shared by the M3M, DPT30, DPT34, MRN and NIM source functions.
+`HttpClient`, `ObjectStoreClient` and `OOSResourceMetadata` implement the shared
+HTTP and Object Storage lifecycle.
 The HTTP client sends `If-None-Match` for real server ETags and returns no body
 for HTTP 304. When the server supplies no ETag or a malformed ETag (such as an
 unquoted ArcGIS validator), it stages the complete response
@@ -97,80 +114,47 @@ metadata. Last-Modified remains optional and is not inferred by the HTTP client.
 Responses, body streams and temporary files are released when `EntityBody` is
 closed. Unchanged downloads and failed downloads also delete temporary files.
 
-### Shared function superclasses
+## GeoJSON output
 
-All five datasource handlers extend `AbstractDataSourceFunction`. Each handler
-supplies only its datasource ID; the superclass reads retrieval settings and the
-bucket from function configuration and delegates to `SourceObjectPublisher`.
-MMM's companion inputs use the same lifecycle as single-CSV sources.
-
-MMM, DPT30, DPT34, MRN and NIM GeoJSON handlers use `AbstractGeoJsonOutFunction` and
-`GeoJsonDataSource`. That enum contains only parser selection and the naming
-conventions needed by GeoJSON generation. Download URLs and archive naming are
-not part of it.
-
-Each invocation publishes two gzip GeoJSON FeatureCollections in the output
-bucket: `<sourceId>_TraficInfo.geojson` contains only `VEHICULES`, and
-`<sourceId>_TraficInfo_BICYCLES.geojson` contains only `BICYCLES`. Empty
-populations are published as empty collections to clear removed counters.
-Both outputs retain `type` on each feature. OSM cache refresh
-runs after both uploads. The two object uploads are sequential; a failure of
-the bicycle upload fails the invocation after the vehicle file was updated.
-
-The superclasses expose public final `config(RuntimeContext)` methods annotated
-with `@FnConfiguration`, and public final `handleRequest(String)` methods. Fn
-runtime 1.0.185 discovers these inherited methods. Tests use Fn's actual loader,
-configurer and runtime context with fake clients, checking mandatory settings,
-handler identity and client creation order. Package-private constructors accept
-explicit test settings and clients without introducing runtime fallbacks.
-
-## NIM functions
-
-`org.traficinfo.dsfunctions.nim.DataSourceFunction::handleRequest` downloads the
-active Nîmes Métropole CSV export selected in `dsconfig.json`. The active dataset
-is `nim-2023-2025`; historical datasets cover 2020–2021 and 2022. Default bucket
-`dsnim` contains the gzip Object `NIM_Comptage.csv`; changed downloads archive
-the previous content as `NIM_Comptage_YYYYMMDD.csv`. Retrieval, source identity
-checks and metadata use the shared publisher. The export uses French column
-labels and semicolons.
-
-Retrieval runs Monthly with a 300-second runtime timeout.
-`scripts/invoke.sh ds NIM` allows 360 seconds for the synchronous response.
-`BUCKETNAME_NIM` overrides the deployment bucket. The existing 4096-byte
-configuration guard applies.
-
-`org.traficinfo.dsfunctions.nim.GeoJsonOutFunction::handleRequest` reads
-`NIM_Manifest.json` and its exact yearly Object references, including retained
-historical datasets. It validates checksums, record counts and years before
-rendering through `GeoJsonParser.DataSource.NIM`. It accepts plain or gzip
-Objects and uploads gzip `NIM_TraficInfo.geojson` with content type
-`application/geo+json`. Geometry and site IDs come from stored NIM records;
-annual history and filtering use the shared renderer. The displayed daily
-average is over observed complete days, not an extrapolated full-year TMJA.
-Records without a daily average or coordinates are excluded by shared filtering.
-See the [NIM parser README](../parsers/src/main/java/org/traficinfo/parsers/nim/README.md).
-
-Configure `NAMESPACE`, `BUCKETNAME_IN` (default `dsnim`), `BUCKETNAME_OUT`
-(default `traficinfo`) and `USE_RESOURCE_PRINCIPAL` (default `true`). OSM
-configuration uses `BUCKETNAME_OSM` (default `osminfo`), `OSM_CACHE_OBJECT`
-(default `NIM_OSMInfo.json`) and `OSM_WAY_MAPPING_OBJECT`
-(default `NIM_OSMWayMapping.json`). Cache refresh follows successful output
-publication. Download, validation, upload and cache-write failures fail the
-invocation; temporary output files are removed on success and failure.
-
-After `source ./scripts/setup.sh`, deploy the handler as `NIMGeoJsonOut` and
-invoke it against an already published manifest:
+GeoJSON remains deployed per datasource. Each handler extends
+`AbstractGeoJsonOutFunction`; `GeoJsonDataSource` selects the parser and default
+resource names. After publishing a manifest with preprocessing, deploy and invoke
+an output handler with:
 
 ```sh
-./scripts/deploy-functions.sh geojson NIM
-./scripts/invoke.sh geojson NIM
+./scripts/deploy-functions.sh geojson DPT34
+./scripts/invoke.sh geojson DPT34
 ```
 
-Publish the required datasets with preprocessing before invoking GeoJSON.
-GeoJSON deployment, invocation and inclusion in the existing CSV event setup
-are enabled by default. Events still invoke GeoJSON directly and do not run
-preprocessing; generation reads the latest published manifest. Run preprocessing
-explicitly after source changes until event routing is migrated.
+The handler reads `<id>_Manifest.json` and the exact yearly Objects it references,
+including retained inactive datasets. It validates checksums, record counts and
+years before rendering; it does not read raw retrieval inputs. Both plain and
+gzip Objects are supported. Geometry, site identity and annual history come from
+the stored records. See the [parser documentation](../parsers/README.md) for
+rendering and source-specific interpretation.
+
+Each invocation publishes two gzip FeatureCollections to the output bucket:
+`<id>_TraficInfo.geojson` for `VEHICULES` and
+`<id>_TraficInfo_BICYCLES.geojson` for `BICYCLES`. Empty populations are published
+as empty collections to clear removed counters. Features retain their `type`.
+Uploads are sequential: failure of the second output can leave the first updated.
+OSM cache refresh runs after both uploads. Manifest, output and cache-write
+failures fail the invocation; temporary output files are always removed.
+
+| Runtime setting | Default |
+| --- | --- |
+| `NAMESPACE` | OCI Object Storage namespace supplied by deployment |
+| `BUCKETNAME_IN` | Datasource input bucket supplied by deployment |
+| `BUCKETNAME_OUT` | `traficinfo` |
+| `USE_RESOURCE_PRINCIPAL` | `true` |
+| `BUCKETNAME_OSM` | `osminfo` |
+| `OSM_CACHE_OBJECT` | `<id>_OSMInfo.json` |
+| `OSM_WAY_MAPPING_OBJECT` | `<id>_OSMWayMapping.json` |
+
+Deployment names output functions `<id>GeoJsonOut`, with MMM's existing
+`3MGeoJsonOut` exception selected by `functionPrefix`. Bucket and OSM overrides
+are described under deployment below. Events invoke GeoJSON directly; they do
+not run preprocessing. Publish the required manifests before enabling events.
 
 ## Preprocessing
 
@@ -219,6 +203,24 @@ lock. Inspect its owner/start time and confirm the previous publisher has stoppe
 before deleting it manually. Function permissions need Object read, create,
 update and delete access within the datasource bucket. Failed runs can leave
 unreferenced yearly Objects; cleanup is not automatic.
+
+### Input formats
+
+Preprocessing selects counts inputs by content type: `text/csv` for CSV sources
+and `application/geo+json` for GeoJSON sources. CSV inputs retain their required
+header checks. MMM additionally joins its companion geometry by counter ID;
+companion LineStrings become midpoint Points during preprocessing.
+
+DPT76 reads one GeoJSON counts input and no companion CSV. It records `GEOJSON`
+with no CSV headers in the manifest, preserves FID-based identities and WGS84
+geometry, and rejects malformed, duplicate-FID or explicitly truncated input
+before replacing a publication. Records without geometry or counts remain in
+stored yearly data; GeoJSON output filters ineligible map features. The shared
+downloader does not paginate ArcGIS queries.
+
+For NIM, displayed daily averages use observed complete days rather than an
+extrapolated full-year TMJA. Source interpretation and normalization are described
+in the [parser READMEs](../parsers/README.md).
 
 ### Importing existing archives once
 
@@ -376,169 +378,7 @@ Reactivating an earlier dataset, or including its years in a new active dataset,
 allows those years to be processed again. Use a new dataset ID when moving to
 the next period, and inspect the generated manifest rather than editing it manually.
 
-## MRN functions
-
-`org.traficinfo.dsfunctions.mrn.DataSourceFunction::handleRequest` downloads the
-Métropole Rouen Normandie
-[CSV export](https://data.metropole-rouen-normandie.fr/api/explore/v2.1/catalog/datasets/comptages-et-enquetes-sur-le-reseau-routier/exports/csv?use_labels=true&delimiter=%3B).
-Keep French labels and semicolon delimiters. Deployment supplies `NAMESPACE`,
-`DATA_SOURCE_SETTINGS` and `BUCKETNAME` (normally `dsmrn`).
-`USE_RESOURCE_PRINCIPAL` defaults to `true`.
-The current object is `MRN_Comptage.csv`; previous versions are archived as
-`MRN_Comptage_YYYYMMDD.csv` before replacement. Publication uses the shared gzip
-storage, download metadata and content-change detection. On October 22, 2026,
-the export returned neither ETag nor Last-Modified, so the HTTP client's SHA-256
-fallback applies and still requires downloading the full export to compare it.
-
-`org.traficinfo.dsfunctions.mrn.GeoJsonOutFunction::handleRequest` reads plain or
-gzip CSV with `GeoJsonParser.DataSource.MRN` and publishes gzip
-`MRN_TraficInfo.geojson` in `traficinfo`. Configuration keys are `NAMESPACE`,
-`BUCKETNAME_IN` (default `dsmrn`), `BUCKETNAME_OUT` (default `traficinfo`), and
-`USE_RESOURCE_PRINCIPAL`. OSM configuration uses the shared `BUCKETNAME_OSM`,
-`OSM_CACHE_OBJECT` and `OSM_WAY_MAPPING_OBJECT` overrides, defaulting to `osminfo`,
-`MRN_OSMInfo.json` and `MRN_OSMWayMapping.json`. No road reference is extracted
-from Rouen street labels. See the parser package README for campaign filtering.
-
-The MRN entry in `dsconfig.json` selects Daily retrieval. Deployment registers
-`MRNOpenDataSource` and `MRNGeoJsonOut`; `BUCKETNAME_MRN` overrides their input
-bucket. Bucket and event setup use the configured source ID, matching only the
-current `MRN_Comptage.csv` object. After `source ./scripts/setup.sh`, use
-`./scripts/deploy-functions.sh ds MRN`, `./scripts/deploy-functions.sh geojson MRN`,
-`./scripts/invoke.sh ds MRN` or `./scripts/invoke.sh geojson MRN`. Add/reconcile buckets, events
-and schedules with the existing setup scripts before relying on scheduled runs.
-
-## DPT30 functions
-
-`org.traficinfo.dsfunctions.dpt30.DataSourceFunction::handleRequest` downloads
-Gard's [CSV export](https://www.data.gouv.fr/api/1/datasets/r/69584212-8ff0-40d3-b82d-2d5d2890bff7).
-The HTTP client follows the stable URL's redirect to the dated file and uses
-its ETag for conditional downloads. HTTP 304 returns `OK` without uploads or
-archives. Deployment supplies `NAMESPACE`, `DATA_SOURCE_SETTINGS` and
-`BUCKETNAME` (normally `dsdpt30`); `USE_RESOURCE_PRINCIPAL` defaults to `true`.
-
-The function uploads `DPT30_Comptage.csv` as gzip `text/csv`, recording the
-source validator in `current-etag`, a UTC `downloaded-at` timestamp and a
-`last-modified` download date. Before replacing existing content, it copies the
-previous CSV and metadata to `DPT30_Comptage_YYYYMMDD.csv`, using the previous
-download date. Multiple versions downloaded on one day share an archive name.
-An empty download, download error or archive failure prevents replacement and
-fails the invocation. As with DPT34, downstream event rules must match the
-current CSV name exactly so archives do not trigger processing.
-
-`org.traficinfo.dsfunctions.dpt30.GeoJsonOutFunction::handleRequest` reads the
-CSV and generates points and annual history with `GeoJsonParser.DataSource.DPT30`.
-It accepts plain or gzip input and uploads gzip `DPT30_TraficInfo.geojson`
-with content type `application/geo+json`. Configure `NAMESPACE`,
-`BUCKETNAME_IN` (default `dsdpt30`) and `BUCKETNAME_OUT` (default `traficinfo`).
-`USE_RESOURCE_PRINCIPAL` defaults to `true`. OSM enrichment uses
-`DPT30_OSMInfo.json` and `DPT30_OSMWayMapping.json` in bucket `osminfo`, with
-configuration overrides `OSM_CACHE_OBJECT`, `OSM_WAY_MAPPING_OBJECT` and
-`BUCKETNAME_OSM`. The output handler returns `OK` on success and throws on errors,
-including cache failures. Temporary output files are deleted on success and
-failure. CSV coordinates supply geometry; no companion GeoJSON is downloaded.
-
-`scripts/deploy-functions.sh` registers `DPT30OpenDataSource` and `DPT30GeoJsonOut`.
-Names, the `Monthly` schedule tag and default bucket `dsdpt30` come from the
-DPT30 entry in `dsconfig.json`; `BUCKETNAME_DPT30` overrides the deployment input
-bucket. After deployment, invoke with `./scripts/invoke.sh ds DPT30` or
-`./scripts/invoke.sh geojson DPT30`. Run `source ./scripts/setup.sh` before these scripts.
-
-DPT30 preprocessing is configured for 2021–2025. Deploy it with
-`./scripts/deploy-functions.sh preprocess DPT30`, then invoke with
-`./scripts/invoke.sh preprocess DPT30` after the datasource input has been stored.
-
-Tests cover first/unchanged/changed downloads, archive and upload failures,
-empty downloads, plain/gzip CSV-to-GeoJSON output, annual history, OSM cache
-integration and cleanup. A shared HTTP client test verifies ETag forwarding
-through a redirect to another host name. Run `mvn -o -pl dsfunctions -am test`.
-
-## DPT34 data source function
-
-`org.traficinfo.dsfunctions.dpt34.DataSourceFunction::handleRequest` downloads
-the Hérault [CSV export](https://www.herault-data.fr/api/explore/v2.1/catalog/datasets/trafic-de-l-herault-donnees-de-comptage/exports/csv?use_labels=true&delimiter=%3B).
-Deployment supplies `NAMESPACE`, `DATA_SOURCE_SETTINGS` and `BUCKETNAME`
-(normally `dsdpt34`); `USE_RESOURCE_PRINCIPAL` defaults to `true`.
-
-The endpoint supplies no ETag or Last-Modified header. The function delegates
-change detection to the shared HTTP client using the stored `current-etag`
-validator. If unchanged, it returns `OK` without uploading anything.
-
-On first download or changed content, the function uploads
-`DPT34_Comptage.csv` with content type `text/csv`, gzip encoding,
-`current-etag`, a `downloaded-at` UTC timestamp and a `last-modified` download
-date in user metadata.
-When replacing an existing CSV, it first copies the previous content and metadata
-to `DPT34_Comptage_YYYYMMDD.csv`, following the M3M date suffix convention.
-The date comes from the previous object's `last-modified` metadata.
-Since the source has no Last-Modified header, this
-is a download date, not the publisher's modification date. As with M3M,
-multiple versions dated the same day share an archive name.
-Copying preserves the current object until
-the replacement upload succeeds. A failed archive prevents replacement.
-
-Download, storage and empty-response failures fail the invocation. Temporary
-files are deleted on success and failure. No companion GeoJSON file is downloaded:
-the DPT34 parser supplies geometry from the CSV coordinates.
-
-The source bucket's object events cover archive uploads as well as current
-uploads; downstream event rules should match the exact current object name.
-`scripts/deploy-functions.sh` registers this handler as `DPT34OpenDataSource`.
-Its bucket defaults to `dsdpt34`; override it with `BUCKETNAME_DPT34`.
-
-## DPT34 GeoJSON output function
-
-`org.traficinfo.dsfunctions.dpt34.GeoJsonOutFunction::handleRequest` reads
-`DPT34_Comptage.csv` from Object Storage and generates geometry directly from
-the CSV coordinates through `GeoJsonParser.DataSource.DPT34`.
-Configure `NAMESPACE`, `BUCKETNAME_IN` (default `dsdpt34`) and
-`BUCKETNAME_OUT` (default `traficinfo`). `USE_RESOURCE_PRINCIPAL` defaults to
-`true`.
-
-The handler accepts plain or gzip CSV and uploads `DPT34_TraficInfo.geojson`
-with content type `application/geo+json` and gzip encoding. It preserves the
-parser's filtering, latest geometry selection, annual history and map styling.
-No companion GeoJSON is needed: the CSV supplies coordinates. Cached way IDs
-from `DPT34_OSMWayMapping.json` allow speed-limit enrichment through
-`DPT34_OSMInfo.json`. Both objects are stored in `osminfo`. Temporary output files are removed on success and failure.
-The handler returns `OK` on success and throws on download, parsing or upload failure,
-matching the M3M output function.
-
-`scripts/deploy-functions.sh` registers it as `DPT34GeoJsonOut` using
-`BUCKETNAME_DPT34` for its input bucket and `BUCKETNAME_OUT` for its output.
-After deployment, invoke it with `./scripts/invoke.sh geojson DPT34`.
-
-## M3M GeoJSON output function
-
-`org.traficinfo.dsfunctions.m3m.GeoJsonOutFunction::handleRequest` reads
-`MMM_Manifest.json` once and follows its exact yearly Object references,
-including years retained from inactive datasets. It validates the publication
-and each year's checksum, record count and record years before generating output
-with `GeoJsonParser.DataSource.M3MV2`. Configure `NAMESPACE`,
-`BUCKETNAME_IN`, and `BUCKETNAME_OUT` to select the namespace and input/output
-buckets; defaults are `ds3mbucket` and `traficinfo`.
-`USE_RESOURCE_PRINCIPAL` defaults to `true`, as in `DataSourceFunction`.
-
-Geometry comes from the stored `M3MComptage` records. The GeoJSON function does
-not read the raw CSV or companion GeoJSON. MMM retrieval and preprocessing still
-require both inputs: preprocessing joins the companion geometry by `code_centrale`
-(or legacy `gid`) and stores it in the yearly records. Points, lines and polygons
-are retained. For each counter, rendering selects geometry from the latest eligible
-year with geometry, using the highest traffic count to break ties, and orders
-features by counter ID.
-
-Companion-only properties `gid` and `name:q` are omitted. Output `code_centrale`
-comes from the record. Descriptions use the stored display name, falling back to
-the counter ID; the companion's `name` is no longer a fallback.
-
-Before deploying this handler, configure MMM's preprocessing year scope and publish
-and verify its manifest, including the historical years to retain. The datasource
-configuration retains the companion input. Event routing is migrated separately.
-
-The function supports both plain and gzip-compressed input objects and writes
-`MMM_TraficInfo.geojson` to the output bucket with content type
-`application/geo+json` and `Content-Encoding: gzip`. It returns `OK` on success
-and throws when downloading, parsing, or uploading fails. Build both modules from
-the repository root with `mvn -pl dsfunctions -am package`.
+## OSM caches
 
 ### OpenStreetMap cache
 
@@ -767,113 +607,59 @@ timeout above the configured loop budget plus time for the last bounded batch.
 The scheduling tag namespace/key and scheduler invoke permissions must already
 be configured as described in the root README.
 
-## Archive deployment (code-only function)
+## Deployment and invocation
 
-From the repository root, run `./scripts/deploy-functions.sh`. It builds the Maven
-`jar-with-dependencies` artifact once and uploads it directly to OCI Functions as
-`3MOpenDataSource`, `DPT30OpenDataSource`, `DPT34OpenDataSource`, `MRNOpenDataSource`,
-`NIMOpenDataSource`,
-`3MGeoJsonOut`, `DPT30GeoJsonOut`, `DPT34GeoJsonOut`, `MRNGeoJsonOut` and `OSMInfoFunction`
-in the existing `3MOpenDataProcessor` application. It uses
-the managed `java21.ol9` runtime, which can run this project's Java 17 bytecode.
-On later runs, the script updates each exact-name archive function with its own
-handler (`DataSourceFunction::handleRequest`, `GeoJsonOutFunction::handleRequest`,
-or `OSMInfoFunction::handleRequest`).
-
-With no arguments, all functions are deployed. To deploy just one, use the same
-selectors as `scripts/invoke.sh`:
+After `source ./scripts/setup.sh`, use the scripts from the repository root:
 
 ```sh
-./scripts/deploy-functions.sh ds DPT34
-./scripts/deploy-functions.sh geojson MMM
-./scripts/deploy-functions.sh osm
-```
-
-The script still builds the shared JAR once, then validates and deploys only the
-selected function. Invalid selectors fail before building or making OCI calls.
-
-First run `source ./scripts/setup.sh` to initialize the shared environment. Deployment
-uses the exported OCI credentials, `OCI_COMPARTMENT_ID`,
-`OCI_OBJECT_STORAGE_NAMESPACE`, `OCI_FN_APPLICATION_NAME`, `TRAFICINFO_ROOT`,
-and `TRAFICINFO_DSCONFIG`. Set `OCI_FN_APPLICATION_ID` to bypass application
-lookup. The compartment and storage namespace are resolved during setup rather
-than queried again during each deployment. `3MOpenDataSource` and `DPT34OpenDataSource`
-receive `NAMESPACE` and `BUCKETNAME`; both GeoJSON functions receive `NAMESPACE`,
-`BUCKETNAME_IN`, `BUCKETNAME_OUT`, `BUCKETNAME_OSM`, `OSM_CACHE_OBJECT`, and
-`OSM_WAY_MAPPING_OBJECT`.
-`OSMInfoFunction` receives `NAMESPACE`, `BUCKETNAME_OSM`, `MAX_LOOP_DURATION_SECONDS`, and `MAX_WAY_MAPPINGS_PER_RUN`.
-The script requires `jq` to prepare function configuration.
-Function names and input buckets are derived by `scripts/oci-common.sh` from each
-data source's `id`, `functionPrefix`, and `inputBucket` in `dsconfig.json`.
-MMM currently uses `ds3mbucket`, overridable with `BUCKETNAME_IN`; DPT34 uses
-`dsdpt34`, overridable with `BUCKETNAME_DPT34`. The output bucket
-defaults to the existing `traficinfo` bucket in the same compartment and can be
-overridden with `BUCKETNAME_OUT`. The OSM bucket defaults to `osminfo` and its
-tag cache object to `<sourceId>_OSMInfo.json`, with mappings in
-`<sourceId>_OSMWayMapping.json`; override these with environment variables
-`BUCKETNAME_OSM`, `OSM_CACHE_OBJECT`, and `OSM_WAY_MAPPING_OBJECT`. The script sets the full function
-configuration from these defaults and environment overrides on both creation
-and updates.
-
-To add another function, add its data source ID, kind (`ds` or `geojson`), and
-Java handler to the `functions` registry in the script. Extend the local config
-builder if it needs additional environment variables. The standalone
-`osm` registry entry deploys `OSMInfoFunction` independently of `dsconfig.json`. The shared
-deployment flow validates every handler class before uploading and prepares
-all configs before modifying any function.
-
-The OCI CLI commands submit asynchronous create or update requests. The script
-captures the `opc-work-request-id` response header, polls that exact work
-request for up to ten minutes, and exits successfully only when it reaches
-`SUCCEEDED`.
-
-For example:
-
-```sh
-export OCI_CLI_CONFIG_FILE="$HOME/.oci/config.arnaudq"
-./scripts/deploy-functions.sh
-fn invoke 3MOpenDataProcessor 3MOpenDataSource
-fn invoke 3MOpenDataProcessor 3MGeoJsonOut
-```
-
-To invoke a deployed function using OCI CLI:
-
-```sh
-./scripts/invoke.sh ds MMM
-./scripts/invoke.sh geojson MMM
+./scripts/deploy-functions.sh ds
 ./scripts/invoke.sh ds DPT34
+./scripts/setup-schedules.sh --dry-run
+./scripts/setup-schedules.sh
+
+./scripts/deploy-functions.sh preprocess DPT34
+./scripts/invoke.sh preprocess DPT34
+
+./scripts/deploy-functions.sh geojson DPT34
 ./scripts/invoke.sh geojson DPT34
+
+./scripts/deploy-functions.sh osm
 ./scripts/invoke.sh osm
 ```
 
-For data source functions, `scripts/invoke.sh` accepts two arguments: `ds|geojson` and
-the data source ID `MMM|DPT30|DPT34|MRN|NIM` from `dsconfig.json`.
-NIM currently supports `ds` only. `MMM` maps to the
-existing `3M` function names. Use `./scripts/invoke.sh osm` with no data source argument
-to invoke `OSMInfoFunction`, independently of `dsconfig.json`. For `osm` only,
-the script sets `--read-timeout 360`, allowing the client to wait up to six minutes
-for the response. This exceeds the function's configured 300-second runtime.
-Other invocation types without an explicit source timeout use the OCI CLI's
-existing timeout settings (the default
-read timeout is 60 seconds; see [invocation timeouts](https://docs.oracle.com/en-us/iaas/Content/Functions/Tasks/functionsinvokingfunctions.htm)).
-The script resolves the selected function in `3MOpenDataProcessor`, invokes
-synchronously with an empty body, and prints the
-function response to standard output. OCI errors propagate as a failing exit code.
-Run `source ./scripts/setup.sh` first. Application lookup uses the exported application
-name and compartment, or `OCI_FN_APPLICATION_ID`, as in the deployment script.
-Invoking a function that has not been deployed reports its name and exits
-without invoking anything.
+Retrieval deploys once as `DataSourceFunction`. Preprocessing and GeoJSON remain
+per-source deployments; no-argument deployment includes retrieval, GeoJSON and
+`OSMInfoFunction`, with preprocessing selected explicitly. Adding a retrieval
+source requires only `dsconfig.json`, redeployment of the shared function and
+schedule setup. New GeoJSON sources still require parser and handler registration.
 
-Direct uploads are limited to 25 MB; the script checks the JAR size before
-uploading. OCI's exact-name function lookup is case sensitive, so use the
-capitalization shown above when invoking or configuring this function.
+Deployment builds the fat JAR once and uploads the selected functions using the
+managed `java21.ol9` runtime. It checks handler/resource presence, the 25 MB direct
+archive limit and OCI's 4096-byte runtime configuration budget before mutation.
+It polls each create/update work request for up to ten minutes. Input settings
+come from the shared setup exports; `OCI_FN_APPLICATION_ID` can bypass the
+application-name lookup. The application remains `3MOpenDataProcessor`.
 
-OCI Dynamic Groups
-traficinfo_fn: all Functions in traficinfo compartment
-traficinfo_apigw: all APIGW in traficinfo compartment
+Retrieval bundles the configured `dsconfig.json` and receives `NAMESPACE` plus
+optional `INPUT_BUCKET_OVERRIDES`. Script bucket overrides use `BUCKETNAME_<ID>`,
+with `BUCKETNAME_IN` for MMM. Output deployment also accepts `BUCKETNAME_OUT`,
+`BUCKETNAME_OSM`, `OSM_CACHE_OBJECT` and `OSM_WAY_MAPPING_OBJECT`. Preprocessing
+receives `PREPROCESSING_SETTINGS` and `BUCKETNAME`; OSM refresh receives
+`NAMESPACE`, `BUCKETNAME_OSM`, `MAX_LOOP_DURATION_SECONDS` and
+`MAX_WAY_MAPPINGS_PER_RUN`.
 
-Policies
-grant-fn-access-to-use-objects: "Allow dynamic-group traficinfo_fn to use objects in compartment TraficInfo"
+Invocation resolves the deployed function and calls it synchronously. Retrieval
+sends only `datasourceId`; preprocessing optionally accepts the archive request
+described above, while normal preprocessing, GeoJSON and OSM use empty bodies.
+Retrieval's client timeout is the maximum configured source runtime plus 60
+seconds; preprocessing and OSM use 360 seconds. Missing functions and OCI errors
+produce a failing exit status.
+
+The function resource principals need Object read/write access to the configured
+buckets; preprocessing also needs create/delete permissions for its publication
+lock. Scheduler principals must be allowed to invoke the shared retrieval function.
+See the root README for generated schedules, per-source `scheduleClock` overrides,
+application logging setup and event configuration.
 
 ## Manifest storage
 
@@ -890,110 +676,3 @@ failure so OCI records an error for the function failure alarm. OSM refresh
 continues processing other caches before throwing if any cache failed.
 Recoverable OSM HTTP lookup failures keep their retry behavior. Set up email
 alerts using `scripts/setup-function-alerts.sh` as described in the root README.
-
-## DPT76 data source function
-
-`org.traficinfo.dsfunctions.dpt76.DataSourceFunction::handleRequest` downloads
-Seine-Maritime's 2022 counting-point GeoJSON using the active `dpt76-2022`
-dataset in `dsconfig.json`. Its ArcGIS query requests all fields and WGS84
-geometry (`outSR=4326`). The configured input is
-`DPT76_Comptage_2022.geojson`, with content type `application/geo+json`, in
-bucket `dsdpt76` by default. Deployment accepts `BUCKETNAME_DPT76` as an input
-bucket override; keep it consistent with the configured input bucket when
-using the bucket setup script.
-
-The handler uses the shared downloader, change detection and gzip storage.
-Unchanged content is skipped. Before replacement, the previous object is
-archived as `DPT76_Comptage_2022_yyyymmdd.geojson`, using its previous download
-date in UTC. Archive metadata is retained, and an archive failure prevents
-replacement. Multiple versions from the same day share an archive name.
-Empty or failed downloads fail the invocation and leave existing content intact.
-Source metadata records the URL, dataset ID, datasource ID and download time.
-As with other download handlers, retrieval stores source bytes; parsing and
-GeoJSON completeness checks belong to preprocessing. The query currently fits
-in one response; pagination is not implemented by the shared downloader.
-
-Deployment passes mandatory `DATA_SOURCE_SETTINGS`, `NAMESPACE` and
-`BUCKETNAME` configuration. `USE_RESOURCE_PRINCIPAL` defaults to `true`.
-DPT76 selects the Monthly retrieval tag. GeoJSON output is enabled, and
-`eventObject: DPT76_Manifest.json` selects the completed preprocessing manifest
-as the event trigger rather than the downloaded source GeoJSON.
-
-After `source ./scripts/setup.sh`:
-
-```sh
-./scripts/setup-buckets.sh --dry-run
-./scripts/setup-buckets.sh
-./scripts/deploy-functions.sh ds DPT76
-./scripts/invoke.sh ds DPT76
-```
-
-After the source has been downloaded, deploy and invoke preprocessing manually:
-
-```sh
-./scripts/deploy-functions.sh preprocess DPT76
-./scripts/invoke.sh preprocess DPT76
-```
-
-Preprocessing reads `DPT76_Comptage_2022.geojson` from the configured source
-bucket, uses `DPT76ComptageParser`, and publishes the 2022 yearly counts under
-an immutable `data/<revision>/DPT76_Comptage_2022.json` path. It publishes
-`DPT76_Manifest.json` last, recording the input format as `GEOJSON` with no CSV
-headers. Records retain `DPT76_<FID>` identity, traffic attributes and WGS84
-geometry; records with null geometry or missing counts remain in yearly storage.
-Only the configured year scope `[2022]` is processed. The original downloaded
-GeoJSON is not modified. Reordering features or repeating an unchanged run does
-not republish yearly data or the manifest. Malformed, duplicate-FID or explicitly
-truncated input fails before replacing an existing publication.
-
-CSV sources retain their CSV header checks. Each preprocessing source selects
-its counts input by the expected content type: `application/geo+json` for DPT76,
-`text/csv` for existing sources. DPT76 requires exactly one GeoJSON input, with
-no companion CSV. Locking, checksums, provenance validation, readback checks and
-retention of previously published years use the shared publication logic.
-
-### DPT76 GeoJSON output
-
-`org.traficinfo.dsfunctions.dpt76.GeoJsonOutFunction::handleRequest` uses the
-shared manifest reader and GeoJSON writer. It reads `DPT76_Manifest.json` and
-the exact yearly objects it references from `dsdpt76`, validates checksums and
-record counts, then publishes gzip `DPT76_TraficInfo.geojson` to `traficinfo`.
-It also publishes `DPT76_TraficInfo_BICYCLES.geojson`, an empty collection for
-this vehicle-only source, following the shared output convention.
-
-The handler keeps different FIDs separate even when they share a station code.
-Records without geometry or positive traffic do not produce map features.
-Annual history, bidirectional markers and OSM enrichment use the shared rules.
-OSM cache defaults are `DPT76_OSMInfo.json` and `DPT76_OSMWayMapping.json` in
-`osminfo`. Configuration supports `NAMESPACE`, `BUCKETNAME_IN`, `BUCKETNAME_OUT`,
-`BUCKETNAME_OSM`, `OSM_CACHE_OBJECT`, `OSM_WAY_MAPPING_OBJECT` and
-`USE_RESOURCE_PRINCIPAL`. Failed manifest validation prevents output uploads;
-output or cache failures fail the invocation.
-
-After source retrieval and preprocessing:
-
-```sh
-./scripts/deploy-functions.sh geojson DPT76
-./scripts/invoke.sh geojson DPT76
-./scripts/setup-events.sh --dry-run
-./scripts/setup-events.sh
-```
-
-Event setup matches only create/update events for `DPT76_Manifest.json` in the
-configured input bucket. Raw downloads, dated archives and intermediate yearly
-objects do not trigger GeoJSON generation. Existing sources keep their event
-object defaults. Preprocessing remains manually invoked; source retrieval does
-not automatically run it. Publishing the manifest before setting up the event
-rule requires a manual GeoJSON invocation for the initial output.
-
-Tests use fake HTTP and storage clients, including Fn runtime configuration,
-first/unchanged downloads, dated archives, download failures and archive
-failures. Shell tests cover deployment, invocation, scheduling tags, explicit
-GeoJSON input names, preprocessing deployment/invocation and manifest event
-routing, without cloud changes. Preprocessing tests cover Fn configuration,
-manifest round trips, null measures and geometry, repeated station codes,
-year scope, unchanged retries and preservation of the manifest on failure.
-Output tests cover plain/gzip manifests and yearly records, gzip output,
-repeated station codes, annual history, OSM enrichment and failure handling.
-Run `mvn -o -pl dsfunctions -am test` and
-`python3 -m unittest discover -s tests -v` from the repository root.
