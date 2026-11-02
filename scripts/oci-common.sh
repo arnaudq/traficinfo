@@ -116,7 +116,7 @@ load_data_sources() {
       | (.functionPrefix // .id) as $prefix
       | . + {functionPrefix: $prefix,
           dataSourceFunction: "DataSourceFunction",
-          geoJsonFunction: ($prefix + "GeoJsonOut"),
+          geoJsonFunction: "GeoJsonFunction",
           preprocessingFunction: "PreprocessingFunction",
           retrievalEventRule: (.id + "RetrievalToPreprocessing"),
           eventRule: ($prefix + "ComptageCsvToGeoJson"),

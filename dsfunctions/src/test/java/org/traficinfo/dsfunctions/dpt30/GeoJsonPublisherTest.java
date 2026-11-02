@@ -1,4 +1,4 @@
-package org.traficinfo.dsfunctions.dpt76;
+package org.traficinfo.dsfunctions.dpt30;
 
 import org.traficinfo.dsfunctions.GeoJsonDataSource;
 import org.traficinfo.dsfunctions.ManifestTestPublication;
@@ -10,11 +10,11 @@ import com.oracle.bmc.objectstorage.requests.PutObjectRequest;
 import com.oracle.bmc.objectstorage.responses.GetObjectResponse;
 import com.oracle.bmc.objectstorage.responses.PutObjectResponse;
 import org.junit.Test;
+import org.traficinfo.dsfunctions.GeoJsonPublisher;
 import org.traficinfo.dsfunctions.ObjectStoreClient;
 import org.traficinfo.dsfunctions.OSMInfoProviderImpl;
 import org.traficinfo.dsfunctions.OpenStreetMapClient;
 import java.io.InputStream;
-import org.traficinfo.parsers.dpt76.DPT76Comptage;
 import java.time.Instant;
 import java.util.Map;
 
@@ -32,46 +32,35 @@ import java.util.zip.GZIPOutputStream;
 import static org.junit.Assert.*;
 import static org.traficinfo.dsfunctions.FunctionFailureAssertions.assertFunctionFailure;
 
-public class GeoJsonOutFunctionTest {
+public class GeoJsonPublisherTest {
 
     private static final int YEAR = Year.now().getValue();
-    private static DPT76Comptage record(long fid, int year, Integer total, Double latitude, Double longitude) {
-        DPT76Comptage count = new DPT76Comptage();
-        count.setFid(fid);
-        count.setCodeCentrale("DPT76_" + fid);
-        count.setStationCode(1235.0);
-        count.setAnnee(year);
-        count.setMjaTvTcj(total);
-        count.setLatitude(latitude);
-        count.setLongitude(longitude);
-        count.setRouteId("76 D0925");
-        count.setDisplayName("76 D0925 - PR 104 + 200");
-        return count;
-    }
+    private static final String CSV = "\uFEFFid_tmja,annee,numero_route,communes,"
+            + "tmja_tous_vehicules,latitude,longitude\n"
+            + "1_0_3_0_" + (YEAR - 1) + "," + (YEAR - 1) + ",D6086,PONT-SAINT-ESPRIT,400,43.2,3.2\n"
+            + "1_0_3_0_" + YEAR + "," + YEAR + ",D6086,PONT-SAINT-ESPRIT,500,43.3,3.3\n";
 
     @Test
     public void buildsPointsFromPlainAndGzipManifestPublicationsAndUploadsGzipGeoJson() throws Exception {
         for (boolean gzip : new boolean[]{false, true}) {
             StorageStub stub = new StorageStub(gzip);
-            assertEquals("OK", stub.function().handleRequest(""));
-            assertEquals(List.of("DPT76_Manifest.json",
-                    ManifestTestPublication.yearObjectName(GeoJsonDataSource.DPT76, YEAR - 1),
-                    ManifestTestPublication.yearObjectName(GeoJsonDataSource.DPT76, YEAR)), stub.downloads);
+            assertEquals("OK", stub.function().publish());
+            assertEquals(List.of("DPT30_Manifest.json",
+                    ManifestTestPublication.yearObjectName(GeoJsonDataSource.DPT30, YEAR - 1),
+                    ManifestTestPublication.yearObjectName(GeoJsonDataSource.DPT30, YEAR)), stub.downloads);
             assertEquals(2, stub.uploads);
             JsonNode result = new ObjectMapper().readTree(stub.output);
             assertEquals("FeatureCollection", result.get("type").asText());
-            assertEquals(2, result.get("features").size());
+            assertEquals(1, result.get("features").size());
             JsonNode feature = result.get("features").get(0);
             assertEquals("Point", feature.get("geometry").get("type").asText());
             assertEquals(3.3, feature.get("geometry").get("coordinates").get(0).asDouble(), 0.0);
             assertEquals(43.3, feature.get("geometry").get("coordinates").get(1).asDouble(), 0.0);
             JsonNode properties = feature.get("properties");
-            assertEquals("DPT76_1", properties.get("code_centrale").asText());
+            assertEquals("DPT30_1_0_3_0", properties.get("code_centrale").asText());
             assertEquals(YEAR, properties.get("annee").asInt());
             assertEquals(500, properties.get("moyenne_jour_annuelle").asInt());
-            assertEquals("76 D0925 - PR 104 + 200", properties.get("description").asText());
-            assertEquals("DPT76_236", result.get("features").get(1).get("properties").get("code_centrale").asText());
-            assertEquals(0, new ObjectMapper().readTree(stub.bicycleOutput).get("features").size());
+            assertEquals("D6086 - Pont-Saint-Esprit", properties.get("description").asText());
             assertEquals("500 ⇄", properties.get("name").asText());
             assertEquals("500 (" + YEAR + ") 400 (" + (YEAR - 1) + ") ",
                     properties.get("moyenne_annuelle_history").asText());
@@ -85,10 +74,10 @@ public class GeoJsonOutFunctionTest {
     @Test
     public void skipsCountersWithoutCoordinatesOrTraffic() throws Exception {
         StorageStub stub = new StorageStub(false);
-        stub.counts.add(record(2, YEAR, 500, null, null));
-        stub.counts.add(record(3, YEAR, null, 43.0, 3.0));
-        assertEquals("OK", stub.function().handleRequest(""));
-        assertEquals(2, new ObjectMapper().readTree(stub.output).get("features").size());
+        stub.csv += "2_0_3_0_" + YEAR + "," + YEAR + ",D2,COMMUNE,500,,\n"
+                + "3_0_3_0_" + YEAR + "," + YEAR + ",D3,COMMUNE,,43,3\n";
+        assertEquals("OK", stub.function().publish());
+        assertEquals(1, new ObjectMapper().readTree(stub.output).get("features").size());
         stub.assertStreamsClosed();
     }
 
@@ -96,7 +85,7 @@ public class GeoJsonOutFunctionTest {
     public void throwsWithoutUploadWhenDownloadFails() throws Exception {
         StorageStub stub = new StorageStub(false);
         stub.failDownload = true;
-        assertFunctionFailure(() -> stub.function().handleRequest(""));
+        assertFunctionFailure(() -> stub.function().publish());
         assertEquals(0, stub.uploads);
     }
 
@@ -104,7 +93,7 @@ public class GeoJsonOutFunctionTest {
     public void throwsWithoutUploadWhenManifestIsInvalid() throws Exception {
         StorageStub stub = new StorageStub(false);
         stub.invalidManifest = true;
-        assertFunctionFailure(() -> stub.function().handleRequest(""));
+        assertFunctionFailure(() -> stub.function().publish());
         assertEquals(0, stub.uploads);
         stub.assertStreamsClosed();
     }
@@ -113,7 +102,7 @@ public class GeoJsonOutFunctionTest {
     public void throwsWhenUploadFails() throws Exception {
         StorageStub stub = new StorageStub(true);
         stub.failUpload = true;
-        assertFunctionFailure(() -> stub.function().handleRequest(""));
+        assertFunctionFailure(() -> stub.function().publish());
         assertEquals(1, stub.uploads);
         stub.assertStreamsClosed();
     }
@@ -122,12 +111,12 @@ public class GeoJsonOutFunctionTest {
     public void savesUnmappedCounterOnceWithLatestCoordinates() throws Exception {
         StorageStub stub = new StorageStub(false);
         // Newest row deliberately comes before the old row.
-        stub.counts.add(record(2, YEAR, 500, 44.01, 4.01));
-        stub.counts.add(record(2, YEAR - 1, 400, 44.0, 4.0));
-        assertEquals("OK", stub.function().handleRequest(""));
+        stub.csv += "2_0_3_0_" + YEAR + "," + YEAR + ",D2,COMMUNE,500,44.01,4.01\n"
+                + "2_0_3_0_" + (YEAR - 1) + "," + (YEAR - 1) + ",D2,COMMUNE,400,44,4\n";
+        assertEquals("OK", stub.function().publish());
         JsonNode saved = new ObjectMapper().readTree(stub.mappings);
-        assertEquals(3, saved.size());
-        JsonNode missing = saved.get("DPT76_2");
+        assertEquals(2, saved.size());
+        JsonNode missing = saved.get("DPT30_2_0_3_0");
         assertEquals("MISSING", missing.get("status").asText());
         assertTrue(missing.get("osmWayId").isNull());
         assertEquals(44.01, missing.get("latitude").asDouble(), 0);
@@ -138,7 +127,7 @@ public class GeoJsonOutFunctionTest {
     public void reportsMappingWriteFailureAfterPublishingGeoJson() throws Exception {
         StorageStub stub = new StorageStub(false);
         stub.failMappingUpload = true;
-        assertFunctionFailure(() -> stub.function().handleRequest(""));
+        assertFunctionFailure(() -> stub.function().publish());
         assertEquals(2, stub.uploads);
         assertEquals(1, stub.mappingUploads);
     }
@@ -152,7 +141,7 @@ public class GeoJsonOutFunctionTest {
             stub.corruptYear = failure.equals("corruptYear");
             byte[] previousOutput = "previous output".getBytes(StandardCharsets.UTF_8);
             stub.output = previousOutput;
-            assertFunctionFailure(() -> stub.function().handleRequest(""));
+            assertFunctionFailure(() -> stub.function().publish());
             assertSame(previousOutput, stub.output);
             assertEquals(0, stub.uploads);
             assertEquals(0, stub.mappingUploads);
@@ -164,10 +153,7 @@ public class GeoJsonOutFunctionTest {
         final boolean gzip;
         final List<String> downloads = new ArrayList<>();
         final List<TrackedStream> streams = new ArrayList<>();
-        final List<DPT76Comptage> counts = new ArrayList<>(List.of(
-                record(1, YEAR - 1, 400, 43.2, 3.2),
-                record(1, YEAR, 500, 43.3, 3.3),
-                record(236, YEAR, 7730, 49.9645878144106, 1.2394107905937)));
+        String csv = CSV;
         boolean failDownload;
         boolean invalidManifest;
         boolean missingYear;
@@ -184,10 +170,10 @@ public class GeoJsonOutFunctionTest {
             this.gzip = gzip;
         }
 
-        GeoJsonOutFunction function() throws IOException {
-            Map<String, byte[]> objects = ManifestTestPublication.fromRecords(GeoJsonDataSource.DPT76, counts);
-            if (invalidManifest) objects.put("DPT76_Manifest.json", "invalid JSON".getBytes(StandardCharsets.UTF_8));
-            String latestYear = ManifestTestPublication.yearObjectName(GeoJsonDataSource.DPT76, YEAR);
+        GeoJsonPublisher function() throws IOException {
+            Map<String, byte[]> objects = ManifestTestPublication.fromCsv(GeoJsonDataSource.DPT30, csv);
+            if (invalidManifest) objects.put("DPT30_Manifest.json", "invalid JSON".getBytes(StandardCharsets.UTF_8));
+            String latestYear = ManifestTestPublication.yearObjectName(GeoJsonDataSource.DPT30, YEAR);
             if (missingYear) objects.remove(latestYear);
             if (corruptYear) objects.put(latestYear, "[]".getBytes(StandardCharsets.UTF_8));
             ObjectStorage storage = (ObjectStorage) Proxy.newProxyInstance(
@@ -196,7 +182,7 @@ public class GeoJsonOutFunctionTest {
                         if ("getObject".equals(method.getName())) {
                             GetObjectRequest request = (GetObjectRequest) args[0];
                             assertEquals("namespace", request.getNamespaceName());
-                            assertEquals("dsdpt76", request.getBucketName());
+                            assertEquals("dsdpt30", request.getBucketName());
                             downloads.add(request.getObjectName());
                             if (failDownload) {
                                 throw new IllegalStateException("Download failed");
@@ -219,8 +205,8 @@ public class GeoJsonOutFunctionTest {
                         PutObjectRequest request = (PutObjectRequest) args[0];
                         assertEquals("namespace", request.getNamespaceName());
                         assertEquals("traficinfo", request.getBucketName());
-                        assertTrue(List.of(GeoJsonOutFunction.GEOJSON_OBJECT_NAME,
-                                GeoJsonOutFunction.GEOJSON_OBJECT_NAME.replace(".geojson", "_BICYCLES.geojson"))
+                        assertTrue(List.of(GeoJsonDataSource.DPT30.getGeoJsonObjectName(),
+                                GeoJsonDataSource.DPT30.getGeoJsonObjectName().replace(".geojson", "_BICYCLES.geojson"))
                                 .contains(request.getObjectName()));
                         assertEquals("application/geo+json", request.getContentType());
                         assertEquals("gzip", request.getContentEncoding());
@@ -246,7 +232,7 @@ public class GeoJsonOutFunctionTest {
                     }
                     String json = name.equals("tags.json")
                             ? "{\"123\":{\"lastUpdated\":\"" + Instant.now() + "\",\"tags\":{\"maxspeed\":\"80\"}}}"
-                            : "{\"DPT76_1\":{\"osmWayId\":123}}";
+                            : "{\"DPT30_1_0_3_0\":{\"osmWayId\":123}}";
                     return new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
                 }
                 @Override
@@ -264,7 +250,7 @@ public class GeoJsonOutFunctionTest {
                     throw new AssertionError("Fresh tags should not need requests");
                 }
             }, "tags.json", "mappings.json");
-            return new GeoJsonOutFunction(new ObjectStoreClient(storage, "namespace", "dsdpt76"),
+            return new GeoJsonPublisher(GeoJsonDataSource.DPT30, new ObjectStoreClient(storage, "namespace", "dsdpt30"),
                     new ObjectStoreClient(storage, "namespace", "traficinfo"), provider);
         }
 

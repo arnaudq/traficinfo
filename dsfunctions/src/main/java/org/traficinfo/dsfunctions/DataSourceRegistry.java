@@ -94,6 +94,14 @@ final class DataSourceRegistry {
                 .orElseThrow(() -> new IllegalArgumentException("Unknown preprocessing input: " + bucket + "/" + objectName));
     }
 
+    GeoJsonDataSource geojson(String datasourceId) {
+        source(datasourceId);
+        if (!definitions.path(datasourceId).path("geoJsonEnabled").asBoolean(true)) {
+            throw new IllegalArgumentException("GeoJSON is not enabled for " + datasourceId);
+        }
+        return GeoJsonDataSource.valueOf(datasourceId);
+    }
+
     PreprocessingSettings preprocessing(String datasourceId, String datasetId) {
         Source active = source(datasourceId);
         JsonNode definition = definitions.path(datasourceId);

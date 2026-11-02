@@ -2,7 +2,6 @@ package org.traficinfo.dsfunctions;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fnproject.fn.api.FnConfiguration;
 import com.fnproject.fn.api.MethodWrapper;
 import com.fnproject.fn.runtime.FunctionConfigurer;
 import com.fnproject.fn.runtime.FunctionLoader;
@@ -13,7 +12,6 @@ import org.traficinfo.parsers.GeoJsonParser;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.Modifier;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Year;
@@ -31,28 +29,9 @@ public class CsvFunctionInheritanceTest {
             String id = source.getDataSourceId();
             assertEquals(source.name(), id);
             assertEquals(id.equals("MMM") ? GeoJsonParser.DataSource.M3MV2 : GeoJsonParser.DataSource.valueOf(id), source.getParserDataSource());
-            assertEquals(id.equals("MMM") ? "ds3mbucket" : "ds" + id.toLowerCase(java.util.Locale.ROOT), source.getDefaultInputBucket());
-            assertEquals(id.equals("MMM") ? "MMM_MMM_Comptage.csv"
-                    : id.equals("DPT76") ? "DPT76_Comptage_2022.geojson" : id + "_Comptage.csv", source.getInputObjectName());
             assertEquals(id + "_TraficInfo.geojson", source.getGeoJsonObjectName());
             assertEquals(id + "_OSMInfo.json", source.getOsmCacheObjectName());
             assertEquals(id + "_OSMWayMapping.json", source.getOsmWayMappingObjectName());
-        }
-    }
-
-    @Test
-    public void fnLoadsInheritedMethodsForGeoJsonHandlers() throws Exception {
-        for (String name : List.of("dpt30", "dpt34", "mrn", "m3m", "nim", "dpt76")) {
-            Class<?> type = Class.forName("org.traficinfo.dsfunctions." + name + ".GeoJsonOutFunction");
-            MethodWrapper wrapper = new FunctionLoader().loadClass(type.getName(), "handleRequest");
-            assertEquals(AbstractGeoJsonOutFunction.class, wrapper.getTargetMethod().getDeclaringClass());
-            assertTrue(Modifier.isFinal(wrapper.getTargetMethod().getModifiers()));
-            var config = type.getMethod("config", com.fnproject.fn.api.RuntimeContext.class);
-            assertEquals(AbstractGeoJsonOutFunction.class, config.getDeclaringClass());
-            assertNotNull(config.getAnnotation(FnConfiguration.class));
-            assertTrue(Modifier.isFinal(config.getModifiers()));
-            assertEquals(1, type.getConstructors().length);
-            assertNotNull(type.getConstructor().newInstance());
         }
     }
 
@@ -91,24 +70,24 @@ public class CsvFunctionInheritanceTest {
     }
 
     @Test
-    public void fnConfiguresAndInvokesInheritedMrnGeoJsonWithDefaultsAndOverrides() throws Exception {
+    public void fnConfiguresAndInvokesSharedMrnGeoJsonWithDefaultsAndOverrides() throws Exception {
         for (boolean overrides : new boolean[]{false, true}) {
             Map<String, String> config = overrides ? Map.of("NAMESPACE", "testns",
-                    "BUCKETNAME_IN", "custom-in", "BUCKETNAME_OUT", "custom-out",
-                    "BUCKETNAME_OSM", "custom-osm", "OSM_CACHE_OBJECT", "tags.json",
-                    "OSM_WAY_MAPPING_OBJECT", "mapping.json", "USE_RESOURCE_PRINCIPAL", "false") : Map.of();
+                    "BUCKETNAME_OUT", "custom-out",
+                    "BUCKETNAME_OSM", "custom-osm", "USE_RESOURCE_PRINCIPAL", "false") : Map.of();
             FunctionRuntimeContext runtime = configuredRuntime(GeoJsonProbe.class, config);
             GeoJsonProbe function = (GeoJsonProbe) runtime.getInvokeInstance().orElseThrow();
-            assertEquals(overrides ? List.of("false:testns:custom-in", "false:testns:custom-out",
+            assertTrue(function.clients.isEmpty());
+            assertEquals("OK", runtime.getMethod().getTargetMethod().invoke(function, "{\"datasourceId\":\"MRN\"}"));
+            assertEquals(overrides ? List.of("false:testns:dsmrn", "false:testns:custom-out",
                     "false:testns:custom-osm") : List.of("true::dsmrn", "true::traficinfo", "true::osminfo"),
                     function.clients);
-            assertEquals("OK", runtime.getMethod().getTargetMethod().invoke(function, ""));
             assertEquals(List.of("MRN_Manifest.json",
                     ManifestTestPublication.yearObjectName(GeoJsonDataSource.MRN, Year.now().getValue()),
-                    overrides ? "tags.json" : "MRN_OSMInfo.json",
-                    overrides ? "mapping.json" : "MRN_OSMWayMapping.json"), function.reads);
+                    "MRN_OSMInfo.json",
+                    "MRN_OSMWayMapping.json"), function.reads);
             assertEquals(List.of("MRN_TraficInfo.geojson", "MRN_TraficInfo_BICYCLES.geojson",
-                    overrides ? "mapping.json" : "MRN_OSMWayMapping.json"), function.writes);
+                    "MRN_OSMWayMapping.json"), function.writes);
             JsonNode output = new ObjectMapper().readTree(function.output);
             JsonNode feature = output.get("features").get(0);
             assertEquals("MRN_A_3", feature.get("properties").get("code_centrale").asText());
@@ -121,31 +100,31 @@ public class CsvFunctionInheritanceTest {
             byte[] previousOutput = function.output;
             int previousWrites = function.writes.size();
             function.invalidManifest = true;
-            FunctionFailureAssertions.assertFunctionFailure(() -> function.handleRequest(""));
+            FunctionFailureAssertions.assertFunctionFailure(() -> function.handleRequest("{\"datasourceId\":\"MRN\"}"));
             assertSame(previousOutput, function.output);
             assertEquals(previousWrites, function.writes.size());
             function.invalidManifest = false;
             function.failUpload = true;
-            FunctionFailureAssertions.assertFunctionFailure(() -> function.handleRequest(""));
+            FunctionFailureAssertions.assertFunctionFailure(() -> function.handleRequest("{\"datasourceId\":\"MRN\"}"));
         }
     }
 
     @Test
-    public void fnConfiguresAndInvokesInheritedMmmGeoJsonWithDefaultsAndOverrides() throws Exception {
+    public void fnConfiguresAndInvokesSharedMmmGeoJsonWithDefaultsAndOverrides() throws Exception {
         for (boolean overrides : new boolean[]{false, true}) {
             Map<String, String> config = overrides ? Map.of("NAMESPACE", "testns",
-                    "BUCKETNAME_IN", "custom-in", "BUCKETNAME_OUT", "custom-out",
-                    "BUCKETNAME_OSM", "custom-osm", "OSM_CACHE_OBJECT", "tags.json",
-                    "OSM_WAY_MAPPING_OBJECT", "mapping.json", "USE_RESOURCE_PRINCIPAL", "false") : Map.of();
+                    "BUCKETNAME_OUT", "custom-out",
+                    "BUCKETNAME_OSM", "custom-osm", "USE_RESOURCE_PRINCIPAL", "false") : Map.of();
             FunctionRuntimeContext runtime = configuredRuntime(MmmGeoJsonProbe.class, config);
             MmmGeoJsonProbe function = (MmmGeoJsonProbe) runtime.getInvokeInstance().orElseThrow();
-            assertEquals(overrides ? List.of("false:testns:custom-in", "false:testns:custom-out",
+            assertTrue(function.clients.isEmpty());
+            assertEquals("OK", runtime.getMethod().getTargetMethod().invoke(function, "{\"datasourceId\":\"MMM\"}"));
+            assertEquals(overrides ? List.of("false:testns:ds3mbucket", "false:testns:custom-out",
                     "false:testns:custom-osm") : List.of("true::ds3mbucket", "true::traficinfo", "true::osminfo"),
                     function.clients);
-            assertEquals("OK", runtime.getMethod().getTargetMethod().invoke(function, ""));
-            assertEquals(List.of("MMM_Manifest.json", overrides ? "tags.json" : "MMM_OSMInfo.json",
-                    overrides ? "mapping.json" : "MMM_OSMWayMapping.json"), function.reads);
-            assertEquals(List.of("MMM_TraficInfo.geojson", "MMM_TraficInfo_BICYCLES.geojson", overrides ? "mapping.json" : "MMM_OSMWayMapping.json"),
+            assertEquals(List.of("MMM_Manifest.json", "MMM_OSMInfo.json",
+                    "MMM_OSMWayMapping.json"), function.reads);
+            assertEquals(List.of("MMM_TraficInfo.geojson", "MMM_TraficInfo_BICYCLES.geojson", "MMM_OSMWayMapping.json"),
                     function.writes);
         }
     }
@@ -207,7 +186,7 @@ public class CsvFunctionInheritanceTest {
         }
     }
 
-    public static class GeoJsonProbe extends org.traficinfo.dsfunctions.mrn.GeoJsonOutFunction {
+    public static class GeoJsonProbe extends GeoJsonFunction {
         final List<String> clients = new ArrayList<>();
         final List<String> reads = new ArrayList<>();
         final List<String> writes = new ArrayList<>();
@@ -253,7 +232,7 @@ public class CsvFunctionInheritanceTest {
         }
     }
 
-    public static class MmmGeoJsonProbe extends org.traficinfo.dsfunctions.m3m.GeoJsonOutFunction {
+    public static class MmmGeoJsonProbe extends GeoJsonFunction {
         final List<String> clients = new ArrayList<>();
         final List<String> reads = new ArrayList<>();
         final List<String> writes = new ArrayList<>();

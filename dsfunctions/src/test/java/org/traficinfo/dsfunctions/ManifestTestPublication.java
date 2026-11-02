@@ -58,13 +58,13 @@ public final class ManifestTestPublication {
             catch (NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
             years.put(year, new DataManifest.YearData(name, checksum, entry.getValue().size(), active, "1"));
             datasets.put(active, new DataManifest.Dataset("https://example.invalid/" + active, List.of(year),
-                    Map.of(source.getInputObjectName(), new DataManifest.Input("https://example.invalid/counts",
+                    Map.of(DataSourceTestSettings.settings(source.getDataSourceId()).inputs().getLast().objectName(), new DataManifest.Input("https://example.invalid/counts",
                             source == GeoJsonDataSource.DPT76 ? "GEOJSON" : "CSV",
                             source == GeoJsonDataSource.DPT76 ? null : List.of("year")))));
         }
         if (byYear.isEmpty()) {
             datasets.put(active, new DataManifest.Dataset("https://example.invalid/empty", List.of(java.time.Year.now().getValue()),
-                    Map.of(source.getInputObjectName(), new DataManifest.Input("https://example.invalid/counts",
+                    Map.of(DataSourceTestSettings.settings(source.getDataSourceId()).inputs().getLast().objectName(), new DataManifest.Input("https://example.invalid/counts",
                             source == GeoJsonDataSource.DPT76 ? "GEOJSON" : "CSV",
                             source == GeoJsonDataSource.DPT76 ? null : List.of("year")))));
         }

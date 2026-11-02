@@ -97,7 +97,7 @@ The pipeline uses two Object Storage transitions per datasource:
 
 ```text
 DataSourceFunction → last configured raw input → PreprocessingFunction
-                  → <id>_Manifest.json → per-source GeoJSON function
+                  → <id>_Manifest.json → GeoJsonFunction
 ```
 
 Retrieval uploads changed inputs in configuration order. Create/update events on
@@ -125,8 +125,8 @@ wiring events:
 the last configured input Object, targeting the shared `PreprocessingFunction`. It updates
 the existing source-specific GeoJSON rule to match `<id>_Manifest.json` instead
 of a raw input. `geoJsonEnabled: false` suppresses only the GeoJSON rule;
-preprocessing still runs. Output function names continue to use `functionPrefix`,
-including MMM's existing `3MGeoJsonOut`.
+preprocessing still runs. All manifest rules target the shared `GeoJsonFunction`.
+`functionPrefix` is retained only for existing event-rule names.
 
 Rules match create/update events for exact object names in the configured
 bucket, namespace and compartment. Source buckets must have object events enabled.
@@ -154,7 +154,7 @@ also applies configuration or parser changes without waiting for an input update
 
 Retrieval is deployed once as `DataSourceFunction`. Its JAR bundles `dsconfig.json`;
 requests select the source with a minimal JSON payload, such as
-`{"datasourceId":"DPT34"}`. Preprocessing is also shared; GeoJSON deployment remains per source.
+`{"datasourceId":"DPT34"}`. Preprocessing and GeoJSON are also shared.
 
 After `source ./scripts/setup.sh`, deploy the shared retrieval function before
 reconciling schedules:

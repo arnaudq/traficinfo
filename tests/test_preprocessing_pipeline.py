@@ -34,8 +34,7 @@ class PreprocessingPipelineTest(unittest.TestCase):
                 if name == raw:
                     self.assertEqual('ocid1.fnfunc.PreprocessingFunction', action['function-id'])
                 else:
-                    prefix = config[source_id].get('functionPrefix', source_id)
-                    self.assertEqual('ocid1.fnfunc.' + prefix + 'GeoJsonOut', action['function-id'])
+                    self.assertEqual('ocid1.fnfunc.GeoJsonFunction', action['function-id'])
         writes = list(self.state['writes'])
         self.script('setup-events.sh')
         self.assertEqual(writes, self.state['writes'])

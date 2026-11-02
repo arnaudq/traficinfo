@@ -1,7 +1,7 @@
 # Data source functions
 
-The module provides shared retrieval and preprocessing functions, per-source
-GeoJSON deployments, and an OSM cache refresh function. Retrieval selects its datasource
+The module provides shared retrieval, preprocessing and GeoJSON functions,
+and an OSM cache refresh function. Retrieval selects its datasource
 from each request and loads the source settings from the bundled configuration.
 
 Files are gzip-compressed before upload, keeping their original object names and
@@ -116,13 +116,16 @@ closed. Unchanged downloads and failed downloads also delete temporary files.
 
 ## GeoJSON output
 
-GeoJSON remains deployed per datasource. Each handler extends
-`AbstractGeoJsonOutFunction`; `GeoJsonDataSource` selects the parser and default
-resource names. After publishing a manifest with preprocessing, deploy and invoke
-an output handler with:
+`org.traficinfo.dsfunctions.GeoJsonFunction::handleRequest` is deployed once for
+all datasource IDs. A manual request supplies `{"datasourceId":"DPT34"}`;
+Object Storage create/update events on `<id>_Manifest.json` select the datasource
+by manifest name and configured bucket. The function resolves its input bucket
+from bundled `dsconfig.json`; `geoJsonEnabled: false` rejects that source.
+`GeoJsonDataSource` selects the parser and output/cache names, and
+`GeoJsonPublisher` performs publication. Deploy and invoke it with:
 
 ```sh
-./scripts/deploy-functions.sh geojson DPT34
+./scripts/deploy-functions.sh geojson
 ./scripts/invoke.sh geojson DPT34
 ```
 
@@ -144,17 +147,16 @@ failures fail the invocation; temporary output files are always removed.
 | Runtime setting | Default |
 | --- | --- |
 | `NAMESPACE` | OCI Object Storage namespace supplied by deployment |
-| `BUCKETNAME_IN` | Datasource input bucket supplied by deployment |
 | `BUCKETNAME_OUT` | `traficinfo` |
 | `USE_RESOURCE_PRINCIPAL` | `true` |
 | `BUCKETNAME_OSM` | `osminfo` |
-| `OSM_CACHE_OBJECT` | `<id>_OSMInfo.json` |
-| `OSM_WAY_MAPPING_OBJECT` | `<id>_OSMWayMapping.json` |
 
-Deployment names output functions `<id>GeoJsonOut`, with MMM's existing
-`3MGeoJsonOut` exception selected by `functionPrefix`. Bucket and OSM overrides
-are described under deployment below. GeoJSON events match the completed
-`<id>_Manifest.json` publication, after preprocessing has validated its inputs.
+Deployment creates or updates `GeoJsonFunction` with a 300-second timeout.
+All manifest event rules invoke it. Input/output/OSM clients and the OSM provider
+are created and closed per invocation, with `stage=geojson` and `datasourceId`
+in the logging context. No datasource-specific state is retained between calls.
+Different datasource invocations can execute concurrently. Cache names remain
+`<id>_OSMInfo.json` and `<id>_OSMWayMapping.json` in the configured OSM bucket.
 
 ## Preprocessing
 
@@ -390,15 +392,16 @@ the next period, and inspect the generated manifest rather than editing it manua
 
 At the beginning of each invocation, the function loads the OSM way cache from
 bucket `osminfo`, object `<sourceId>_OSMInfo.json`, in `NAMESPACE` (for example,
-`MMM_OSMInfo.json` or `DPT34_OSMInfo.json`). Override these defaults
-with function configuration keys `BUCKETNAME_OSM` and `OSM_CACHE_OBJECT`.
+`MMM_OSMInfo.json` or `DPT34_OSMInfo.json`). Override the shared bucket with
+function configuration key `BUCKETNAME_OSM`; object names are derived from the
+selected datasource ID.
 The bucket must exist and the function must have permission to read and write
 its objects. A missing cache object starts an empty cache; other storage errors
 or invalid JSON throw an invocation error without overwriting the cache.
 
 `org.traficinfo.dsfunctions.OSMInfoProviderImpl` handles cache loading, refreshing,
 and persistence using `org.traficinfo.dsfunctions.OpenStreetMapClient` for OSM
-requests. All GeoJSON functions call `loadCache()` before parsing and
+requests. GeoJSON publication calls `loadCache()` before parsing and
 `refreshCache()` after publishing the GeoJSON. The cache map remains
 private to the implementation. Calls to `getWayInfo(wayId)` queue missing or stale ways
 internally for the deferred refresh. Parsers use the
@@ -446,7 +449,7 @@ and [maxspeed](https://wiki.openstreetmap.org/wiki/Key:maxspeed).
 ### Counter-to-way mapping cache
 
 At startup the provider also reads `<sourceId>_OSMWayMapping.json` from the same
-bucket. Override its name with `OSM_WAY_MAPPING_OBJECT`. The cache uses the
+bucket. Its name is derived from the selected datasource ID. The cache uses the
 source's `codeCentrale` as its key, for example `DPT34_Per.034.2005.00.3`, and
 supports the seed file in `data/osm/DPT34_OSMWayMapping.json`.
 
@@ -626,18 +629,19 @@ After `source ./scripts/setup.sh`, use the scripts from the repository root:
 ./scripts/deploy-functions.sh preprocess
 ./scripts/invoke.sh preprocess DPT34
 
-./scripts/deploy-functions.sh geojson DPT34
+./scripts/deploy-functions.sh geojson
 ./scripts/invoke.sh geojson DPT34
 
 ./scripts/deploy-functions.sh osm
 ./scripts/invoke.sh osm
 ```
 
-Retrieval and preprocessing deploy once as `DataSourceFunction` and
-`PreprocessingFunction`. GeoJSON remains per-source. No-argument deployment
-includes both shared stages, GeoJSON and `OSMInfoFunction`. Adding a retrieval
-source requires only `dsconfig.json`, redeployment of the shared function and
-schedule setup. New GeoJSON sources still require parser and handler registration.
+Retrieval, preprocessing and GeoJSON deploy once as `DataSourceFunction`,
+`PreprocessingFunction` and `GeoJsonFunction`. No-argument deployment includes
+these three functions and `OSMInfoFunction`. Adding a retrieval source requires
+configuration, redeployment and schedule setup. New GeoJSON sources require parser
+and `GeoJsonDataSource` registration, followed by redeployment; no per-source
+handler or deployment entry is needed.
 
 Deployment builds the fat JAR once and uploads the selected functions using the
 managed `java21.ol9` runtime. It checks handler/resource presence, the 25 MB direct
@@ -647,17 +651,17 @@ come from the shared setup exports; `OCI_FN_APPLICATION_ID` can bypass the
 application-name lookup. The application remains `3MOpenDataProcessor`.
 
 Retrieval and preprocessing bundle `dsconfig.json` and receive `NAMESPACE`.
-All stages use the input bucket selected by `dsconfig.json`; GeoJSON deployment
-passes it as `BUCKETNAME_IN`. Output deployment also accepts `BUCKETNAME_OUT`,
-`BUCKETNAME_OSM`, `OSM_CACHE_OBJECT` and `OSM_WAY_MAPPING_OBJECT`. OSM refresh receives
+All stages use the input bucket selected by `dsconfig.json`. GeoJSON deployment
+also accepts `BUCKETNAME_OUT` and `BUCKETNAME_OSM`. OSM cache object names derive
+from the datasource ID. OSM refresh receives
 `NAMESPACE`, `BUCKETNAME_OSM`, `MAX_LOOP_DURATION_SECONDS` and
 `MAX_WAY_MAPPINGS_PER_RUN`.
 
 Invocation resolves the deployed function and calls it synchronously. Retrieval
-and normal preprocessing send only `datasourceId`; preprocessing also accepts
-an inactive `datasetId`. GeoJSON and OSM use empty bodies.
+and GeoJSON send only `datasourceId`; normal preprocessing does the same and
+also accepts an inactive `datasetId` for archive imports. OSM uses an empty body.
 Retrieval's client timeout is the maximum configured source runtime plus 60
-seconds; preprocessing and OSM use 360 seconds. Missing functions and OCI errors
+seconds; preprocessing, GeoJSON and OSM use 360 seconds. Missing functions and OCI errors
 produce a failing exit status.
 
 The function resource principals need Object read/write access to the configured

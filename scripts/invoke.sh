@@ -17,7 +17,7 @@ main() {
       if [ "$#" -ne 2 ] && { [ "$type" != preprocess ] || [ "$#" -ne 3 ]; }; then usage; return 1; fi
       source="$(get_data_source "$2")"
       function_name="$(data_source_function_name "$source" "$type")"
-      if [ "$type" = preprocess ]; then
+      if [ "$type" = preprocess ] || [ "$type" = geojson ]; then
         invocation_options+=(--read-timeout 360)
         body="$(jq -cn --arg id "$2" '{datasourceId: $id}')"
       fi

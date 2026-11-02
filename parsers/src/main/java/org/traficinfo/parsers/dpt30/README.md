@@ -81,8 +81,8 @@ the ⇄ marker. This is an assumption, not a documented source-field mapping.
 
 The parser is registered as `GeoJsonParser.DataSource.DPT30`. The shared
 GeoJSON parser can generate one feature per site from CSV coordinates and
-attach annual history. The `dsfunctions` module provides `dpt30.DataSourceFunction` for retrieval and
-`dpt30.GeoJsonOutFunction` for publication, registered in `scripts/deploy-functions.sh`.
+attach annual history. The `dsfunctions` module provides the shared `DataSourceFunction` for retrieval and
+the shared `GeoJsonFunction` for publication, registered in `scripts/deploy-functions.sh`.
 
 ## Tests
 

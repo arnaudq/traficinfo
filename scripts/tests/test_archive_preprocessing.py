@@ -65,7 +65,7 @@ else:
             self.assertEqual(result.returncode, 0, result.stderr)
             args = self.recorded()[-1]
             body = args[args.index('--body') + 1]
-            self.assertEqual(body, '' if kind == 'geojson' else '{"datasourceId":"MMM"}')
+            self.assertEqual(json.loads(body), {'datasourceId': 'MMM'})
 
     def test_invalid_selection_fails_before_oci(self):
         for args in [('preprocess', 'MMM', 'missing'), ('preprocess', 'MMM', 'current'),

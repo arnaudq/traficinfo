@@ -3,30 +3,19 @@ package org.traficinfo.dsfunctions;
 import org.traficinfo.parsers.GeoJsonParser;
 import org.traficinfo.parsers.Comptage;
 
-import java.util.Locale;
-
-/** Sources supported by the manifest-to-GeoJSON handlers and their naming conventions. */
+/** Sources supported by GeoJSON publication and their output naming conventions. */
 public enum GeoJsonDataSource {
-    MMM(GeoJsonParser.DataSource.M3MV2, "ds3mbucket", "MMM_MMM_Comptage.csv"),
+    MMM(GeoJsonParser.DataSource.M3MV2),
     DPT30(GeoJsonParser.DataSource.DPT30),
-    DPT76(GeoJsonParser.DataSource.DPT76, "dsdpt76", "DPT76_Comptage_2022.geojson"),
+    DPT76(GeoJsonParser.DataSource.DPT76),
     DPT34(GeoJsonParser.DataSource.DPT34),
     MRN(GeoJsonParser.DataSource.MRN),
     NIM(GeoJsonParser.DataSource.NIM);
 
     private final GeoJsonParser.DataSource parserDataSource;
-    private final String defaultInputBucket;
-    private final String inputObjectName;
 
     GeoJsonDataSource(GeoJsonParser.DataSource parserDataSource) {
-        this(parserDataSource, "ds" + parserDataSource.getId().toLowerCase(Locale.ROOT),
-                parserDataSource.getId() + "_Comptage.csv");
-    }
-
-    GeoJsonDataSource(GeoJsonParser.DataSource parserDataSource, String defaultInputBucket, String inputObjectName) {
         this.parserDataSource = parserDataSource;
-        this.defaultInputBucket = defaultInputBucket;
-        this.inputObjectName = inputObjectName;
     }
 
     public String getDataSourceId() {
@@ -35,20 +24,6 @@ public enum GeoJsonDataSource {
 
     public GeoJsonParser.DataSource getParserDataSource() {
         return parserDataSource;
-    }
-
-    public String getDefaultInputBucket() {
-        return defaultInputBucket;
-    }
-
-    public String getInputObjectName() {
-        return inputObjectName;
-    }
-
-    /** @deprecated Source inputs may also be GeoJSON; use getInputObjectName(). */
-    @Deprecated
-    public String getCsvObjectName() {
-        return getInputObjectName();
     }
 
     public String getGeoJsonObjectName() {

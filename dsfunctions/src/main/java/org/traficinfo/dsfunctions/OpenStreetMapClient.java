@@ -18,7 +18,7 @@ import java.util.HashMap;
 import java.util.concurrent.TimeUnit;
 
 /** OSM way-tag and rate-limited reverse requests, without redirects or retries. */
-public class OpenStreetMapClient {
+public class OpenStreetMapClient implements AutoCloseable {
     // Public Nominatim scheduled jobs allow at most four requests per minute.
     private static final int REVERSE_INTERVAL_SECONDS = 15;
     private static final Logger LOG = LoggerFactory.getLogger(OpenStreetMapClient.class);
@@ -120,5 +120,9 @@ public class OpenStreetMapClient {
             }
         }
         throw new IOException("OSM response did not contain way " + wayId);
+    }
+    @Override
+    public void close() {
+        client.close();
     }
 }

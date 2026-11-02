@@ -16,58 +16,36 @@ functions=(
   'OSMInfoFunction|osm|org.traficinfo.dsfunctions.OSMInfoFunction::handleRequest'
   'DataSourceFunction|ds|org.traficinfo.dsfunctions.DataSourceFunction::handleRequest'
   'PreprocessingFunction|preprocess|org.traficinfo.dsfunctions.PreprocessingFunction::handleRequest'
-  'MMM|geojson|org.traficinfo.dsfunctions.m3m.GeoJsonOutFunction::handleRequest'
-  'DPT34|geojson|org.traficinfo.dsfunctions.dpt34.GeoJsonOutFunction::handleRequest'
-  'DPT30|geojson|org.traficinfo.dsfunctions.dpt30.GeoJsonOutFunction::handleRequest'
-  'DPT76|geojson|org.traficinfo.dsfunctions.dpt76.GeoJsonOutFunction::handleRequest'
-  'MRN|geojson|org.traficinfo.dsfunctions.mrn.GeoJsonOutFunction::handleRequest'
-  'NIM|geojson|org.traficinfo.dsfunctions.nim.GeoJsonOutFunction::handleRequest'
+  'GeoJsonFunction|geojson|org.traficinfo.dsfunctions.GeoJsonFunction::handleRequest'
 )
 
 usage() {
-  printf 'Usage: %s [ds | preprocess | geojson <data-source-id> | osm]\n' "$0" >&2
+  printf 'Usage: %s [ds | preprocess | geojson | osm]\n' "$0" >&2
 }
 
 select_functions() {
   if [ "$#" -eq 0 ]; then return; fi
-  local selected_type="$1" selected_source='' definition data_source_id type handler
-  local selected_functions=()
+  local selected_type="$1"
   case "$selected_type" in
+    ds)
+      if [ "$#" -gt 2 ]; then usage; return 1; fi
+      if [ "$#" -eq 2 ]; then get_data_source "$2" >/dev/null || return; fi
+      functions=('DataSourceFunction|ds|org.traficinfo.dsfunctions.DataSourceFunction::handleRequest')
+      ;;
     preprocess)
       if [ "$#" -ne 1 ]; then usage; return 1; fi
       functions=('PreprocessingFunction|preprocess|org.traficinfo.dsfunctions.PreprocessingFunction::handleRequest')
-      return
-      ;;
-    ds)
-      if [ "$#" -gt 2 ]; then usage; return 1; fi
-      # Accept the old source selector, but always deploy the complete shared registry.
-      if [ "$#" -eq 2 ]; then get_data_source "$2" >/dev/null || return; fi
-      functions=('DataSourceFunction|ds|org.traficinfo.dsfunctions.DataSourceFunction::handleRequest')
-      return
       ;;
     geojson)
-      if [ "$#" -ne 2 ]; then usage; return 1; fi
-      local selected_config
-      selected_config="$(get_data_source "$2")" || return
-      data_source_function_name "$selected_config" "$selected_type" >/dev/null || return
-      selected_source="$2"
+      if [ "$#" -ne 1 ]; then usage; return 1; fi
+      functions=('GeoJsonFunction|geojson|org.traficinfo.dsfunctions.GeoJsonFunction::handleRequest')
       ;;
     osm)
       if [ "$#" -ne 1 ]; then usage; return 1; fi
+      functions=('OSMInfoFunction|osm|org.traficinfo.dsfunctions.OSMInfoFunction::handleRequest')
       ;;
     *) usage; return 1 ;;
   esac
-  for definition in "${functions[@]}"; do
-    IFS='|' read -r data_source_id type handler <<< "$definition"
-    if [ "$type" = "$selected_type" ] && { [ "$type" = osm ] || [ "$data_source_id" = "$selected_source" ]; }; then
-      selected_functions+=("$definition")
-    fi
-  done
-  if [ "${#selected_functions[@]}" -ne 1 ]; then
-    printf 'No unique deployment handler for %s %s.\n' "$selected_type" "$selected_source" >&2
-    return 1
-  fi
-  functions=("${selected_functions[@]}")
 }
 
 build_jar() {
@@ -103,7 +81,7 @@ validate_jar() {
 }
 
 build_function_config() {
-  local type="$1" namespace="$2" source="$3" input config
+  local type="$1" namespace="$2"
   if [ "$type" = osm ]; then
     validate_bucket_name "$osm_bucket" BUCKETNAME_OSM || return
     jq -cne --arg namespace "$namespace" --arg bucket "$osm_bucket" \
@@ -119,20 +97,10 @@ build_function_config() {
     jq -cn --arg namespace "$namespace" '{NAMESPACE: $namespace}'
     return
   fi
-  input="$(jq -r '.inputBucket' <<< "$source")"
-  validate_bucket_name "$input" inputBucket || return
   validate_bucket_name "$output_bucket" BUCKETNAME_OUT || return
-  config="$(jq -cn --arg namespace "$namespace" --arg input "$input" --arg output "$output_bucket" \
-    '{NAMESPACE: $namespace, BUCKETNAME_IN: $input, BUCKETNAME_OUT: $output}')" || return
   validate_bucket_name "$osm_bucket" BUCKETNAME_OSM || return
-  local id object mapping
-  id="$(jq -r '.id' <<< "$source")"
-  object="${OSM_CACHE_OBJECT:-${id}_OSMInfo.json}"
-  mapping="${OSM_WAY_MAPPING_OBJECT:-${id}_OSMWayMapping.json}"
-  config="$(jq -c --arg bucket "$osm_bucket" --arg object "$object" --arg mapping "$mapping" \
-    '. + {BUCKETNAME_OSM: $bucket, OSM_CACHE_OBJECT: $object, OSM_WAY_MAPPING_OBJECT: $mapping}' \
-    <<< "$config")" || return
-  printf '%s\n' "$config"
+  jq -cn --arg namespace "$namespace" --arg output "$output_bucket" --arg osm "$osm_bucket" \
+    '{NAMESPACE: $namespace, BUCKETNAME_OUT: $output, BUCKETNAME_OSM: $osm}'
 }
 
 # OCI counts UTF-8 bytes in configuration keys and values, not JSON transport escaping.
@@ -255,25 +223,22 @@ main() {
     if [ "$type" = osm ]; then
       function_name="$data_source_id"
       source='{"id":"OSMInfoFunction","schedule":"Hourly"}'
-    elif [ "$type" = ds ] || [ "$type" = preprocess ]; then
+    else
       function_name="$data_source_id"
       source='{}'
-    else
-      source="$(get_data_source "$data_source_id" "$sources")"
-      function_name="$(data_source_function_name "$source" "$type")"
     fi
     namespace="${OCI_OBJECT_STORAGE_NAMESPACE:?Run source ./scripts/setup.sh first}"
-    config="$(build_function_config "$type" "$namespace" "$source")"
+    config="$(build_function_config "$type" "$namespace")"
     validate_configuration_size "$config" "$function_name"
     tags=''
-    if [ "$type" = ds ] || [ "$type" = preprocess ]; then tags='{}'; fi
+    if [ "$type" != osm ]; then tags='{}'; fi
     if [ "$type" = osm ]; then tags="$(schedule_tags "$source")"; fi
     function_names+=("$function_name")
     configs+=("$config")
     defined_tags+=("$tags")
     timeout=''
     if [ "$type" = ds ]; then timeout="$(jq -r '[.[] | .datasets[.activeDatasetId].timeoutSeconds // 30] | max' <<< "$sources")"; fi
-    if [ "$type" = preprocess ]; then timeout=300; fi
+    if [ "$type" = preprocess ] || [ "$type" = geojson ]; then timeout=300; fi
     timeouts+=("$timeout")
   done
   application_id="$(resolve_application_id)"

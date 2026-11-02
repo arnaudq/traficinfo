@@ -119,9 +119,9 @@ is maintained in code and must change when the stored interpretation changes.
 
 ## Source retrieval configuration
 
-The shared retrieval and preprocessing functions load bundled `dsconfig.json`.
+The shared retrieval, preprocessing and GeoJSON functions load bundled `dsconfig.json`.
 The invocation selects a datasource by `datasourceId`; caller-supplied URLs,
-buckets, inputs and year scopes are not accepted. Input buckets come only from the bundle. Both stages receive `NAMESPACE`
+buckets, inputs and year scopes are not accepted. Input buckets come only from the bundle. All three stages receive `NAMESPACE`
 and `USE_RESOURCE_PRINCIPAL` through
 runtime configuration. This keeps the full source registry outside OCI's 4096-byte
 runtime environment budget. Settings changes require redeploying the shared JAR.
@@ -278,14 +278,29 @@ leave unreferenced yearly Objects; automatic cleanup is outside this step.
 
 No-argument deployment includes the shared preprocessing function; `preprocess`
 selects it independently. `setup-events.sh` routes each datasource's last active
-input Object to that function and each `<id>_Manifest.json` to the per-source
-GeoJSON function, unless GeoJSON is disabled. Rules use exact names to exclude
+input Object to that function and each `<id>_Manifest.json` to the shared
+`GeoJsonFunction`, unless GeoJSON is disabled. Rules use exact names to exclude
 archives, lock Objects and yearly outputs. Deploy functions and enable bucket
 events before configuring rules. Existing raw inputs can be processed explicitly
 after event wiring.
 
 For the end-user procedure, including the DPT34 period-splitting example, see
 [Making past periods read-only](../dsfunctions/README.md#making-past-periods-read-only).
+
+## Shared GeoJSON invocation
+
+Deploy `GeoJsonFunction` once. Manual requests supply `{"datasourceId":"NIM"}`;
+create/update events select a datasource using `<id>_Manifest.json`, its bundled
+bucket and the configured namespace. Empty requests, unknown IDs, other Object
+names and sources with `geoJsonEnabled: false` are rejected before creating clients.
+
+Input buckets come from the bundle. `NAMESPACE`, `USE_RESOURCE_PRINCIPAL`,
+`BUCKETNAME_OUT` (default `traficinfo`) and `BUCKETNAME_OSM` (default `osminfo`)
+are shared runtime settings. Cache and output names are derived from the datasource
+ID. Clients and the OSM provider are local to each invocation; different sources
+can run concurrently without sharing mutable cache state. Rendering, yearly
+validation, sequential vehicle/bicycle uploads and cache refresh retain their
+existing behavior. The shared function has a 300-second timeout.
 
 ## Compatibility and examples
 

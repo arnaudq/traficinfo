@@ -146,9 +146,7 @@ class OciScriptsTest(unittest.TestCase):
                               'lifecycle-state': 'ACTIVE'}],
             'functions': [{'id': 'ocid1.fnfunc.' + name, 'display-name': name,
                            'lifecycle-state': 'ACTIVE', 'defined-tags': {'Old': {'Tag': 'value'}}}
-                          for name in ['DataSourceFunction', 'PreprocessingFunction', 'OSMInfoFunction', '3MGeoJsonOut',
-                                       'DPT34GeoJsonOut', 'DPT30GeoJsonOut', 'MRNGeoJsonOut',
-                                       'DPT76GeoJsonOut', 'NIMGeoJsonOut']],
+                          for name in ['DataSourceFunction', 'PreprocessingFunction', 'OSMInfoFunction', 'GeoJsonFunction']],
             'buckets': [{'name': name, 'compartment-id': 'ocid1.compartment.test',
                          'storage-tier': 'Standard', 'object-events-enabled': True,
                          'public-access-type': 'NoPublicAccess'}
@@ -241,12 +239,12 @@ class OciScriptsTest(unittest.TestCase):
         self.assertEqual(sources[0]['dataSourceFunction'], 'DataSourceFunction')
         self.assertEqual(sources[0]['inputBucket'], 'ds3mbucket')
         dpt34 = next(s for s in sources if s['id'] == 'DPT34')
-        self.assertEqual(dpt34['geoJsonFunction'], 'DPT34GeoJsonOut')
+        self.assertEqual(dpt34['geoJsonFunction'], 'GeoJsonFunction')
         self.assertEqual(dpt34['csvObject'], 'DPT34_Comptage.csv')
         self.assertEqual(dpt34['eventObject'], 'DPT34_Manifest.json')
         self.assertEqual(dpt34['inputBucket'], 'dsdpt34')
         mrn = next(s for s in sources if s['id'] == 'MRN')
-        self.assertEqual(mrn['geoJsonFunction'], 'MRNGeoJsonOut')
+        self.assertEqual(mrn['geoJsonFunction'], 'GeoJsonFunction')
         self.assertEqual(mrn['csvObject'], 'MRN_Comptage.csv')
         self.assertEqual(mrn['inputBucket'], 'dsmrn')
         self.common('get_data_source UNKNOWN', success=False)
@@ -352,12 +350,9 @@ class OciScriptsTest(unittest.TestCase):
             self.assertEqual(function['config'], {'NAMESPACE': 'testnamespace'})
             self.assertEqual(function['defined-tags'], {})
         self.script('invoke.sh', 'ds', 'DPT76')
-        self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main geojson DPT76')
-        function = next(f for f in self.state['functions'] if f['display-name'] == 'DPT76GeoJsonOut')
-        self.assertEqual(function['config']['BUCKETNAME_IN'], 'dsdpt76')
+        self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main geojson')
+        function = next(f for f in self.state['functions'] if f['display-name'] == 'GeoJsonFunction')
         self.assertEqual(function['config']['BUCKETNAME_OUT'], 'traficinfo')
-        self.assertEqual(function['config']['OSM_CACHE_OBJECT'], 'DPT76_OSMInfo.json')
-        self.assertEqual(function['config']['OSM_WAY_MAPPING_OBJECT'], 'DPT76_OSMWayMapping.json')
         self.script('invoke.sh', 'geojson', 'DPT76')
         self.script('setup-events.sh')
         rule = next(rule for rule in self.state['rules'] if rule['display-name'] == 'DPT76ComptageCsvToGeoJson')
@@ -464,16 +459,15 @@ class OciScriptsTest(unittest.TestCase):
         self.assertEqual(call[call.index('--function-id') + 1], 'ocid1.fnfunc.DataSourceFunction')
         self.assertEqual(call[call.index('--read-timeout') + 1], '360')
 
-    def test_explicitly_disabled_nim_has_no_geojson_deployment_or_event_rule(self):
+    def test_explicitly_disabled_nim_has_no_geojson_invocation_or_event_rule(self):
         config = json.loads(self.config_file.read_text())
         config['NIM']['geoJsonEnabled'] = False
         self.config_file.write_text(json.dumps(config))
-        self.deployment_common('main geojson NIM', success=False)
+        self.script('invoke.sh', 'geojson', 'NIM', success=False)
         self.assertNotIn('calls', self.state)
         self.script('setup-events.sh')
         self.assertEqual(len(self.state['rules']), 11)
         self.assertEqual(['NIMRetrievalToPreprocessing'], [item['display-name'] for item in self.state['rules'] if 'NIM' in item['display-name']])
-        self.assertFalse(any('NIMGeoJsonOut' in ' '.join(call) for call in self.state['calls']))
 
     def test_sources_without_geojson_still_have_preprocessing_events(self):
         config = json.loads(self.config_file.read_text())
@@ -546,15 +540,12 @@ class OciScriptsTest(unittest.TestCase):
         self.assertEqual(self.common('resolve_application_id').stdout.strip(), 'ocid1.fnapp.override')
         self.assertNotIn('calls', self.state)
 
-    def test_invoke_uses_config_prefix(self):
-        config = json.loads(self.config_file.read_text())
-        config['MMM']['functionPrefix'] = 'Custom'
-        self.config_file.write_text(json.dumps(config))
-        self.state['functions'].append({'id': 'ocid1.fnfunc.custom', 'display-name': 'CustomGeoJsonOut',
-                                        'lifecycle-state': 'ACTIVE'})
-        self.save()
-        self.assertIn('ocid1.fnfunc.custom', self.script('invoke.sh', 'geojson', 'MMM').stdout)
-        self.assertNotIn('--read-timeout', self.state['calls'][-1])
+    def test_invoke_geojson_uses_shared_function_and_datasource_payload(self):
+        self.script('invoke.sh', 'geojson', 'MMM')
+        call = self.state['calls'][-1]
+        self.assertEqual(call[call.index('--function-id') + 1], 'ocid1.fnfunc.GeoJsonFunction')
+        self.assertEqual(json.loads(call[call.index('--body') + 1]), {'datasourceId': 'MMM'})
+        self.assertEqual(call[call.index('--read-timeout') + 1], '360')
         self.script('invoke.sh', 'ds', 'DPT34')
         self.assertIn('--read-timeout', self.state['calls'][-1])
         self.script('invoke.sh', 'ds', 'UNKNOWN', success=False)
@@ -591,7 +582,7 @@ class OciScriptsTest(unittest.TestCase):
                     self.state['writes'] = []
                     self.save()
                 self.deploy()
-                self.assertEqual(len(self.state['writes']), 9)
+                self.assertEqual(len(self.state['writes']), 4)
                 functions = {f['display-name']: f for f in self.state['functions']}
                 self.assertEqual(functions['OSMInfoFunction']['config'],
                                  {'NAMESPACE': 'testnamespace', 'BUCKETNAME_OSM': 'osminfo',
@@ -601,17 +592,11 @@ class OciScriptsTest(unittest.TestCase):
                                  {'TraficInfo': {'DataSourceSchedule': 'Hourly'}})
                 self.assertEqual(functions['DataSourceFunction']['config'], {'NAMESPACE': 'testnamespace'})
                 self.assertEqual(functions['DataSourceFunction']['defined-tags'], {})
-                self.assertEqual(functions['MRNGeoJsonOut']['config'],
-                                 {'NAMESPACE': 'testnamespace', 'BUCKETNAME_IN': 'dsmrn',
-                                  'BUCKETNAME_OUT': 'traficinfo', 'BUCKETNAME_OSM': 'osminfo',
-                                  'OSM_CACHE_OBJECT': 'MRN_OSMInfo.json',
-                                  'OSM_WAY_MAPPING_OBJECT': 'MRN_OSMWayMapping.json'})
-                self.assertEqual(functions['3MGeoJsonOut']['config']['BUCKETNAME_OSM'], 'osminfo')
-                self.assertEqual(functions['DPT34GeoJsonOut']['config']['BUCKETNAME_OSM'], 'osminfo')
-                self.assertEqual(functions['DPT34GeoJsonOut']['config']['OSM_CACHE_OBJECT'], 'DPT34_OSMInfo.json')
-                self.assertEqual(functions['DPT34GeoJsonOut']['config']['OSM_WAY_MAPPING_OBJECT'], 'DPT34_OSMWayMapping.json')
-                for name in ['3MGeoJsonOut', 'DPT34GeoJsonOut', 'MRNGeoJsonOut']:
-                    self.assertNotIn('TraficInfo', functions[name].get('defined-tags', {}))
+                self.assertEqual(functions['GeoJsonFunction']['config'],
+                                 {'NAMESPACE': 'testnamespace', 'BUCKETNAME_OUT': 'traficinfo',
+                                  'BUCKETNAME_OSM': 'osminfo'})
+                self.assertEqual(functions['GeoJsonFunction']['defined-tags'], {})
+                self.assertEqual(functions['GeoJsonFunction']['timeout-in-seconds'], 300)
 
     def test_osm_report_uses_bucket_override_and_handler(self):
         self.env['BUCKETNAME_OSM'] = 'custom-osminfo'
