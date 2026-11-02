@@ -15,6 +15,7 @@ jar_file="$root_dir/dsfunctions/target/dsfunctions-1.0-SNAPSHOT-jar-with-depende
 functions=(
   'OSMInfoFunction|osm|org.traficinfo.dsfunctions.OSMInfoFunction::handleRequest'
   'DataSourceFunction|ds|org.traficinfo.dsfunctions.DataSourceFunction::handleRequest'
+  'PreprocessingFunction|preprocess|org.traficinfo.dsfunctions.PreprocessingFunction::handleRequest'
   'MMM|geojson|org.traficinfo.dsfunctions.m3m.GeoJsonOutFunction::handleRequest'
   'DPT34|geojson|org.traficinfo.dsfunctions.dpt34.GeoJsonOutFunction::handleRequest'
   'DPT30|geojson|org.traficinfo.dsfunctions.dpt30.GeoJsonOutFunction::handleRequest'
@@ -24,7 +25,7 @@ functions=(
 )
 
 usage() {
-  printf 'Usage: %s [ds | <preprocess|geojson> <data-source-id> | osm]\n' "$0" >&2
+  printf 'Usage: %s [ds | preprocess | geojson <data-source-id> | osm]\n' "$0" >&2
 }
 
 select_functions() {
@@ -33,11 +34,8 @@ select_functions() {
   local selected_functions=()
   case "$selected_type" in
     preprocess)
-      if [ "$#" -ne 2 ]; then usage; return 1; fi
-      local preprocessing_source
-      preprocessing_source="$(get_data_source "$2")" || return
-      data_source_function_name "$preprocessing_source" preprocess >/dev/null || return
-      functions=("$2|preprocess|org.traficinfo.dsfunctions.PreprocessingFunction::handleRequest")
+      if [ "$#" -ne 1 ]; then usage; return 1; fi
+      functions=('PreprocessingFunction|preprocess|org.traficinfo.dsfunctions.PreprocessingFunction::handleRequest')
       return
       ;;
     ds)
@@ -104,20 +102,8 @@ validate_jar() {
   fi
 }
 
-input_bucket_for_source() {
-  local source="$1" id bucket override_key
-  id="$(jq -r '.id' <<< "$source")"
-  bucket="$(jq -r '.inputBucket' <<< "$source")"
-  # Retain the existing deployment-specific environment overrides.
-  override_key="BUCKETNAME_$id"
-  if [ "$id" = MMM ]; then override_key=BUCKETNAME_IN; fi
-  bucket="${!override_key:-$bucket}"
-  validate_bucket_name "$bucket" "$id" || return
-  printf '%s\n' "$bucket"
-}
-
 build_function_config() {
-  local type="$1" namespace="$2" source="$3" input config settings
+  local type="$1" namespace="$2" source="$3" input config
   if [ "$type" = osm ]; then
     validate_bucket_name "$osm_bucket" BUCKETNAME_OSM || return
     jq -cne --arg namespace "$namespace" --arg bucket "$osm_bucket" \
@@ -129,29 +115,12 @@ build_function_config() {
       else error("MAX_LOOP_DURATION_SECONDS and MAX_WAY_MAPPINGS_PER_RUN must be positive integers fitting in a Java int") end'
     return
   fi
-  if [ "$type" = ds ]; then
-    local overrides='{}' item id bucket default_bucket
-    while IFS= read -r item; do
-      id="$(jq -r '.id' <<< "$item")"
-      default_bucket="$(jq -r '.inputBucket' <<< "$item")"
-      bucket="$(input_bucket_for_source "$item")" || return
-      # Store only deployment-specific exceptions; the registry supplies the defaults.
-      if [ "$bucket" != "$default_bucket" ]; then
-        overrides="$(jq -c --arg id "$id" --arg bucket "$bucket" '. + {($id): $bucket}' <<< "$overrides")"
-      fi
-    done < <(jq -c '.[]' <<< "$sources")
-    jq -cn --arg namespace "$namespace" --argjson overrides "$overrides" '
-      {NAMESPACE: $namespace} +
-      (if $overrides == {} then {} else {INPUT_BUCKET_OVERRIDES: ($overrides | tojson)} end)'
+  if [ "$type" = ds ] || [ "$type" = preprocess ]; then
+    jq -cn --arg namespace "$namespace" '{NAMESPACE: $namespace}'
     return
   fi
-  input="$(input_bucket_for_source "$source")" || return
-  if [ "$type" = preprocess ]; then
-    settings="$(preprocessing_settings "$source")" || return
-    jq -cn --arg namespace "$namespace" --arg bucket "$input" --arg settings "$settings" \
-      '{NAMESPACE: $namespace, BUCKETNAME: $bucket, PREPROCESSING_SETTINGS: $settings}'
-    return
-  fi
+  input="$(jq -r '.inputBucket' <<< "$source")"
+  validate_bucket_name "$input" inputBucket || return
   validate_bucket_name "$output_bucket" BUCKETNAME_OUT || return
   config="$(jq -cn --arg namespace "$namespace" --arg input "$input" --arg output "$output_bucket" \
     '{NAMESPACE: $namespace, BUCKETNAME_IN: $input, BUCKETNAME_OUT: $output}')" || return
@@ -278,6 +247,7 @@ main() {
   fi
   while IFS= read -r source; do
     data_source_settings "$source" >/dev/null
+    if [[ " ${functions[*]} " == *"|preprocess|"* ]]; then preprocessing_settings "$source" >/dev/null; fi
   done < <(jq -c '.[]' <<< "$sources")
   # Prepare all configs and tags before any build or OCI mutation.
   for definition in "${functions[@]}"; do
@@ -285,8 +255,8 @@ main() {
     if [ "$type" = osm ]; then
       function_name="$data_source_id"
       source='{"id":"OSMInfoFunction","schedule":"Hourly"}'
-    elif [ "$type" = ds ]; then
-      function_name=DataSourceFunction
+    elif [ "$type" = ds ] || [ "$type" = preprocess ]; then
+      function_name="$data_source_id"
       source='{}'
     else
       source="$(get_data_source "$data_source_id" "$sources")"
@@ -296,7 +266,7 @@ main() {
     config="$(build_function_config "$type" "$namespace" "$source")"
     validate_configuration_size "$config" "$function_name"
     tags=''
-    if [ "$type" = ds ]; then tags='{}'; fi
+    if [ "$type" = ds ] || [ "$type" = preprocess ]; then tags='{}'; fi
     if [ "$type" = osm ]; then tags="$(schedule_tags "$source")"; fi
     function_names+=("$function_name")
     configs+=("$config")

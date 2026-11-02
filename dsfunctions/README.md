@@ -1,7 +1,7 @@
 # Data source functions
 
-The module provides shared retrieval, per-source preprocessing and GeoJSON
-deployments, and an OSM cache refresh function. Retrieval selects its datasource
+The module provides shared retrieval and preprocessing functions, per-source
+GeoJSON deployments, and an OSM cache refresh function. Retrieval selects its datasource
 from each request and loads the source settings from the bundled configuration.
 
 Files are gzip-compressed before upload, keeping their original object names and
@@ -63,12 +63,12 @@ for exceptions such as MMM. The root key must match `id`; IDs use uppercase
 letters, digits and underscores. Registry loading validates every active source
 and rejects conflicting destination objects. Inactive datasets remain bundled.
 
-Deployment passes `NAMESPACE` and optionally the sparse JSON string
-`INPUT_BUCKET_OVERRIDES` for existing `BUCKETNAME_IN` (MMM) and `BUCKETNAME_<ID>`
-script overrides. `USE_RESOURCE_PRINCIPAL` still defaults to `true`.
+Deployment passes `NAMESPACE`. Input buckets come only from `dsconfig.json`;
+bucket changes require redeploying the shared functions and updating event rules.
+`USE_RESOURCE_PRINCIPAL` defaults to `true`.
 Datasource URLs and datasets no longer consume the OCI 4096-byte runtime
 configuration budget. That guard still applies to environment settings and
-unchanged preprocessing/GeoJSON deployments. The shared function timeout is the
+GeoJSON deployments. The shared function timeout is the
 maximum active-dataset timeout (default 30 seconds per source), currently 300
 seconds. Synchronous retrieval invocation allows that maximum plus 60 seconds.
 
@@ -93,10 +93,10 @@ the invocation before replacement. MMM still publishes its JSON before CSV;
 a failure stops subsequent inputs but does not roll back earlier uploads.
 Archive dates use the previous download date, including for MMM.
 
-Retrieval does not use the manifest or run preprocessing. Event rules use each
-source's configured `eventObject`; changing Object names requires updating the
-matching consumers and event configuration. Publish a manifest with preprocessing
-before invoking GeoJSON or enabling events.
+Retrieval does not run preprocessing inline. A create/update event on the last
+configured input invokes shared preprocessing. For MMM this is the counts CSV,
+written after the companion JSON. Unchanged inputs are not uploaded, so they do
+not generate preprocessing events. Archives do not match the event rule.
 
 ## Shared infrastructure
 
@@ -153,8 +153,8 @@ failures fail the invocation; temporary output files are always removed.
 
 Deployment names output functions `<id>GeoJsonOut`, with MMM's existing
 `3MGeoJsonOut` exception selected by `functionPrefix`. Bucket and OSM overrides
-are described under deployment below. Events invoke GeoJSON directly; they do
-not run preprocessing. Publish the required manifests before enabling events.
+are described under deployment below. GeoJSON events match the completed
+`<id>_Manifest.json` publication, after preprocessing has validated its inputs.
 
 ## Preprocessing
 
@@ -170,18 +170,26 @@ records, the manifest can contain an empty `years` map.
 See the [storage contract](../specs/datasource-storage-contract.md) for the JSON
 format, validation rules and failure behavior.
 
-After `source ./scripts/setup.sh`, deploy and invoke NIM preprocessing explicitly:
+After `source ./scripts/setup.sh`, deploy preprocessing once and invoke any datasource:
 
 ```sh
-./scripts/deploy-functions.sh preprocess NIM
+./scripts/deploy-functions.sh preprocess
 ./scripts/invoke.sh preprocess NIM
 ```
 
-The downloader must have populated the source Objects first. No remote download
-is performed by preprocessing. Deployment builds `PREPROCESSING_SETTINGS` from
-the selected `datasets[activeDatasetId]` inputs, `datasetInfoUrl` and `years`
-in `dsconfig.json`, applies the 4096-byte configuration limit, and sets a
-300-second runtime timeout.
+The function loads the same bundled `dsconfig.json` as retrieval and resolves
+inputs, `datasetInfoUrl` and `years` at invocation time. Runtime configuration is
+`NAMESPACE` and `USE_RESOURCE_PRINCIPAL`, with
+per-invocation clients and a 300-second runtime timeout. No remote publisher
+requests are performed by preprocessing.
+
+A manual request is `{"datasourceId":"NIM"}`. OCI Object Storage events select
+the datasource by its bucket and last configured input Object name. Each
+invocation reads current inputs, parses and validates them, then compares the
+yearly output and manifest with the previous publication. Unchanged output leaves
+the manifest untouched. Manual invocation can apply configuration or parser
+changes without waiting for an input update; no forced mode is needed.
+
 NIM’s active dataset uses `[2023, 2024, 2025]`; DPT30 uses `[2021, 2022, 2023, 2024, 2025]`, matching
 the available annual records. Every dataset defines its explicit expected year
 scope; MMM also requires its companion geometry input. Input names are used as named
@@ -192,10 +200,10 @@ to the configured years; years outside that scope retain their published Objects
 A dataset may expand its year scope;
 use a new `datasetId` to reduce the scope or change input Object names.
 
-Preprocessing is currently manual: deployment without arguments, Events rules
-and GeoJSON handlers retain their existing behavior. There is no preprocessing
-schedule tag. Future wiring can route source changes to preprocessing and
-manifest changes to GeoJSON.
+`setup-events.sh` connects the last raw input's create/update event to
+preprocessing and the changed manifest to GeoJSON. There is no preprocessing
+schedule tag. Deploy the shared functions before configuring rules. Invoke
+preprocessing explicitly to process inputs uploaded before event wiring.
 
 Publication uses `<datasourceId>_Preprocessing.lock`, created atomically and
 released on normal completion or failure. A terminated invocation can leave a
@@ -225,9 +233,9 @@ in the [parser READMEs](../parsers/README.md).
 ### Importing existing archives once
 
 Pass an inactive dataset ID as the third argument to preprocessing. The script
-reads that entry from `dsconfig.json` and sends its settings in the invocation
-body. The deployed function's datasource and bucket stay fixed; no publisher
-download or function configuration update is performed. Archive inputs must have
+validates that entry locally and sends only `datasourceId` and `datasetId`.
+The shared function resolves the named inactive dataset from its own bundled
+configuration. No publisher download or function configuration update is performed. Archive inputs must have
 explicit `objectName` values and must be different from the active input Objects.
 
 For MMM, keep `activeDatasetId` set to `current` (years 2025–2026), then deploy
@@ -235,7 +243,7 @@ the updated preprocessing handler once and import the two historical datasets:
 
 ```sh
 # After source ./scripts/setup.sh
-./scripts/deploy-functions.sh preprocess MMM
+./scripts/deploy-functions.sh preprocess
 ./scripts/invoke.sh preprocess MMM mmm-2011-2021
 ./scripts/invoke.sh preprocess MMM mmm-2022-2024
 ```
@@ -275,21 +283,19 @@ when its source Objects are available:
 ./scripts/invoke.sh geojson MMM
 ```
 
-An empty preprocessing invocation body always uses the deployed active settings.
-The optional dataset argument is accepted only for `preprocess`, not `ds` or
-`geojson`. Invalid request bodies fail instead of silently processing current
-data. Direct callers can send `{"archive": <PreprocessingSettings>}` with the same
-settings structure documented in the [storage contract](../specs/datasource-storage-contract.md).
-The archive must belong to the deployed datasource and have a different dataset
-ID from the deployed active dataset. The same publication lock and manifest-last
-validation apply to both modes.
+A normal request supplies `datasourceId`; an archive request also supplies an
+inactive `datasetId`. The optional dataset argument is accepted only for
+`preprocess`, not `ds` or `geojson`. Empty and malformed request bodies fail.
+Direct callers use `{"datasourceId":"MMM","datasetId":"mmm-2022-2024"}`;
+all settings are resolved from the deployed bundle. Both modes use the same
+publication lock and manifest-last validation.
 
 If an existing manifest already defines `current` with a wider year scope,
 use a new active dataset ID before processing the narrower current period;
 the existing rule against shrinking a published dataset still applies. Archive
 imports preserve that existing active definition rather than silently rewriting
 its scope. Deploy the updated handler before using the new command: an older
-handler does not interpret the archive request body.
+handler does not interpret the identifier-only archive request body.
 
 ### Making past periods read-only
 
@@ -324,7 +330,7 @@ Set these values in the DPT34 configuration:
 Apply the configuration and run preprocessing:
 
 ```sh
-./scripts/deploy-functions.sh preprocess DPT34
+./scripts/deploy-functions.sh preprocess
 ./scripts/invoke.sh preprocess DPT34
 ```
 
@@ -617,7 +623,7 @@ After `source ./scripts/setup.sh`, use the scripts from the repository root:
 ./scripts/setup-schedules.sh --dry-run
 ./scripts/setup-schedules.sh
 
-./scripts/deploy-functions.sh preprocess DPT34
+./scripts/deploy-functions.sh preprocess
 ./scripts/invoke.sh preprocess DPT34
 
 ./scripts/deploy-functions.sh geojson DPT34
@@ -627,9 +633,9 @@ After `source ./scripts/setup.sh`, use the scripts from the repository root:
 ./scripts/invoke.sh osm
 ```
 
-Retrieval deploys once as `DataSourceFunction`. Preprocessing and GeoJSON remain
-per-source deployments; no-argument deployment includes retrieval, GeoJSON and
-`OSMInfoFunction`, with preprocessing selected explicitly. Adding a retrieval
+Retrieval and preprocessing deploy once as `DataSourceFunction` and
+`PreprocessingFunction`. GeoJSON remains per-source. No-argument deployment
+includes both shared stages, GeoJSON and `OSMInfoFunction`. Adding a retrieval
 source requires only `dsconfig.json`, redeployment of the shared function and
 schedule setup. New GeoJSON sources still require parser and handler registration.
 
@@ -640,24 +646,22 @@ It polls each create/update work request for up to ten minutes. Input settings
 come from the shared setup exports; `OCI_FN_APPLICATION_ID` can bypass the
 application-name lookup. The application remains `3MOpenDataProcessor`.
 
-Retrieval bundles the configured `dsconfig.json` and receives `NAMESPACE` plus
-optional `INPUT_BUCKET_OVERRIDES`. Script bucket overrides use `BUCKETNAME_<ID>`,
-with `BUCKETNAME_IN` for MMM. Output deployment also accepts `BUCKETNAME_OUT`,
-`BUCKETNAME_OSM`, `OSM_CACHE_OBJECT` and `OSM_WAY_MAPPING_OBJECT`. Preprocessing
-receives `PREPROCESSING_SETTINGS` and `BUCKETNAME`; OSM refresh receives
+Retrieval and preprocessing bundle `dsconfig.json` and receive `NAMESPACE`.
+All stages use the input bucket selected by `dsconfig.json`; GeoJSON deployment
+passes it as `BUCKETNAME_IN`. Output deployment also accepts `BUCKETNAME_OUT`,
+`BUCKETNAME_OSM`, `OSM_CACHE_OBJECT` and `OSM_WAY_MAPPING_OBJECT`. OSM refresh receives
 `NAMESPACE`, `BUCKETNAME_OSM`, `MAX_LOOP_DURATION_SECONDS` and
 `MAX_WAY_MAPPINGS_PER_RUN`.
 
 Invocation resolves the deployed function and calls it synchronously. Retrieval
-sends only `datasourceId`; preprocessing optionally accepts the archive request
-described above, while normal preprocessing, GeoJSON and OSM use empty bodies.
+and normal preprocessing send only `datasourceId`; preprocessing also accepts
+an inactive `datasetId`. GeoJSON and OSM use empty bodies.
 Retrieval's client timeout is the maximum configured source runtime plus 60
 seconds; preprocessing and OSM use 360 seconds. Missing functions and OCI errors
 produce a failing exit status.
 
 The function resource principals need Object read/write access to the configured
-buckets; preprocessing also needs create/delete permissions for its publication
-lock. Scheduler principals must be allowed to invoke the shared retrieval function.
+buckets; preprocessing also needs create/delete permissions for its publication lock. Scheduler principals must be allowed to invoke the shared retrieval function.
 See the root README for generated schedules, per-source `scheduleClock` overrides,
 application logging setup and event configuration.
 

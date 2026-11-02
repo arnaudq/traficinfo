@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Reconcile one input-object -> GeoJSON OCI Events rule per configured data source.
+# Reconcile raw-input -> preprocessing and manifest -> GeoJSON event rules.
 set -euo pipefail
 
 source "${TRAFICINFO_ROOT:?Run source ./scripts/setup.sh first}/scripts/oci-common.sh"
@@ -25,8 +25,7 @@ validate_bucket() {
 }
 
 build_condition() {
-  # Both event types are needed: the producer renames old objects before PUT.
-  # Exact names exclude archives, companion JSON, and generated GeoJSON objects.
+  # Exact names select the last active input or published manifest, excluding archives.
   jq -cn --arg compartment "$1" --arg namespace "$2" \
     --arg bucket "$bucket_name" --arg object "$object_name" '{
       eventType: ["com.oraclecloud.objectstorage.createobject", "com.oraclecloud.objectstorage.updateobject"],
@@ -166,10 +165,10 @@ main() {
   local rule_name function_name bucket_name object_name data_source_id
   dry_run="$(parse_dry_run_arguments "$@")"
   step 'Reading data sources and naming overrides from dsconfig.json...'
-  sources="$(load_data_sources | jq -c 'map(select(.geoJsonEnabled != false))')"
+  sources="$(load_data_sources)"
   source_count="$(jq 'length' <<< "$sources")"
   if [ "$source_count" -eq 0 ]; then
-    log 'No data sources have GeoJSON processing enabled.'
+    log 'No data sources configured.'
     return 0
   fi
   if [ "$dry_run" = true ]; then
@@ -182,12 +181,19 @@ main() {
   for ((index = 0; index < source_count; index++)); do
     source="$(jq -c --argjson index "$index" '.[$index]' <<< "$sources")"
     data_source_id="$(jq -r '.id' <<< "$source")"
-    rule_name="$(jq -r '.eventRule' <<< "$source")"
-    function_name="$(jq -r '.geoJsonFunction' <<< "$source")"
     bucket_name="$(jq -r '.inputBucket' <<< "$source")"
-    object_name="$(jq -r '.eventObject' <<< "$source")"
-    step "Configuring events for $data_source_id..."
+    rule_name="$(jq -r '.retrievalEventRule' <<< "$source")"
+    function_name=PreprocessingFunction
+    object_name="$(data_source_settings "$source" | jq -r '.inputs[-1].objectName')"
+    step "Configuring preprocessing events for $data_source_id..."
     reconcile_source
+    if jq -e '.geoJsonEnabled != false' <<< "$source" >/dev/null; then
+      rule_name="$(jq -r '.eventRule' <<< "$source")"
+      function_name="$(jq -r '.geoJsonFunction' <<< "$source")"
+      object_name="$(jq -r '.eventObject' <<< "$source")"
+      step "Configuring GeoJSON events for $data_source_id..."
+      reconcile_source
+    fi
   done
   if [ "$dry_run" = true ]; then
     log 'Dry run complete; no changes submitted.'

@@ -14,12 +14,14 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-/** Immutable retrieval configuration loaded from the release's bundled dsconfig.json. */
+/** Immutable datasource configuration loaded from the release's bundled dsconfig.json. */
 final class DataSourceRegistry {
     private final Map<String, Source> sources;
+    private final JsonNode definitions;
 
-    private DataSourceRegistry(Map<String, Source> sources) {
+    private DataSourceRegistry(Map<String, Source> sources, JsonNode definitions) {
         this.sources = Map.copyOf(sources);
+        this.definitions = definitions.deepCopy();
     }
 
     static DataSourceRegistry bundled() {
@@ -72,13 +74,50 @@ final class DataSourceRegistry {
             }
             sources.put(id, new Source(bucket, new DataSourceSettings(id, datasetId, settings)));
         }
-        return new DataSourceRegistry(sources);
+        return new DataSourceRegistry(sources, root);
     }
 
     Source source(String id) {
         Source source = sources.get(id);
         if (source == null) throw new IllegalArgumentException("Unknown datasourceId: " + id);
         return source;
+    }
+
+    String datasourceForInput(String bucket, String objectName) {
+        return sources.entrySet().stream()
+                .filter(entry -> entry.getValue().bucket().equals(bucket))
+                .filter(entry -> {
+                    var inputs = entry.getValue().settings().inputs();
+                    return inputs.get(inputs.size() - 1).objectName().equals(objectName);
+                })
+                .map(Map.Entry::getKey).findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Unknown preprocessing input: " + bucket + "/" + objectName));
+    }
+
+    PreprocessingSettings preprocessing(String datasourceId, String datasetId) {
+        Source active = source(datasourceId);
+        JsonNode definition = definitions.path(datasourceId);
+        String selected = datasetId == null ? active.settings().datasetId() : datasetId;
+        JsonNode dataset = definition.path("datasets").path(selected);
+        JsonNode years = dataset.path("years");
+        if (!years.isArray()) throw new IllegalArgumentException("Missing years for " + datasourceId + "/" + selected);
+        var scope = new ArrayList<Integer>();
+        for (JsonNode year : years) {
+            if (!year.isIntegralNumber() || !year.canConvertToInt()) throw new IllegalArgumentException("Invalid year");
+            scope.add(year.asInt());
+        }
+        DataSourceSettings settings = active.settings();
+        if (datasetId != null) {
+            if (selected.equals(active.settings().datasetId())) throw new IllegalArgumentException("Archive must be inactive");
+            JsonNode inputs = dataset.path("inputs");
+            if (!inputs.isArray()) throw new IllegalArgumentException("Missing archive inputs");
+            var archived = new ArrayList<DataSourceSettings.Input>();
+            for (JsonNode input : inputs) {
+                archived.add(new DataSourceSettings.Input(text(input, "url"), text(input, "objectName"), text(input, "contentType")));
+            }
+            settings = new DataSourceSettings(datasourceId, selected, archived);
+        }
+        return new PreprocessingSettings(settings, text(dataset, "datasetInfoUrl"), scope);
     }
 
     static void validateBucket(String bucket) {

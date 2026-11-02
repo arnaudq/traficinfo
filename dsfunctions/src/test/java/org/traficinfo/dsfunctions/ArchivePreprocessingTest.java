@@ -42,6 +42,27 @@ public class ArchivePreprocessingTest {
         }
     }
 
+    private static PreprocessingFunction function(PreprocessingPublisherTest.Store store) throws Exception {
+        var root = JSON.createObjectNode();
+        var definition = root.putObject("MMM");
+        definition.put("id", "MMM").put("activeDatasetId", "current");
+        var datasets = definition.putObject("datasets");
+        for (var settings : List.of(active(), archive(), settings("old", "", List.of(2022)))) {
+            var dataset = datasets.putObject(settings.source().datasetId());
+            dataset.put("datasetInfoUrl", settings.datasetUrl());
+            dataset.set("years", JSON.valueToTree(settings.years()));
+            dataset.set("inputs", JSON.valueToTree(settings.source().inputs()));
+        }
+        var registry = DataSourceRegistry.read(new java.io.ByteArrayInputStream(JSON.writeValueAsBytes(root)));
+        var function = new PreprocessingFunction() {
+            @Override protected DataSourceRegistry loadRegistry() { return registry; }
+            @Override protected ObjectStoreClient createObjectStoreClient(boolean principal, String namespace, String bucket) { return store; }
+        };
+        function.config(new com.fnproject.fn.runtime.FunctionRuntimeContext(
+                new com.fnproject.fn.runtime.FunctionLoader().loadClass(PreprocessingFunction.class.getName(), "handleRequest"), Map.of()));
+        return function;
+    }
+
     @Test
     public void archiveBootstrapsWithoutCurrentInputsOrMetadataAndRetryDoesNotRepublish() throws Exception {
         var store = new PreprocessingPublisherTest.Store();
@@ -64,20 +85,20 @@ public class ArchivePreprocessingTest {
     }
 
     @Test
-    public void invocationImportsArchiveAndFollowingEmptyRequestProcessesCurrentAndRetainsHistory() throws Exception {
+    public void invocationImportsNamedArchiveAndFollowingCurrentRequestRetainsHistory() throws Exception {
         var store = new PreprocessingPublisherTest.Store();
         source(store, active(), true);
         source(store, archive(), false);
-        var function = new PreprocessingFunction(active(), store);
-        assertEquals("OK", function.handleRequest(""));
+        var function = function(store);
+        assertEquals("OK", function.handleRequest("{\"datasourceId\":\"MMM\"}"));
         var before = JSON.readValue(store.objects.get("MMM_Manifest.json"), DataManifest.class);
-        String body = JSON.writeValueAsString(new PreprocessingFunction.ArchiveRequest(archive()));
+        String body = JSON.writeValueAsString(new PreprocessingFunction.Request("MMM", archive().source().datasetId()));
         assertEquals("OK", function.handleRequest(body));
         var imported = JSON.readValue(store.objects.get("MMM_Manifest.json"), DataManifest.class);
         assertEquals("current", imported.activeDatasetId());
         assertEquals(before.years().get(2025), imported.years().get(2025));
         assertEquals(before.datasets().get("current"), imported.datasets().get("current"));
-        assertEquals("OK", function.handleRequest(""));
+        assertEquals("OK", function.handleRequest("{\"datasourceId\":\"MMM\"}"));
         var after = JSON.readValue(store.objects.get("MMM_Manifest.json"), DataManifest.class);
         assertEquals(imported.years(), after.years());
     }
@@ -141,20 +162,20 @@ public class ArchivePreprocessingTest {
     @Test
     public void requestsCannotSelectAnotherDatasourceActiveDatasetOrActiveObjects() throws Exception {
         var store = new PreprocessingPublisherTest.Store();
-        var function = new PreprocessingFunction(active(), store);
+        var function = function(store);
         var wrongSource = new PreprocessingSettings(new DataSourceSettings("DPT30", "old", List.of(
                 new DataSourceSettings.Input("https://example.invalid/counts.csv", "old.csv", "text/csv"))),
                 "https://example.invalid/dataset", List.of(2022));
         for (var invalid : List.of(wrongSource, active(), settings("old", "", List.of(2022)))) {
             try {
-                function.handleRequest(JSON.writeValueAsString(new PreprocessingFunction.ArchiveRequest(invalid)));
+                function.handleRequest(JSON.writeValueAsString(new PreprocessingFunction.Request(invalid.source().dataSourceId(), invalid.source().datasetId())));
                 fail("Invalid archive request");
             } catch (IllegalArgumentException expected) {
                 assertTrue(store.objects.isEmpty());
             }
         }
         for (String invalid : List.of("{}", "null", "{\"archive\":null}", "{\"unexpected\":true}",
-                JSON.writeValueAsString(new PreprocessingFunction.ArchiveRequest(archive())) + " {}")) {
+                JSON.writeValueAsString(new PreprocessingFunction.Request("MMM", archive().source().datasetId())) + " {}")) {
             try {
                 function.handleRequest(invalid);
                 fail("Invalid body must not fall back to current processing");

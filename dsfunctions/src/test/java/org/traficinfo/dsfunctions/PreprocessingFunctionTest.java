@@ -1,47 +1,62 @@
 package org.traficinfo.dsfunctions;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fnproject.fn.runtime.FunctionConfigurer;
 import com.fnproject.fn.runtime.FunctionLoader;
 import com.fnproject.fn.runtime.FunctionRuntimeContext;
 import org.junit.Test;
 
-import java.util.List;
 import java.util.Map;
 
 import static org.junit.Assert.*;
 
 public class PreprocessingFunctionTest {
     private static PreprocessingSettings settings() {
-        return new PreprocessingSettings(new DataSourceSettings("NIM", "initial", List.of(
-                new DataSourceSettings.Input("https://example.invalid/counts", "NIM_Comptage.csv", "text/csv"))),
-                "https://example.invalid/dataset", List.of(2022));
+        return DataSourceRegistry.bundled().preprocessing("NIM", null);
     }
 
     @Test
-    public void fnLoadsSettingsAndPublishesIntoConfiguredBucket() throws Exception {
-        FunctionRuntimeContext context = runtime(Map.of("NAMESPACE", "namespace", "BUCKETNAME", "custom",
-                PreprocessingSettings.CONFIG_KEY, new ObjectMapper().writeValueAsString(settings())));
+    public void fnSelectsBundledSettingsAndBucketAtInvocation() throws Exception {
+        FunctionRuntimeContext context = runtime(Map.of("NAMESPACE", "namespace"));
         new FunctionConfigurer().configure(context);
         Probe probe = (Probe) context.getInvokeInstance().orElseThrow();
-        assertEquals("namespace/custom", probe.bucket);
-        assertEquals("OK", context.getMethod().getTargetMethod().invoke(probe, ""));
+        assertNull(probe.bucket);
+        assertEquals("OK", context.getMethod().getTargetMethod().invoke(probe, "{\"datasourceId\":\"NIM\"}"));
+        assertEquals("namespace/dsnim", probe.bucket);
         assertTrue(probe.store.objects.containsKey("NIM_Manifest.json"));
     }
 
     @Test
-    public void missingSettingsOrBucketFailBeforeCreatingClients() throws Exception {
-        String settings = new ObjectMapper().writeValueAsString(settings());
-        for (Map<String, String> config : List.of(Map.of("BUCKETNAME", "test"),
-                Map.of(PreprocessingSettings.CONFIG_KEY, settings), Map.of(PreprocessingSettings.CONFIG_KEY, "{}"))) {
-            Probe.created = 0;
-            try {
-                new FunctionConfigurer().configure(runtime(config));
-                fail("Expected invalid configuration");
-            } catch (Exception expected) {
-                assertEquals(0, Probe.created);
-            }
+    public void inputEventsSelectSourceAndUnchangedOutputKeepsManifest() {
+        var context = runtime(Map.of("NAMESPACE", "namespace"));
+        new FunctionConfigurer().configure(context);
+        Probe probe = (Probe) context.getInvokeInstance().orElseThrow();
+        String event = "{\"eventType\":\"com.oraclecloud.objectstorage.updateobject\",\"data\":{"
+                + "\"resourceName\":\"NIM_Comptage.csv\",\"additionalDetails\":{\"bucketName\":\"dsnim\",\"namespace\":\"namespace\"}}}";
+        assertEquals("OK", probe.handleRequest(event));
+        String manifest = new String(probe.store.objects.get("NIM_Manifest.json"), java.nio.charset.StandardCharsets.UTF_8);
+        probe.store.writes.clear();
+        assertEquals("OK", probe.handleRequest(event));
+        assertEquals(manifest, new String(probe.store.objects.get("NIM_Manifest.json"), java.nio.charset.StandardCharsets.UTF_8));
+        assertFalse(probe.store.writes.contains("NIM_Manifest.json"));
+        for (String invalid : new String[]{"", "{}", event.replace("dsnim", "wrong"),
+                event.replace("NIM_Comptage.csv", "archive.csv"), event.replace("updateobject", "deleteobject")}) {
+            int created = Probe.created;
+            try { probe.handleRequest(invalid); fail("Expected invalid event"); }
+            catch (IllegalArgumentException expected) { assertEquals(created, Probe.created); }
         }
+    }
+
+    @Test
+    public void eventRoutingUsesLastConfiguredInputAndBucket() {
+        var registry = DataSourceRegistry.bundled();
+        assertEquals("MMM", registry.datasourceForInput("ds3mbucket", "MMM_MMM_Comptage.csv"));
+        assertEquals("DPT76", registry.datasourceForInput("dsdpt76", "DPT76_Comptage_2022.geojson"));
+        assertEquals("NIM", registry.datasourceForInput("dsnim", "NIM_Comptage.csv"));
+        var inputs = registry.source("MMM").settings().inputs();
+        try {
+            registry.datasourceForInput("ds3mbucket", inputs.get(0).objectName());
+            fail("Companion input must not trigger preprocessing");
+        } catch (IllegalArgumentException expected) { }
     }
 
     private static FunctionRuntimeContext runtime(Map<String, String> config) {
@@ -56,7 +71,9 @@ public class PreprocessingFunctionTest {
         @Override protected ObjectStoreClient createObjectStoreClient(boolean principal, String namespace, String bucket) {
             created++;
             this.bucket = namespace + "/" + bucket;
-            store.source(settings(), "id_camera;date;tranche;nbPassage;coordonnees_geographique\n52;2022-01-01;00:00 - 01:00;10;43.8, 4.4\n");
+            if (!store.objects.containsKey("NIM_Comptage.csv")) {
+                store.source(settings(), "id_camera;date;tranche;nbPassage;coordonnees_geographique\n52;2023-01-01;00:00 - 01:00;10;43.8, 4.4\n");
+            }
             return store;
         }
     }

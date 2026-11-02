@@ -25,11 +25,10 @@ class SharedRetrievalTest(unittest.TestCase):
                               'validate_jar() { :; }; main "$@"', library, 'ds', *args, success=success)
 
     def test_single_deployment_and_minimal_invocation(self):
-        self.env['BUCKETNAME_DPT34'] = 'custom-herault'
         self.deploy_retrieval()
         self.assertEqual([['function', 'update', 'DataSourceFunction']], self.state['writes'])
         shared = next(f for f in self.state['functions'] if f['display-name'] == 'DataSourceFunction')
-        self.assertEqual({'NAMESPACE': 'testnamespace', 'INPUT_BUCKET_OVERRIDES': '{"DPT34":"custom-herault"}'},
+        self.assertEqual({'NAMESPACE': 'testnamespace'},
                          shared['config'])
         self.assertEqual({}, shared['defined-tags'])
         self.assertEqual(300, shared['timeout-in-seconds'])

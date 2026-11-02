@@ -57,15 +57,14 @@ public class CsvFunctionInheritanceTest {
     }
 
     @Test
-    public void fnConfiguresAndInvokesSharedRetrievalWithBucketOverrides() throws Exception {
+    public void fnConfiguresAndInvokesSharedRetrieval() throws Exception {
         for (boolean overrides : new boolean[]{false, true}) {
-            Map<String, String> config = overrides ? Map.of("NAMESPACE", "testns",
-                    "INPUT_BUCKET_OVERRIDES", "{\"MRN\":\"custom-input\"}", "USE_RESOURCE_PRINCIPAL", "false") : Map.of();
+            Map<String, String> config = overrides ? Map.of("NAMESPACE", "testns", "USE_RESOURCE_PRINCIPAL", "false") : Map.of();
             FunctionRuntimeContext runtime = configuredRuntime(SourceProbe.class, config);
             SourceProbe function = (SourceProbe) runtime.getInvokeInstance().orElseThrow();
             assertTrue(function.clients.isEmpty());
             assertEquals("OK", runtime.getMethod().getTargetMethod().invoke(function, "{\"datasourceId\":\"MRN\"}"));
-            assertEquals(List.of((overrides ? "false:testns:custom-input" : "true::dsmrn")), function.clients);
+            assertEquals(List.of((overrides ? "false:testns:dsmrn" : "true::dsmrn")), function.clients);
             assertEquals(List.of("MRN_Comptage.csv"), function.writes);
             assertTrue(function.closed);
             assertEquals("\"sha256:" + "a".repeat(64) + "\"",

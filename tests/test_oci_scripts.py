@@ -146,7 +146,7 @@ class OciScriptsTest(unittest.TestCase):
                               'lifecycle-state': 'ACTIVE'}],
             'functions': [{'id': 'ocid1.fnfunc.' + name, 'display-name': name,
                            'lifecycle-state': 'ACTIVE', 'defined-tags': {'Old': {'Tag': 'value'}}}
-                          for name in ['DataSourceFunction', 'OSMInfoFunction', '3MGeoJsonOut',
+                          for name in ['DataSourceFunction', 'PreprocessingFunction', 'OSMInfoFunction', '3MGeoJsonOut',
                                        'DPT34GeoJsonOut', 'DPT30GeoJsonOut', 'MRNGeoJsonOut',
                                        'DPT76GeoJsonOut', 'NIMGeoJsonOut']],
             'buckets': [{'name': name, 'compartment-id': 'ocid1.compartment.test',
@@ -243,7 +243,7 @@ class OciScriptsTest(unittest.TestCase):
         dpt34 = next(s for s in sources if s['id'] == 'DPT34')
         self.assertEqual(dpt34['geoJsonFunction'], 'DPT34GeoJsonOut')
         self.assertEqual(dpt34['csvObject'], 'DPT34_Comptage.csv')
-        self.assertEqual(dpt34['eventObject'], dpt34['csvObject'])
+        self.assertEqual(dpt34['eventObject'], 'DPT34_Manifest.json')
         self.assertEqual(dpt34['inputBucket'], 'dsdpt34')
         mrn = next(s for s in sources if s['id'] == 'MRN')
         self.assertEqual(mrn['geoJsonFunction'], 'MRNGeoJsonOut')
@@ -346,14 +346,12 @@ class OciScriptsTest(unittest.TestCase):
         self.script('setup-buckets.sh')
         bucket = next(b for b in self.state['buckets'] if b['name'] == 'dsdpt76')
         self.assertTrue(bucket['object-events-enabled'])
-        self.env['BUCKETNAME_DPT76'] = 'custom-dpt76'
         for _ in range(2):
             self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main ds DPT76')
             function = next(f for f in self.state['functions'] if f['display-name'] == 'DataSourceFunction')
-            self.assertEqual(json.loads(function['config']['INPUT_BUCKET_OVERRIDES']), {'DPT76': 'custom-dpt76'})
+            self.assertEqual(function['config'], {'NAMESPACE': 'testnamespace'})
             self.assertEqual(function['defined-tags'], {})
         self.script('invoke.sh', 'ds', 'DPT76')
-        self.env.pop('BUCKETNAME_DPT76')
         self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main geojson DPT76')
         function = next(f for f in self.state['functions'] if f['display-name'] == 'DPT76GeoJsonOut')
         self.assertEqual(function['config']['BUCKETNAME_IN'], 'dsdpt76')
@@ -362,7 +360,7 @@ class OciScriptsTest(unittest.TestCase):
         self.assertEqual(function['config']['OSM_WAY_MAPPING_OBJECT'], 'DPT76_OSMWayMapping.json')
         self.script('invoke.sh', 'geojson', 'DPT76')
         self.script('setup-events.sh')
-        rule = next(rule for rule in self.state['rules'] if 'DPT76' in rule['display-name'])
+        rule = next(rule for rule in self.state['rules'] if rule['display-name'] == 'DPT76ComptageCsvToGeoJson')
         condition = json.loads(rule['condition'])
         self.assertEqual(condition['data']['resourceName'], ['DPT76_Manifest.json'])
         self.assertEqual(condition['data']['additionalDetails']['bucketName'], ['dsdpt76'])
@@ -377,10 +375,9 @@ class OciScriptsTest(unittest.TestCase):
         self.assertEqual(settings['years'], [2022])
         self.assertEqual(settings['source']['inputs'][0]['objectName'], 'DPT76_Comptage_2022.geojson')
         self.assertEqual(settings['source']['inputs'][0]['contentType'], 'application/geo+json')
-        self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main preprocess DPT76')
-        function = next(f for f in self.state['functions'] if f['display-name'] == 'DPT76Preprocessing')
-        self.assertEqual(function['config']['BUCKETNAME'], 'dsdpt76')
-        self.assertEqual(json.loads(function['config']['PREPROCESSING_SETTINGS']), settings)
+        self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main preprocess')
+        function = next(f for f in self.state['functions'] if f['display-name'] == 'PreprocessingFunction')
+        self.assertEqual(function['config'], {'NAMESPACE': 'testnamespace'})
         self.assertEqual(function['timeout-in-seconds'], 300)
         self.assertTrue(any('--handler' in call and call[call.index('--handler') + 1]
                             == 'org.traficinfo.dsfunctions.PreprocessingFunction::handleRequest'
@@ -423,18 +420,11 @@ class OciScriptsTest(unittest.TestCase):
     def test_preprocessing_deployment_and_invocation_are_explicit_and_share_the_handler(self):
         for existing in [False, True]:
             with self.subTest(existing=existing):
-                self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main preprocess NIM')
-                function = next(f for f in self.state['functions'] if f['display-name'] == 'NIMPreprocessing')
+                self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main preprocess')
+                function = next(f for f in self.state['functions'] if f['display-name'] == 'PreprocessingFunction')
                 self.assertEqual(function['timeout-in-seconds'], 300)
                 config = function['config']
-                self.assertEqual(config['BUCKETNAME'], 'dsnim')
-                settings = json.loads(config['PREPROCESSING_SETTINGS'])
-                self.assertEqual(settings['source']['dataSourceId'], 'NIM')
-                self.assertEqual(settings['source']['datasetId'], 'nim-2023-2025')
-                self.assertEqual(settings['datasetUrl'],
-                                 json.loads(self.config_file.read_text())['NIM']['datasets']['nim-2023-2025']['datasetInfoUrl'])
-                self.assertEqual(settings['years'], [2023, 2024, 2025])
-                self.assertEqual(settings['source']['inputs'][0]['objectName'], 'NIM_Comptage.csv')
+                self.assertEqual(config, {'NAMESPACE': 'testnamespace'})
                 self.assertLessEqual(sum(len(k.encode()) + len(v.encode()) for k, v in config.items()), 4096)
                 self.assertNotIn('TraficInfo', function.get('defined-tags', {}))
         self.script('invoke.sh', 'preprocess', 'NIM')
@@ -449,20 +439,17 @@ class OciScriptsTest(unittest.TestCase):
             with self.subTest(years=years):
                 config['NIM']['datasets'][config['NIM']['activeDatasetId']]['years'] = years
                 self.config_file.write_text(json.dumps(config))
-                self.deployment_common('main preprocess NIM', success=False)
+                self.deployment_common('main preprocess', success=False)
                 self.assertFalse(self.state.get('calls', []))
         del config['MRN']['datasets']['mrn-2026']['years']
         self.config_file.write_text(json.dumps(config))
-        self.deployment_common('main preprocess MRN', success=False)
+        self.deployment_common('main preprocess', success=False)
         self.assertFalse(self.state.get('calls', []))
 
     def test_dpt30_preprocessing_uses_configured_years_and_shared_handler(self):
-        self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main preprocess DPT30')
-        function = next(f for f in self.state['functions'] if f['display-name'] == 'DPT30Preprocessing')
-        settings = json.loads(function['config']['PREPROCESSING_SETTINGS'])
-        self.assertEqual(settings['source']['dataSourceId'], 'DPT30')
-        self.assertEqual(settings['years'], [2021, 2022, 2023, 2024, 2025])
-        self.assertEqual(function['config']['BUCKETNAME'], 'dsdpt30')
+        self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main preprocess')
+        function = next(f for f in self.state['functions'] if f['display-name'] == 'PreprocessingFunction')
+        self.assertEqual(function['config'], {'NAMESPACE': 'testnamespace'})
         self.assertEqual(function['timeout-in-seconds'], 300)
         self.assertTrue(any('org.traficinfo.dsfunctions.PreprocessingFunction::handleRequest' in call
                             for call in self.state['calls']))
@@ -484,17 +471,16 @@ class OciScriptsTest(unittest.TestCase):
         self.deployment_common('main geojson NIM', success=False)
         self.assertNotIn('calls', self.state)
         self.script('setup-events.sh')
-        self.assertEqual(len(self.state['rules']), 5)
-        self.assertFalse(any('NIM' in item['display-name'] for item in self.state['rules']))
+        self.assertEqual(len(self.state['rules']), 11)
+        self.assertEqual(['NIMRetrievalToPreprocessing'], [item['display-name'] for item in self.state['rules'] if 'NIM' in item['display-name']])
         self.assertFalse(any('NIMGeoJsonOut' in ' '.join(call) for call in self.state['calls']))
 
-    def test_download_only_sources_need_no_events_application_lookup(self):
+    def test_sources_without_geojson_still_have_preprocessing_events(self):
         config = json.loads(self.config_file.read_text())
         config['NIM']['geoJsonEnabled'] = False
         self.config_file.write_text(json.dumps({'NIM': config['NIM']}))
-        result = self.script('setup-events.sh')
-        self.assertIn('No data sources have GeoJSON processing enabled', result.stderr)
-        self.assertNotIn('calls', self.state)
+        self.script('setup-events.sh')
+        self.assertEqual(['NIMRetrievalToPreprocessing'], [rule['display-name'] for rule in self.state['rules']])
 
     def test_invalid_geojson_flags_and_source_timeouts_are_rejected(self):
         original = json.loads(self.config_file.read_text())
@@ -605,7 +591,7 @@ class OciScriptsTest(unittest.TestCase):
                     self.state['writes'] = []
                     self.save()
                 self.deploy()
-                self.assertEqual(len(self.state['writes']), 8)
+                self.assertEqual(len(self.state['writes']), 9)
                 functions = {f['display-name']: f for f in self.state['functions']}
                 self.assertEqual(functions['OSMInfoFunction']['config'],
                                  {'NAMESPACE': 'testnamespace', 'BUCKETNAME_OSM': 'osminfo',
@@ -671,11 +657,11 @@ class OciScriptsTest(unittest.TestCase):
         self.script('setup-events.sh')
         conditions = {r['display-name']: json.loads(r['condition']) for r in self.state['rules']}
         self.assertEqual(conditions['3MComptageCsvToGeoJson']['data']['resourceName'],
-                         ['MMM_MMM_Comptage.csv'])
+                         ['MMM_Manifest.json'])
         self.assertEqual(conditions['DPT34ComptageCsvToGeoJson']['data']['additionalDetails']['bucketName'],
                          ['dsdpt34'])
         self.assertEqual(conditions['MRNComptageCsvToGeoJson']['data']['resourceName'],
-                         ['MRN_Comptage.csv'])
+                         ['MRN_Manifest.json'])
         self.assertEqual(conditions['MRNComptageCsvToGeoJson']['data']['additionalDetails']['bucketName'],
                          ['dsmrn'])
         self.script('setup-schedules.sh')

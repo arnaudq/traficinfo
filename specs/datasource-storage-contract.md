@@ -13,6 +13,45 @@ and optional `dataSourceFaviconUrl`. The `datasets` map is keyed by dataset ID;
 each entry holds its `datasetInfoUrl`, `inputs`, and `years`. The datasource's
 `activeDatasetId` selects the dataset currently monitored.
 
+## Operating assumptions
+
+These assumptions govern the normal retrieval-to-preprocessing workflow:
+
+1. Retrieval is scheduled at most once a day per datasource. Consecutive
+   retrievals for the same datasource never overlap.
+2. Input events arrive in order and are not misrouted.
+3. Retrieval samples upstream input files at an arbitrary rate. Input versions
+   are snapshots, not a sequential changelog; missing intermediate versions is
+   acceptable and there is no requirement to process every version.
+4. If retrieval fails at any point, it is retried at the next scheduled
+   occurrence. Immediate retry or recovery of every missed input version is
+   unnecessary.
+5. All files of a multi-file datasource change together. Companion-only updates
+   are not a scenario the design needs to handle.
+6. Preprocessing's existing comparison of yearly data and the final manifest
+   detects unchanged output and avoids replacing the manifest. Repeating parsing
+   is acceptable; no up-front processed-revision check or checkpoint is required.
+7. Multi-file transfers are not atomic and can temporarily expose mixed input
+   versions. This is acceptable given the nature of the service; preventing it
+   does not require an all-input completion barrier or snapshot protocol.
+
+Lost events, downstream failures, cross-stage deployment drift and overlaps
+involving preprocessing are outside the scope of this trigger change. No new
+mechanisms are required for those scenarios. Preserve existing preprocessing
+validation, concurrency handling and manifest publication behavior.
+
+### Event wiring
+
+Use create/update events on an existing raw input Object to invoke preprocessing.
+Watch the last configured retrieval input; for MMM this is the counts CSV,
+already written after its companion JSON. Retrieval already skips unchanged
+inputs, so no new change-detection or notification write is needed in that stage.
+
+The preprocessing entry point accepts the Object Storage event and resolves the
+datasource and settings from the bundled configuration. Its existing publisher
+parses, validates and compares output, retaining an unchanged manifest. A second
+event rule watches `<id>_Manifest.json` and invokes GeoJSON generation.
+
 ## Objects
 
 Object names are relative to the datasource's configured input bucket. Use the
@@ -20,7 +59,7 @@ configured datasource ID, including MMM despite its legacy bucket/function names
 
 | Object | Contents |
 | --- | --- |
-| `<datasourceId>_Manifest.json` | Current complete publication |
+| `<datasourceId>_Manifest.json` | Current complete yearly publication |
 | `<datasourceId>_Preprocessing.lock` | Exclusive publication lock |
 | `data/<revision>/<datasourceId>_Comptage_<year>.json` | Yearly array of Comptage records |
 
@@ -80,50 +119,36 @@ is maintained in code and must change when the stored interpretation changes.
 
 ## Source retrieval configuration
 
-The datasource function downloads the active source inputs into its bucket. It
-neither reads nor writes the manifest. Deployment selects the datasource's
-`datasets[activeDatasetId]` entry in `dsconfig.json` and passes `dataSourceId`,
-the selected key as `datasetId`, and ordered `inputs` through the
-`DATA_SOURCE_SETTINGS` function configuration. The function
-reads these settings through `RuntimeContext`; it does not read the repository
-file at runtime.
+The shared retrieval and preprocessing functions load bundled `dsconfig.json`.
+The invocation selects a datasource by `datasourceId`; caller-supplied URLs,
+buckets, inputs and year scopes are not accepted. Input buckets come only from the bundle. Both stages receive `NAMESPACE`
+and `USE_RESOURCE_PRINCIPAL` through
+runtime configuration. This keeps the full source registry outside OCI's 4096-byte
+runtime environment budget. Settings changes require redeploying the shared JAR.
 
-Function configuration carries only active retrieval settings; CSV headers and
-manifest history remain in Object Storage. Deployment enforces OCI's 4096-byte
-UTF-8 key/value budget, including inherited application settings, before changing
-any function. Function-level values override application values with the same key.
+Each input specifies `url`, `contentType` and optional `objectName`. CSV names
+default to `<id>_Comptage.csv` or `csvObject`; companion inputs require explicit
+names. Inputs are checked in order and preserve existing archival/gzip behavior.
+Retrieval writes datasource ID, source URL, dataset ID and download time into
+Object metadata. The downloaded dataset ID is informational; validators belong
+to the datasource and URL. Changing the active dataset can reuse an unchanged input.
 
-Each input specifies `url`, `contentType` and an optional `objectName`. CSV names
-default to `<datasourceId>_Comptage.csv` (or the configured `csvObject` override).
-Companion inputs specify their Object names explicitly. Inputs are published in
-list order, so MMM's geometry JSON precedes its counts CSV. Source Objects retain
-the existing names and archive convention. A failure stops later inputs; this
-stage does not create an atomic snapshot of multiple inputs.
+Retrieval replaces only changed inputs. The last configured input's create/update
+event invokes shared preprocessing; for MMM this is the counts CSV, written after
+its companion JSON. No additional notification Object is written. Normal active
+inputs retain the downloader identity metadata used by preprocessing validation.
 
-Successful retrieval stores the datasource ID, source URL and UTC download time
-in Object metadata. The stored dataset ID identifies the dataset selected when
-the file was downloaded; it is informational, not part of the input's identity.
-Conditional downloads reuse validators for the same datasource and source URL.
-Older Objects without that identity are refreshed once. Switching dataset IDs
-alone can reuse the same CSV and validator; changing the input URL requires a
-fresh download. All datasource handlers require `DATA_SOURCE_SETTINGS`
-and `BUCKETNAME`; missing settings fail before any clients are created. Retrieval
-URLs and dataset IDs are configured only in `dsconfig.json`, with no Java
-fallbacks. Each handler supplies only its datasource ID to the shared retrieval
-superclass. `GeoJsonDataSource` retains only GeoJSON parser selection and naming.
-
-The active dataset's optional `timeoutSeconds` sets the download function's synchronous
-runtime timeout (1–300 seconds). Deployment applies it on creation and updates;
-invocation allows an additional 60 seconds when it exceeds the default 30. NIM
-uses 300 seconds for its configured exports. `geoJsonEnabled: false` marks a datasource
-as having no GeoJSON handler: event setup skips it and GeoJSON
-invocation/deployment is disabled. Explicit preprocessing is independent of this flag. All current sources have GeoJSON handlers enabled.
+Each source can specify a runtime timeout of 1–300 seconds; deployment uses the
+maximum active timeout for the shared retrieval function. Preprocessing uses 300
+seconds. `geoJsonEnabled: false` suppresses only manifest-to-GeoJSON event wiring,
+not preprocessing events.
 
 ## Processing sequence
 
 1. **Datasource function:** retrieve the configured inputs and store them as
-   Objects in the datasource bucket.
-2. **Preprocessing function:** read the source Objects and check CSV
+   Objects in the datasource bucket only when changed.
+2. **Preprocessing function:** receive the last input Object event, read the current
+   source Objects and check CSV
    headers against the manifest for the same dataset/input. Preprocessing permits
    column additions and reordering, but rejects blank or
    duplicate headers and removal/renaming of any previously recorded column.
@@ -138,53 +163,24 @@ invocation/deployment is disabled. Explicit preprocessing is independent of this
    Configured years without records are also logged at INFO level; their existing
    yearly Objects remain referenced. Only years within the dataset's scope change.
 4. Verify the complete referenced Object set, then publish the manifest last.
-5. **GeoJSON function (later):** trigger from that manifest. Read it once and
+5. **GeoJSON function:** trigger from that manifest. Read it once and
    follow its exact Object references instead of listing Objects by wildcard.
 
 ## Workflow diagram
 
-The diagram shows data flow; preprocessing is currently invoked manually.
-The dashed connection is the future manifest-triggered GeoJSON workflow.
-The datasource decision applies to each input independently; both outcomes
-continue with the next configured input. An unchanged response causes no upload
-or Object event. Preprocessing can also be invoked manually on existing Objects.
+Create/update events on the last configured raw input and on the published
+manifest drive the pipeline. Archives do not match the input rule. Manual
+preprocessing requests use the same publication path.
 
 ```mermaid
-flowchart TD
-    upstream["Upstream dataset inputs"]
-
-    subgraph datasource["Datasource function"]
-        retrieve["Request each input in configured order<br/>Reuse validator only for the same source"]
-        modified{"Input modified?"}
-        store["Archive previous Object if present<br/>Store input and download metadata"]
-        unchanged["Keep current Object<br/>No upload"]
-
-        retrieve --> modified
-        modified -->|Yes| store
-        modified -->|No| unchanged
-    end
-
-    upstream --> retrieve
-    store --> raw["Source Objects and download metadata<br/>in the datasource bucket"]
-
-    subgraph preprocessing["Preprocessing function"]
-        lock["Acquire exclusive publication lock"]
-        prepare["Load previous manifest and stage inputs<br/>Check metadata, headers and dataset scope"]
-        parse["Parse and validate records<br/>Group records by expected year"]
-        years["Write changed yearly Objects<br/>Reuse unchanged and inactive year references"]
-        verify["Read back every referenced yearly Object<br/>Verify checksums, number of records and years<br/>Recheck source metadata"]
-        changed{"Publication changed?"}
-        publish["Replace the manifest last"]
-        release["Release lock and remove staged inputs"]
-
-        lock --> prepare --> parse --> years --> verify --> changed
-        changed -->|Yes| publish --> release
-        changed -->|No: retain current manifest| release
-    end
-
-    raw --> lock
-    publish -.->|Future: manifest event| geojson["GeoJSON function: read manifest once<br/>Read yearly Objects using exact references"]
-    geojson --> output["Publish GeoJSON output"]
+flowchart LR
+    schedule[Schedule or manual request] --> retrieval[Shared retrieval]
+    retrieval --> inputs[Write changed raw inputs in order]
+    inputs -->|Last input create/update event| preprocess[Shared preprocessing]
+    preprocess --> parse[Read inputs, parse and validate]
+    parse --> years[Write changed immutable yearly Objects]
+    years --> manifest[Verify and publish manifest only if changed]
+    manifest -->|Manifest create/update event| geojson[GeoJSON: read exact manifest references]
 ```
 
 A preprocessing error stops publication and releases the acquired lock during
@@ -194,27 +190,16 @@ as described below.
 
 ## Preprocessing configuration and execution
 
-Deployment builds `PREPROCESSING_SETTINGS` from the active dataset's retrieval
-settings, `datasetInfoUrl`, and `years` under `datasets[activeDatasetId]` in
-`dsconfig.json`. Inactive entries remain in the file but are not passed to the
-function or published to the manifest until selected and processed (including
-the one-off archive request described below):
+One shared `PreprocessingFunction` resolves its active settings from the bundle.
+Normal requests are `{"datasourceId":"NIM"}`. Object Storage events resolve the
+datasource using the configured bucket and last input Object name.
+Events read current inputs; every intermediate version
+need not be processed. Manual invocation also applies configuration or parser
+changes without requiring an input update.
 
-```json
-{
-  "source": {
-    "dataSourceId": "NIM",
-    "datasetId": "nim-2022",
-    "inputs": [{
-      "url": "https://example.org/counts.csv",
-      "objectName": "NIM_Comptage.csv",
-      "contentType": "text/csv"
-    }]
-  },
-  "datasetUrl": "https://example.org/dataset",
-  "years": [2022]
-}
-```
+Each invocation parses the inputs and uses the existing yearly-data and manifest
+comparison to avoid republishing unchanged output. There is no processed-revision
+checkpoint or separate forced-reprocessing mode.
 
 The shared `PreprocessingFunction` supports all current datasource IDs. NIM’s
 active dataset covers `[2023, 2024, 2025]`; DPT30 uses `[2021, 2022, 2023, 2024, 2025]`.
@@ -240,41 +225,18 @@ upstream snapshot.
 
 ### One-off archive requests
 
-An empty preprocessing invocation body continues to process the deployed active
-dataset. A nonempty body must be an explicit request with this shape:
+Archive requests select an inactive dataset from the bundle:
 
 ```json
-{
-  "archive": {
-    "source": {
-      "dataSourceId": "MMM",
-      "datasetId": "mmm-2022-2024",
-      "inputs": [
-        {
-          "url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_MMM_Comptage.json",
-          "objectName": "MMM_MMM_Comptage_20250915.json",
-          "contentType": "application/json"
-        },
-        {
-          "url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_MMM_Comptage.csv",
-          "objectName": "MMM_MMM_Comptage_20250915.csv",
-          "contentType": "text/csv"
-        }
-      ]
-    },
-    "datasetUrl": "https://data.montpellier3m.fr/dataset/comptage-vehicules-particuliers-de-montpellier",
-    "years": [2022, 2023, 2024]
-  }
-}
+{"datasourceId":"MMM","datasetId":"mmm-2022-2024"}
 ```
 
-`scripts/invoke.sh preprocess <datasourceId> <archiveDatasetId>` constructs this
-body from an inactive entry in `dsconfig.json`, requiring explicit input Object
-names. It does not change the local active selection or deployed configuration.
-The function validates the settings using the existing preprocessing rules and
-rejects another datasource, the deployed active dataset ID, or any input Object
-name shared with the active dataset. Bucket and namespace come exclusively from
-deployment, not from the request. Unknown or malformed request bodies fail.
+`scripts/invoke.sh preprocess <datasourceId> <archiveDatasetId>` validates the
+local entry and sends these identifiers. It does not change the active selection.
+The function rejects the active dataset ID and any archive input name shared
+with active inputs. Archive Objects require explicit names. Unknown fields and
+malformed requests fail; bucket, namespace, URLs and years come only from the
+bundle.
 
 In archive mode only, missing downloader identity and download-time metadata are
 allowed; present datasource IDs and source URLs must match. The explicitly
@@ -298,8 +260,8 @@ preprocessing populates those headers when it first processes the active source.
 If an active definition already exists, it is preserved; scope reduction still
 requires a new dataset ID. Other datasets and years are retained by the same
 publication rules. Retries of unchanged imports are no-ops, and both modes use
-the same exclusive lock and publish the manifest last. GeoJSON generation remains
-a separate invocation after import.
+the same exclusive lock and publish the manifest last. A changed manifest also triggers GeoJSON generation after an archive import
+when the manifest event rule is enabled.
 
 Publication is serialized per datasource using atomic create-if-absent of the
 lock Object. There are no ETag-based updates. Normal completion or failure
@@ -314,12 +276,13 @@ count and year before replacing the manifest last. Identical retries leave the
 manifest unchanged. A failed run leaves the previous manifest usable and may
 leave unreferenced yearly Objects; automatic cleanup is outside this step.
 
-Preprocessing deployment and invocation are explicit (`preprocess` in the shared
-scripts), with a 300-second runtime timeout. It is not included in a deployment
-without arguments, has no schedule tag and is not connected to Events yet.
-All current GeoJSON handlers read the published manifest and
-its exact yearly Object references. CSV events do not run preprocessing;
-preprocessing must publish source changes before GeoJSON is invoked.
+No-argument deployment includes the shared preprocessing function; `preprocess`
+selects it independently. `setup-events.sh` routes each datasource's last active
+input Object to that function and each `<id>_Manifest.json` to the per-source
+GeoJSON function, unless GeoJSON is disabled. Rules use exact names to exclude
+archives, lock Objects and yearly outputs. Deploy functions and enable bucket
+events before configuring rules. Existing raw inputs can be processed explicitly
+after event wiring.
 
 For the end-user procedure, including the DPT34 period-splitting example, see
 [Making past periods read-only](../dsfunctions/README.md#making-past-periods-read-only).

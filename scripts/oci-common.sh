@@ -97,6 +97,8 @@ load_data_sources() {
       | if all([.functionPrefix, .inputBucket, .csvObject, .eventObject][];
           . == null or nonempty_string) then . else
           error("Overrides must be nonempty strings for \($key)") end
+      | if .eventObject != null and .eventObject != (.id + "_Manifest.json") then
+          error("eventObject must select the preprocessing manifest for \($key)") else . end
       | if .geoJsonEnabled != null and (.geoJsonEnabled | type) != "boolean" then
           error("geoJsonEnabled must be a boolean for \($key)") else . end
       | if (.activeDatasetId | nonempty_string | not) then
@@ -115,11 +117,12 @@ load_data_sources() {
       | . + {functionPrefix: $prefix,
           dataSourceFunction: "DataSourceFunction",
           geoJsonFunction: ($prefix + "GeoJsonOut"),
-          preprocessingFunction: ($prefix + "Preprocessing"),
+          preprocessingFunction: "PreprocessingFunction",
+          retrievalEventRule: (.id + "RetrievalToPreprocessing"),
           eventRule: ($prefix + "ComptageCsvToGeoJson"),
           inputBucket: (.inputBucket // ("ds" + (.id | ascii_downcase))),
           csvObject: (.csvObject // (.id + "_Comptage.csv")),
-          eventObject: (.eventObject // .csvObject // (.id + "_Comptage.csv"))}
+          eventObject: (.id + "_Manifest.json")}
     )
     | if (map(.eventRule) | unique | length) != length then
         error("Data sources must produce distinct Events rule names") else . end

@@ -62,8 +62,8 @@ public class SharedDataSourceFunctionTest {
     }
 
     @Test
-    public void sparseBucketOverridesAndFailureCleanup() {
-        Probe probe = configured(Map.of("INPUT_BUCKET_OVERRIDES", "{\"MRN\":\"custom-mrn\"}"));
+    public void retrievalFailureClosesClientsAndClearsLoggingContext() {
+        Probe probe = configured(Map.of());
         probe.fail = true;
         try {
             probe.handleRequest("{\"datasourceId\":\"MRN\"}");
@@ -71,7 +71,7 @@ public class SharedDataSourceFunctionTest {
         } catch (IllegalStateException expected) {
             assertEquals("Retrieval failed for MRN", expected.getMessage());
         }
-        assertEquals(List.of("/custom-mrn"), probe.buckets);
+        assertEquals(List.of("/dsmrn"), probe.buckets);
         assertEquals(1, probe.storageClosed);
         assertEquals(1, probe.httpClosed);
         assertNull(MDC.get("datasourceId"));
@@ -89,7 +89,7 @@ public class SharedDataSourceFunctionTest {
     }
 
     @Test
-    public void malformedRegistryAndOverridesFailBeforeClientsAreCreated() throws Exception {
+    public void malformedRegistryIsRejected() throws Exception {
         String valid = "{\"TEST\":{\"id\":\"TEST\",\"activeDatasetId\":\"current\",\"datasets\":{\"current\":{\"inputs\":["
                 + "{\"url\":\"https://example.invalid/source.csv\",\"contentType\":\"text/csv\"}]}}}}";
         var registry = DataSourceRegistry.read(new ByteArrayInputStream(valid.getBytes(StandardCharsets.UTF_8)));
@@ -105,16 +105,7 @@ public class SharedDataSourceFunctionTest {
                 // Configuration is rejected before any client construction.
             }
         }
-        for (String overrides : List.of("null", "[]", "{\"UNKNOWN\":\"bucket\"}", "{\"MRN\":\"../bad\"}")) {
-            Probe probe = new Probe();
-            try {
-                probe.config(new FunctionRuntimeContext(new FunctionLoader().loadClass(Probe.class.getName(), "handleRequest"),
-                        Map.of("INPUT_BUCKET_OVERRIDES", overrides)));
-                fail("Expected invalid overrides");
-            } catch (IllegalArgumentException expected) {
-                assertTrue(probe.buckets.isEmpty());
-            }
-        }
+
     }
 
     private static Probe configured(Map<String, String> config) {

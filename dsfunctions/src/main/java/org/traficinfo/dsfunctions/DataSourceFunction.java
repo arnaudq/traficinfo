@@ -1,6 +1,5 @@
 package org.traficinfo.dsfunctions;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fnproject.fn.api.FnConfiguration;
@@ -9,7 +8,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.Map;
 
 /** One deployed retrieval function; each invocation selects one bundled datasource. */
 public class DataSourceFunction {
@@ -19,7 +17,6 @@ public class DataSourceFunction {
     private DataSourceRegistry registry;
     private String namespace;
     private boolean useResourcePrincipal;
-    private Map<String, String> bucketOverrides = Map.of();
 
     public DataSourceFunction() {}
 
@@ -37,23 +34,9 @@ public class DataSourceFunction {
 
     @FnConfiguration
     public void config(RuntimeContext context) {
-        DataSourceRegistry loaded = loadRegistry();
-        Map<String, String> overrides;
-        try {
-            overrides = JSON.readValue(context.getConfigurationByKey("INPUT_BUCKET_OVERRIDES").orElse("{}"),
-                    new TypeReference<Map<String, String>>() {});
-        } catch (IOException invalid) {
-            throw new IllegalArgumentException("Invalid INPUT_BUCKET_OVERRIDES", invalid);
-        }
-        if (overrides == null) throw new IllegalArgumentException("Invalid INPUT_BUCKET_OVERRIDES");
-        overrides.forEach((id, bucket) -> {
-            loaded.source(id);
-            DataSourceRegistry.validateBucket(bucket);
-        });
-        bucketOverrides = Map.copyOf(overrides);
+        registry = loadRegistry();
         namespace = context.getConfigurationByKey("NAMESPACE").orElse("");
         useResourcePrincipal = Boolean.parseBoolean(context.getConfigurationByKey("USE_RESOURCE_PRINCIPAL").orElse("true"));
-        registry = loaded;
     }
 
     public String handleRequest(String input) {
@@ -69,9 +52,8 @@ public class DataSourceFunction {
         }
         var source = registry.source(request.datasourceId());
         try (var logging = LoggingContext.forSource("retrieval", request.datasourceId())) {
-            String bucket = bucketOverrides.getOrDefault(request.datasourceId(), source.bucket());
             try (HttpClient http = createHttpClient();
-                 ObjectStoreClient storage = createObjectStoreClient(useResourcePrincipal, namespace, bucket)) {
+                 ObjectStoreClient storage = createObjectStoreClient(useResourcePrincipal, namespace, source.bucket())) {
                 new SourceObjectPublisher(http, storage).publish(source.settings());
                 return "OK";
             } catch (IOException | RuntimeException failure) {

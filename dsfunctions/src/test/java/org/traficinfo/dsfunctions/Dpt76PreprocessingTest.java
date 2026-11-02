@@ -158,12 +158,12 @@ public class Dpt76PreprocessingTest {
     public void fnLoadsDeployedSettingsAndPublishesIntoConfiguredBucket() throws Exception {
         var context = new FunctionRuntimeContext(
                 new FunctionLoader().loadClass(Probe.class.getName(), "handleRequest"),
-                Map.of("NAMESPACE", "testns", "BUCKETNAME", "dsdpt76",
-                        PreprocessingSettings.CONFIG_KEY, JSON.writeValueAsString(settings())));
+                Map.of("NAMESPACE", "testns"));
         new FunctionConfigurer().configure(context);
         var probe = (Probe) context.getInvokeInstance().orElseThrow();
+        assertNull(probe.bucket);
+        assertEquals("OK", context.getMethod().getTargetMethod().invoke(probe, "{\"datasourceId\":\"DPT76\"}"));
         assertEquals("testns/dsdpt76", probe.bucket);
-        assertEquals("OK", context.getMethod().getTargetMethod().invoke(probe, ""));
         assertTrue(probe.store.objects.containsKey("DPT76_Manifest.json"));
     }
 
@@ -172,7 +172,9 @@ public class Dpt76PreprocessingTest {
         String bucket;
         @Override protected ObjectStoreClient createObjectStoreClient(boolean principal, String namespace, String name) {
             bucket = namespace + "/" + name;
-            try { store.source(settings(), GEOJSON); }
+            try {
+                store.source(settings(), GEOJSON);
+            }
             catch (Exception failure) { throw new IllegalStateException(failure); }
             return store;
         }

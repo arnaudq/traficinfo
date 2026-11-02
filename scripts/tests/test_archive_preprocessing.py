@@ -46,29 +46,26 @@ else:
     def recorded(self):
         return [json.loads(line) for line in self.calls.read_text().splitlines()] if self.calls.exists() else []
 
-    def test_archive_settings_are_sent_in_body_and_configuration_is_unchanged(self):
+    def test_archive_identifiers_are_sent_and_configuration_is_unchanged(self):
         before = self.config.read_bytes()
-        for dataset, years, stem in [('mmm-2011-2021', list(range(2011, 2022)), '20221031'),
-                                     ('mmm-2022-2024', [2022, 2023, 2024], '20250915')]:
+        for dataset in ['mmm-2011-2021', 'mmm-2022-2024']:
             result = self.invoke('preprocess', 'MMM', dataset)
             self.assertEqual(result.returncode, 0, result.stderr)
             calls = self.recorded()
-            self.assertEqual(calls[-2][calls[-2].index('--display-name') + 1], '3MPreprocessing')
+            self.assertEqual(calls[-2][calls[-2].index('--display-name') + 1], 'PreprocessingFunction')
             invocation = calls[-1]
-            request = json.loads(invocation[invocation.index('--body') + 1])['archive']
-            self.assertEqual(request['source']['datasetId'], dataset)
-            self.assertEqual(request['years'], years)
-            self.assertEqual([i['objectName'] for i in request['source']['inputs']],
-                             [f'MMM_MMM_Comptage_{stem}.json', f'MMM_MMM_Comptage_{stem}.csv'])
+            request = json.loads(invocation[invocation.index('--body') + 1])
+            self.assertEqual(request, {'datasourceId': 'MMM', 'datasetId': dataset})
             self.assertEqual(invocation[invocation.index('--read-timeout') + 1], '360')
         self.assertEqual(before, self.config.read_bytes())
 
-    def test_normal_invocations_keep_empty_body(self):
+    def test_normal_invocations_select_datasource_for_shared_stages(self):
         for kind in ['preprocess', 'ds', 'geojson']:
             result = self.invoke(kind, 'MMM')
             self.assertEqual(result.returncode, 0, result.stderr)
             args = self.recorded()[-1]
-            self.assertEqual(args[args.index('--body') + 1], '')
+            body = args[args.index('--body') + 1]
+            self.assertEqual(body, '' if kind == 'geojson' else '{"datasourceId":"MMM"}')
 
     def test_invalid_selection_fails_before_oci(self):
         for args in [('preprocess', 'MMM', 'missing'), ('preprocess', 'MMM', 'current'),

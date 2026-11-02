@@ -45,11 +45,10 @@ public class DataSourceFunctionTest {
     }
 
     @Test
-    public void bundledDatasetAndBucketOverrideAreUsed() {
-        Probe function = configured(Map.of("NAMESPACE", "testns", "INPUT_BUCKET_OVERRIDES",
-                "{\"DPT76\":\"custom-input\"}"));
+    public void bundledDatasetAndBucketAreUsed() {
+        Probe function = configured(Map.of("NAMESPACE", "testns"));
         function.handleRequest("{\"datasourceId\":\"DPT76\"}");
-        assertEquals("testns/custom-input", function.bucket);
+        assertEquals("testns/dsdpt76", function.bucket);
         assertEquals(GEOJSON_URI, function.requests.get(0));
         assertEquals(DataSourceTestSettings.settings("DPT76").datasetId(),
                 function.metadata.values().iterator().next().getMetadata().get("dataset-id"));

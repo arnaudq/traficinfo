@@ -45,11 +45,10 @@ public class DataSourceFunctionTest {
     }
 
     @Test
-    public void bundledDatasetAndBucketOverrideAreUsed() {
-        Probe function = configured(Map.of("NAMESPACE", "testns", "INPUT_BUCKET_OVERRIDES",
-                "{\"NIM\":\"custom-input\"}"));
+    public void bundledDatasetAndBucketAreUsed() {
+        Probe function = configured(Map.of("NAMESPACE", "testns"));
         function.handleRequest("{\"datasourceId\":\"NIM\"}");
-        assertEquals("testns/custom-input", function.bucket);
+        assertEquals("testns/dsnim", function.bucket);
         assertEquals(CSV_URI, function.requests.get(0));
         assertEquals(DataSourceTestSettings.settings("NIM").datasetId(),
                 function.metadata.values().iterator().next().getMetadata().get("dataset-id"));

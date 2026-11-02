@@ -91,81 +91,70 @@ Use `./scripts/setup-buckets.sh --dry-run` to preview changes without submitting
 Enabling bucket events prepares each input bucket for an OCI Events rule; this script
 does not create the rule that invokes the GeoJSON function.
 
-## Object events and GeoJSON generation
+## Retrieval, preprocessing and GeoJSON events
 
-After running `./scripts/setup-buckets.sh` and deploying with `./scripts/deploy-functions.sh`,
-run `./scripts/setup-events.sh` to create or update one Events rule for every entry with
-GeoJSON enabled in `dsconfig.json`, targeting GeoJSON functions in `3MOpenDataProcessor`:
+The pipeline uses two Object Storage transitions per datasource:
 
-| Source ID | Events rule | Trigger object | GeoJSON function |
-| --- | --- | --- | --- |
-| MMM | `3MComptageCsvToGeoJson` | `ds3mbucket/MMM_MMM_Comptage.csv` | `3MGeoJsonOut` |
-| DPT34 | `DPT34ComptageCsvToGeoJson` | `dsdpt34/DPT34_Comptage.csv` | `DPT34GeoJsonOut` |
-| DPT30 | `DPT30ComptageCsvToGeoJson` | `dsdpt30/DPT30_Comptage.csv` | `DPT30GeoJsonOut` |
-| MRN | `MRNComptageCsvToGeoJson` | `dsmrn/MRN_Comptage.csv` | `MRNGeoJsonOut` |
-| NIM | `NIMComptageCsvToGeoJson` | `dsnim/NIM_Comptage.csv` | `NIMGeoJsonOut` |
-| DPT76 | `DPT76ComptageCsvToGeoJson` | `dsdpt76/DPT76_Manifest.json` | `DPT76GeoJsonOut` |
-
-Names default to function `${id}GeoJsonOut`, rule `${id}ComptageCsvToGeoJson`,
-bucket `ds${lowercase(id)}`, and CSV `${id}_Comptage.csv`. Optional per-source
-`functionPrefix`, `inputBucket`, and `csvObject` fields override these defaults.
-MMM supplies all three overrides to retain its existing resource names; DPT34
-uses the defaults. `functionPrefix` affects both the rule and function name.
-The optional `eventObject` overrides the triggering object independently of the
-source input name; otherwise it defaults to `csvObject`. DPT76 selects its
-preprocessing manifest so output generation starts after a completed publication.
-
-NIM selects the `nim-2023-2025` dataset and enables GeoJSON in `dsconfig.json`.
-Use `./scripts/deploy-functions.sh ds` and `./scripts/invoke.sh ds NIM`
-to retrieve it. The source uses bucket `dsnim`, Object `NIM_Comptage.csv`,
-the shared 300-second runtime timeout and a monthly retrieval schedule.
-Deploy and run preprocessing with `./scripts/deploy-functions.sh preprocess NIM`
-and `./scripts/invoke.sh preprocess NIM` to publish its yearly Objects and manifest.
-Then deploy `NIMGeoJsonOut` with `./scripts/deploy-functions.sh geojson NIM`
-and invoke it with `./scripts/invoke.sh geojson NIM` to publish
-`NIM_TraficInfo.geojson`. See the [NIM function documentation](dsfunctions/README.md#nim-functions).
-Preprocessing remains manual: existing CSV events invoke GeoJSON against the
-latest published manifest. Run preprocessing after source changes; automatic
-source-to-preprocessing-to-GeoJSON routing remains a later step.
-
-Each rule matches create and update events for exactly its configured object in
-its bucket, compartment, and Object Storage namespace. Archive objects,
-companion JSON, and output GeoJSON do not match. Input buckets must exist with
-object events enabled. Deployment bucket overrides must agree with the input
-bucket configured here.
-
-DPT76 downloads `DPT76_Comptage_2022.geojson`. Deploy and invoke preprocessing
-with `./scripts/deploy-functions.sh preprocess DPT76` and
-`./scripts/invoke.sh preprocess DPT76`, then deploy and invoke GeoJSON output
-with `./scripts/deploy-functions.sh geojson DPT76` and
-`./scripts/invoke.sh geojson DPT76`. After event setup, subsequent changes to
-`DPT76_Manifest.json` trigger the output function. Preprocessing remains manual.
-
-The script uses OCI CLI and `jq` directly, shell functions, and the environment
-exported by `source ./scripts/setup.sh`, including the data source config path,
-application name, compartment, and storage namespace. Credentials
-must allow managing Events rules and configuring Functions actions; functions
-need access to their inputs and outputs. See
-[Oracle's Events IAM policies](https://docs.oracle.com/en-us/iaas/Content/Events/Concepts/eventspolicy.htm).
-
-```sh
-./scripts/setup-events.sh --dry-run
-./scripts/setup-events.sh
+```text
+DataSourceFunction → last configured raw input → PreprocessingFunction
+                  → <id>_Manifest.json → per-source GeoJSON function
 ```
 
-Dry runs show proposed changes for every source without submitting them.
-Progress messages identify discovery, validation, and apply steps. Repeated
-runs skip matching rules; updates replace each dedicated rule's filter and
-complete action list. Duplicate rule names and ambiguous function names cause
-an error. No ETags or tool-availability checks are used. The script waits for
-active rules and verifies their conditions and enabled function actions.
-Existing CSV objects are not processed until the next matching object event.
+Retrieval uploads changed inputs in configuration order. Create/update events on
+the last input invoke shared preprocessing; for MMM this is the counts CSV,
+written after the companion JSON. Unchanged inputs generate no upload event.
+Archives are excluded by exact object-name matching.
+
+Preprocessing reads current inputs and runs its existing parsing and validation.
+Its final comparison leaves an unchanged manifest untouched. GeoJSON generation
+starts only when the manifest changes. Intermediate input versions may be skipped;
+see the [operating assumptions](specs/datasource-storage-contract.md#operating-assumptions).
+
+After `source ./scripts/setup.sh`, prepare buckets and deploy the functions before
+wiring events:
+
+```sh
+./scripts/setup-buckets.sh
+./scripts/deploy-functions.sh
+./scripts/setup-events.sh --dry-run
+./scripts/setup-events.sh
+./scripts/invoke.sh ds DPT34
+```
+
+`setup-events.sh` generates `<id>RetrievalToPreprocessing` for
+the last configured input Object, targeting the shared `PreprocessingFunction`. It updates
+the existing source-specific GeoJSON rule to match `<id>_Manifest.json` instead
+of a raw input. `geoJsonEnabled: false` suppresses only the GeoJSON rule;
+preprocessing still runs. Output function names continue to use `functionPrefix`,
+including MMM's existing `3MGeoJsonOut`.
+
+Rules match create/update events for exact object names in the configured
+bucket, namespace and compartment. Source buckets must have object events enabled.
+Input buckets for functions and event rules come from `dsconfig.json`;
+redeploy the functions and reconcile rules after changing a bucket.
+The script skips matching rules, checks ambiguous names, waits for updates and
+verifies the resulting actions. Dry runs perform reads only. Events IAM policies
+must allow invoking the target functions; the shared functions need read, write,
+create and delete access to all configured input buckets. See
+[Oracle's Events IAM policies](https://docs.oracle.com/en-us/iaas/Content/Events/Concepts/eventspolicy.htm).
+
+Inputs uploaded before event wiring can be processed explicitly. Named archive
+imports use the same shared function:
+
+```sh
+./scripts/invoke.sh preprocess DPT34
+./scripts/invoke.sh preprocess MMM mmm-2022-2024
+```
+
+Normal active inputs require downloader identity metadata. Repeated invocations
+may parse again but leave an unchanged publication untouched. Manual invocation
+also applies configuration or parser changes without waiting for an input update.
 
 ## Retrieval schedules
 
 Retrieval is deployed once as `DataSourceFunction`. Its JAR bundles `dsconfig.json`;
 requests select the source with a minimal JSON payload, such as
-`{"datasourceId":"DPT34"}`. Preprocessing and GeoJSON deployment remain per source.
+`{"datasourceId":"DPT34"}`. Preprocessing is also shared; GeoJSON deployment remains per source.
 
 After `source ./scripts/setup.sh`, deploy the shared retrieval function before
 reconciling schedules:

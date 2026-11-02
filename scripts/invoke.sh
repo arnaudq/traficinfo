@@ -9,7 +9,7 @@ usage() {
 }
 
 main() {
-  local type source function_name application_id function_id timeout body="" archive
+  local type source function_name application_id function_id timeout body=""
   local invocation_options=(--fn-invoke-type sync --file "-")
   type="${1:-}"
   case "$type" in
@@ -17,10 +17,13 @@ main() {
       if [ "$#" -ne 2 ] && { [ "$type" != preprocess ] || [ "$#" -ne 3 ]; }; then usage; return 1; fi
       source="$(get_data_source "$2")"
       function_name="$(data_source_function_name "$source" "$type")"
-      if [ "$type" = preprocess ]; then invocation_options+=(--read-timeout 360); fi
+      if [ "$type" = preprocess ]; then
+        invocation_options+=(--read-timeout 360)
+        body="$(jq -cn --arg id "$2" '{datasourceId: $id}')"
+      fi
       if [ "$type" = preprocess ] && [ "$#" -eq 3 ]; then
-        archive="$(archive_preprocessing_settings "$source" "$3")" || return
-        body="$(jq -cn --argjson archive "$archive" '{archive: $archive}')"
+        archive_preprocessing_settings "$source" "$3" >/dev/null || return
+        body="$(jq -cn --arg id "$2" --arg dataset "$3" '{datasourceId: $id, datasetId: $dataset}')"
         log "Selected archive dataset $3 for one-off preprocessing."
       fi
       if [ "$type" = ds ]; then
