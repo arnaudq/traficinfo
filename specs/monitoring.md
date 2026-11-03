@@ -174,7 +174,7 @@ flowchart TD
     end
 
     subgraph notifications["OCI Notifications"]
-        T["Topic: TraficInfoMonitoring<br/>Both alarms publish here"]
+        T["Topic: TraficInfoMonitoring<br/>Function alarms publish here"]
         S["EMAIL subscription<br/>arnaudq@quillaud.org<br/>Must be confirmed for delivery"]
     end
 
@@ -196,7 +196,7 @@ flowchart TD
 | Application and functions | `3MOpenDataProcessor` contains the functions being monitored. Each invocation contributes its execution metrics. |
 | Metric | `FunctionResponseCount` in the `oci_faas` namespace counts responses. Both alarms select responses of type `Error`. `ErrorCode` is the numeric status (such as `503`); `ErrorMessage` is the symbolic cause (such as `FunctionInvokeServiceUnavailable`). |
 | Alarms | Separate non-503 failures from repeated 503 availability errors, with different thresholds and severity. |
-| Topic | `TraficInfoMonitoring` receives messages from both alarms and distributes them to its subscriptions. The topic itself contains no error-detection rule. |
+| Topic | `TraficInfoMonitoring` receives messages from the function alarms and the OSM review alarm and distributes them to its subscriptions. The topic itself contains no error-detection rule. |
 | Subscription | Connects a topic to a delivery method and recipient. The EMAIL subscription delivers to `arnaudq@quillaud.org` after confirmation. |
 
 Both alarms cover all functions in the application, including functions added
@@ -262,6 +262,42 @@ and invocation logs. Inspect the failed operation and any outputs already
 written before retrying. The alert mechanism does not retry functions or roll
 back their writes. Confirm recovery through a successful run and the expected
 data, rather than relying solely on the alarm returning to OK.
+
+### OSM review reminders
+
+`TraficInfo-OSMWayMappingsNeedReview` is a separate `WARNING` alarm in namespace
+`traficinfo`. It evaluates each datasource's review count using:
+
+```text
+OSMWayMappings[1h]{status = "NEEDS_REVIEW"}.groupBy(datasourceId).max() > 0
+```
+
+Keeping `datasourceId` in the result lets formatted emails identify affected
+sources and their counts. **Group notifications across metric streams** combines
+qualifying sources into one alarm-level message. The alarm uses a one-minute
+pending duration and `repeatNotificationDuration: P1D` for daily reminders while
+continuously firing. It sends through the existing `TraficInfoMonitoring` topic
+(or `OCI_FN_ALERT_TOPIC_NAME`) and requires a confirmed email subscription.
+
+After `source ./scripts/setup.sh`, preview and apply the definition with:
+
+```sh
+./scripts/setup-osm-review-alert.sh arnaudq@quillaud.org --dry-run
+./scripts/setup-osm-review-alert.sh arnaudq@quillaud.org
+```
+
+The script manages only this alarm, skips a matching definition, reconciles drift
+and verifies the result. It rejects duplicate alarms and suppressed or inactive
+existing alarms. It does not change function error alarms or create subscriptions.
+As with other topic messages, all confirmed email subscribers receive the alert.
+
+The email points to `OSMWayMapping_NEEDS_REVIEW.json` in the OSM bucket. Uploaded
+approvals are applied by the next hourly OSM refresh. Counts are maxima within the
+last hour, so cleared reviews can remain visible until an older sample leaves
+the window. An hourly run that is late or fails can cause a gap and an alarm reset.
+Daily repeats are not a strict email cap: recovery, resets and later firing episodes
+can produce additional messages. This tradeoff is accepted for the manual review
+workflow, where the queue is expected to change slowly.
 
 ### Coverage and further monitoring
 

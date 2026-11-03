@@ -263,6 +263,9 @@ throw on failures; runtime errors and timeouts are also monitored. Successful
 invocations with recoverable OSM lookup warnings do not trigger this alarm.
 See [OCI function metrics](https://docs.oracle.com/en-us/iaas/Content/Functions/Reference/functionsmetrics.htm).
 
+For grouped OSM review reminders with daily repeats, see the
+[OSM review alarm setup](specs/monitoring.md#osm-review-reminders).
+
 ## Shell script checks
 
 Run `python3 -m unittest discover -s tests -v` for the shell integration tests.
