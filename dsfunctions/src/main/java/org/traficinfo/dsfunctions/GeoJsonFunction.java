@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.util.List;
 
 /** One deployed GeoJSON function, selected by datasource ID or manifest event. */
 public class GeoJsonFunction {
@@ -20,6 +21,8 @@ public class GeoJsonFunction {
     private String outputBucket;
     private String osmBucket;
     private boolean principal;
+    private String metricsCompartment;
+    private String metricsNamespace;
 
     protected DataSourceRegistry loadRegistry() { return DataSourceRegistry.bundled(); }
 
@@ -29,6 +32,18 @@ public class GeoJsonFunction {
 
     protected OpenStreetMapClient createOpenStreetMapClient() { return new OpenStreetMapClient(); }
 
+    protected void publishMetrics(List<MetricSample> samples) {
+        if (metricsCompartment.isBlank()) {
+            LOG.warn("Skipping metrics: METRICS_COMPARTMENT_ID is not configured");
+            return;
+        }
+        try (var publisher = OciMetricsPublisher.create(principal, metricsCompartment, metricsNamespace)) {
+            publisher.publish(samples);
+        } catch (Exception failure) {
+            throw new IllegalStateException("Could not publish metrics to OCI Monitoring", failure);
+        }
+    }
+
     @FnConfiguration
     public void config(RuntimeContext context) {
         registry = loadRegistry();
@@ -36,6 +51,8 @@ public class GeoJsonFunction {
         outputBucket = context.getConfigurationByKey("BUCKETNAME_OUT").orElse("traficinfo");
         osmBucket = context.getConfigurationByKey("BUCKETNAME_OSM").orElse("osminfo");
         principal = Boolean.parseBoolean(context.getConfigurationByKey("USE_RESOURCE_PRINCIPAL").orElse("true"));
+        metricsCompartment = context.getConfigurationByKey("METRICS_COMPARTMENT_ID").orElse("");
+        metricsNamespace = context.getConfigurationByKey("METRICS_NAMESPACE").orElse("traficinfo");
     }
 
     public String handleRequest(String input) {
@@ -60,7 +77,7 @@ public class GeoJsonFunction {
                  var osmClient = createOpenStreetMapClient()) {
                 var provider = new OSMInfoProviderImpl(osm, osmClient,
                         source.getOsmCacheObjectName(), source.getOsmWayMappingObjectName());
-                return new GeoJsonPublisher(source, inputs, outputs, provider).publish();
+                return new GeoJsonPublisher(source, inputs, outputs, provider, this::publishMetrics).publish();
             } catch (Exception failure) {
                 LOG.error("GeoJSON generation failed", failure);
                 throw new IllegalStateException("GeoJSON generation failed for " + request.datasourceId(), failure);

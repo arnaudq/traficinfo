@@ -100,7 +100,9 @@ build_function_config() {
   validate_bucket_name "$output_bucket" BUCKETNAME_OUT || return
   validate_bucket_name "$osm_bucket" BUCKETNAME_OSM || return
   jq -cn --arg namespace "$namespace" --arg output "$output_bucket" --arg osm "$osm_bucket" \
-    '{NAMESPACE: $namespace, BUCKETNAME_OUT: $output, BUCKETNAME_OSM: $osm}'
+    --arg compartment "${OCI_COMPARTMENT_ID:?Run source ./scripts/setup.sh first}" \
+    '{NAMESPACE: $namespace, BUCKETNAME_OUT: $output, BUCKETNAME_OSM: $osm,
+      METRICS_COMPARTMENT_ID: $compartment}'
 }
 
 # OCI counts UTF-8 bytes in configuration keys and values, not JSON transport escaping.

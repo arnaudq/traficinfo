@@ -1,10 +1,77 @@
-# Monitoring and alerts
+# Monitoring
+
+## TraficInfo metrics
+
+Processing functions use OCI Monitoring for application metrics, published through
+its Java SDK. Currently only the final GeoJSON feature count is instrumented;
+retrieval and preprocessing metrics can be added through the same abstraction.
+See the [functions README](../dsfunctions/README.md#geojson-output) for deployment
+and invocation. The [Alarms and Notifications](#alarms-and-notifications) chapter
+describes the separate function failure alarms based on OCI's built-in metrics.
+
+### GeoJSON feature counts
+
+After both GeoJSON uploads and OSM cache refresh succeed, the function publishes
+`GeoJsonFeatures` through the OCI Monitoring Java SDK. Each invocation sends one
+batch with two snapshot counts, including zero for an empty population:
+
+| Dimension | Values |
+| --- | --- |
+| `datasourceId` | Bundled source ID, e.g. `DPT34` or `MMM` |
+| `population` | `VEHICULES` or `BICYCLES` |
+
+These count the final features after filtering and grouping by counter, not the
+annual input records. There is no year dimension because each feature can combine
+several years. Use `last()` for the latest observed count within a query interval;
+`sum()` would add snapshots from repeated invocations rather than count distinct
+features. For example, in namespace `traficinfo`:
+
+```text
+GeoJsonFeatures[1h]{datasourceId = "DPT34", population = "VEHICULES"}.last()
+```
+
+### Configuration and permissions
+
+| Runtime setting | Default |
+| --- | --- |
+| `METRICS_COMPARTMENT_ID` | Unset: skip metrics with a warning |
+| `METRICS_NAMESPACE` | `traficinfo` |
+
+Deployment sets `METRICS_COMPARTMENT_ID` to the shared `OCI_COMPARTMENT_ID` exported
+by `scripts/setup.sh`. The function's resource-principal dynamic group needs an
+additional IAM policy (substitute its name and compartment OCID):
+
+```text
+Allow dynamic-group <functions-group> to use metrics in compartment id <compartment-ocid> where target.metrics.namespace='traficinfo'
+```
+
+### Publication and failure behavior
+
+The function needs network access to the regional Monitoring ingestion endpoint.
+Metrics use resource-principal authentication by default, or the existing local
+`arnaudq` OCI profile when `USE_RESOURCE_PRINCIPAL=false`. The client is created
+and closed per invocation, with a 2-second connection timeout, 3-second read
+timeout, and no request retries. Initialization, transport, partial rejection and
+close failures are logged without failing successful data publication. Failed
+data/cache publication sends no metrics. No previous counts or percentages are
+stored, and this does not create alarms or IAM policies.
+
+### Backend abstraction
+
+`MetricSample` and `MetricsPublisher` define the backend-independent publishing
+boundary. New observations can reuse that interface; OCI SDK types and namespace,
+compartment, batching and transport details are confined to `OciMetricsPublisher`.
+`GeoJsonPublisher` accepts any implementation, while `GeoJsonFunction` wires the
+OCI adapter. The four-argument publisher constructor disables metrics for callers
+that do not supply a backend.
+
+## Alarms and Notifications
 
 Function failures feed two OCI alarms, which send notifications through a
 shared topic to its confirmed email subscriptions. The aim is to identify the
 affected function and provide a starting point for investigation.
 
-## Chain of actions
+### Chain of actions
 
 ```mermaid
 flowchart TD
@@ -34,7 +101,7 @@ flowchart TD
     S -->|"Sends email"| E
 ```
 
-## Components and relationships
+### Components and relationships
 
 | Component | Responsibility |
 | --- | --- |
@@ -54,7 +121,7 @@ A topic can have several subscriptions. All confirmed subscribers receive the
 alarm messages published to it; adding a recipient changes delivery rather than
 the alarm condition. Email subscriptions require confirmation before delivery.
 
-## When notifications are sent
+### When notifications are sent
 
 | Alarm | Condition per function and error category | Severity |
 | --- | --- | --- |
@@ -88,7 +155,7 @@ A recovery notification can be sent when the alarm returns to OK. This means
 the error condition has cleared; it does not prove that a later invocation
 succeeded or that failed processing has been repaired.
 
-## Configuration and operation
+### Configuration and operation
 
 `scripts/setup-function-alerts.sh` creates or updates both alarms using
 the environment prepared by `scripts/setup.sh`. It checks that the selected
@@ -108,7 +175,7 @@ written before retrying. The alert mechanism does not retry functions or roll
 back their writes. Confirm recovery through a successful run and the expected
 data, rather than relying solely on the alarm returning to OK.
 
-## Coverage and further monitoring
+### Coverage and further monitoring
 
 The alarms detect errors recorded by OCI Functions, including runtime failures
 such as timeouts. Successful invocations with recoverable warnings do not
@@ -128,4 +195,3 @@ processing. Those alerts are not part of the current function error mechanism.
 References: [function error metrics](https://docs.oracle.com/en-us/iaas/Content/Functions/Reference/functionsmetrics.htm),
 [scheduled invocation mode](https://docs.oracle.com/en-us/iaas/Content/Functions/Tasks/functionsschedulingfunctions-about.htm),
 and [503 troubleshooting](https://docs.oracle.com/en-us/iaas/Content/Functions/Tasks/functionstroubleshooting_topic-Issues-invoking-functions.htm).
-

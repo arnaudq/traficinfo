@@ -151,6 +151,10 @@ failures fail the invocation; temporary output files are always removed.
 | `USE_RESOURCE_PRINCIPAL` | `true` |
 | `BUCKETNAME_OSM` | `osminfo` |
 
+GeoJSON publishes final feature counts through OCI Monitoring. See the
+[processing metrics specification](../specs/monitoring.md#traficinfo-metrics) for metric
+definitions, runtime settings, IAM permissions and the monitoring abstraction.
+
 Deployment creates or updates `GeoJsonFunction` with a 300-second timeout.
 All manifest event rules invoke it. Input/output/OSM clients and the OSM provider
 are created and closed per invocation, with `stage=geojson` and `datasourceId`

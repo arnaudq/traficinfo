@@ -1,5 +1,7 @@
 # TraficInfo
 
+We use [OCI Monitoring](specs/monitoring.md#traficinfo-metrics) for processing metrics.
+
 ## Map templates
 
 `mapconfig.json` defines maps and their ordered data source IDs from

@@ -150,6 +150,13 @@ public class GeoJsonParser {
     public static void writeGeoJson(DataSource dataSource, List<? extends Comptage> comptages,
                                     FeatureCollection geoJsonColl, Writer geojsonMergedWriter,
                                     OSMInfoProvider osmInfoProvider, Comptage.Type type) throws IOException {
+        writeGeoJsonWithCount(dataSource, comptages, geoJsonColl, geojsonMergedWriter, osmInfoProvider, type);
+    }
+
+    /** Writes one population and returns the final feature count after filtering and grouping. */
+    public static int writeGeoJsonWithCount(DataSource dataSource, List<? extends Comptage> comptages,
+                                           FeatureCollection geoJsonColl, Writer geojsonMergedWriter,
+                                           OSMInfoProvider osmInfoProvider, Comptage.Type type) throws IOException {
         if (type != Comptage.Type.VEHICULES && type != Comptage.Type.BICYCLES) {
             throw new IllegalArgumentException("Unsupported GeoJSON population: " + type);
         }
@@ -165,6 +172,7 @@ public class GeoJsonParser {
                 outCol.getFeatures().stream().filter(feature -> feature.getProperties().containsKey("v85_speed")).count(),
                 outCol.getFeatures().stream().filter(feature -> feature.getProperties().containsKey("mean_speed")).count());
         new ObjectMapper().writeValue(geojsonMergedWriter, outCol);
+        return outCol.getFeatures().size();
     }
 
     private static void logSpeedCoverage(DataSource dataSource, String stage, int total,

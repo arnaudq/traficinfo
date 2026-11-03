@@ -174,6 +174,45 @@ public class GeoJsonPublisherTest {
         }
     }
 
+    @Test
+    public void publishesFinalFeatureCountsIncludingEmptyPopulation() throws Exception {
+        StorageStub stub = new StorageStub(false);
+        assertEquals("OK", stub.function().publish());
+        assertEquals(2, stub.metrics.size());
+        for (var metric : stub.metrics) {
+            assertEquals("GeoJsonFeatures", metric.name());
+            assertEquals("count", metric.unit());
+            String population = metric.dimensions().get("population");
+            assertEquals(Map.of("datasourceId", "DPT34", "population", population), metric.dimensions());
+            byte[] output = population.equals("BICYCLES") ? stub.bicycleOutput : stub.output;
+            assertEquals(new ObjectMapper().readTree(output).get("features").size(), metric.value(), 0);
+        }
+        assertEquals(1.0, stub.metrics.get(0).value(), 0);
+        assertEquals(0.0, stub.metrics.get(1).value(), 0);
+        assertEquals(stub.metrics.get(0).timestamp(), stub.metrics.get(1).timestamp());
+    }
+
+    @Test
+    public void metricsFailureDoesNotFailPublication() throws Exception {
+        StorageStub stub = new StorageStub(false);
+        stub.failMetrics = true;
+        assertEquals("OK", stub.function().publish());
+        assertEquals(2, stub.uploads);
+        assertEquals(2, stub.metrics.size());
+    }
+
+    @Test
+    public void failedPublicationDoesNotPublishMetrics() throws Exception {
+        for (String failure : List.of("manifest", "output", "cache")) {
+            StorageStub stub = new StorageStub(false);
+            stub.invalidManifest = failure.equals("manifest");
+            stub.failUpload = failure.equals("output");
+            stub.failMappingUpload = failure.equals("cache");
+            assertFunctionFailure(() -> stub.function().publish());
+            assertTrue(stub.metrics.isEmpty());
+        }
+    }
+
     private static java.util.Set<java.nio.file.Path> temporaryOutputs() throws IOException {
         try (var files = java.nio.file.Files.list(java.nio.file.Path.of(System.getProperty("java.io.tmpdir")))) {
             return files.filter(path -> path.getFileName().toString().startsWith("DPT34-geojson-"))
@@ -182,6 +221,8 @@ public class GeoJsonPublisherTest {
     }
 
     private static class StorageStub {
+        final List<org.traficinfo.dsfunctions.MetricSample> metrics = new ArrayList<>();
+        boolean failMetrics;
         final boolean gzip;
         final List<String> downloads = new ArrayList<>();
         final List<TrackedStream> streams = new ArrayList<>();
@@ -283,7 +324,12 @@ public class GeoJsonPublisherTest {
                 }
             }, "tags.json", "mappings.json");
             return new GeoJsonPublisher(GeoJsonDataSource.DPT34, new ObjectStoreClient(storage, "namespace", "dsdpt34"),
-                    new ObjectStoreClient(storage, "namespace", "traficinfo"), provider);
+                    new ObjectStoreClient(storage, "namespace", "traficinfo"), provider, samples -> {
+                        assertEquals(2, uploads);
+                        assertEquals(1, mappingUploads);
+                        metrics.addAll(samples);
+                        if (failMetrics) throw new IllegalStateException("Monitoring unavailable");
+                    });
         }
 
         void assertStreamsClosed() {

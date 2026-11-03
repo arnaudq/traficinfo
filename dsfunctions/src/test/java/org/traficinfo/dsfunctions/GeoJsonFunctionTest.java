@@ -30,6 +30,8 @@ public class GeoJsonFunctionTest {
                 "DPT76:DPT76_TraficInfo_BICYCLES.geojson", "DPT76:DPT76_OSMWayMapping.json"), probe.writes);
         assertEquals(6, probe.closed);
         assertEquals(2, probe.httpClosed);
+        assertEquals(List.of("MMM", "MMM", "DPT76", "DPT76"), probe.metrics.stream()
+                .map(sample -> sample.dimensions().get("datasourceId")).toList());
         assertNull(MDC.get("datasourceId"));
         assertNull(MDC.get("stage"));
     }
@@ -96,9 +98,14 @@ public class GeoJsonFunctionTest {
     public static class Probe extends GeoJsonFunction {
         final List<String> clients = new ArrayList<>();
         final List<String> writes = new ArrayList<>();
+        final List<MetricSample> metrics = new ArrayList<>();
         int closed;
         int httpClosed;
         boolean fail;
+
+        @Override protected void publishMetrics(List<MetricSample> samples) {
+            metrics.addAll(samples);
+        }
 
         @Override protected OpenStreetMapClient createOpenStreetMapClient() {
             return new OpenStreetMapClient() {
