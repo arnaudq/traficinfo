@@ -1,5 +1,12 @@
 # TraficInfo
 
+## Adding a datasource
+
+Follow the [datasource integration recipe](specs/add-datasource.md) for source
+inspection, parsers, retrieval, preprocessing, GeoJSON output and uMap layers.
+The repository also includes the reusable
+[`traficinfo-add-datasource` skill](specs/skills/traficinfo-add-datasource/SKILL.md).
+
 We use [OCI Monitoring](specs/monitoring.md#traficinfo-metrics) for processing metrics.
 
 ## Map templates

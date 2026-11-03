@@ -1,0 +1,4 @@
+interface:
+  display_name: "Add a TraficInfo datasource"
+  short_description: "Integrate traffic counts into TraficInfo and uMap"
+  default_prompt: "Use $traficinfo-add-datasource to integrate a traffic-count publisher into TraficInfo, following the requested pipeline stages."
