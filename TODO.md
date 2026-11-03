@@ -1,57 +1,21 @@
 # TODOs
 
-## switch to a model where we have a single Function for each steps.
 
-For Schedule based function, one can configure the schedule with a payload ("Add invocation payload").
-So could have multiple schedules instead of multiple functions.
 
-For functions triggered by a change in objectstore, the event is sent to the function as input.
-It contains info like bucket, object,...
 
-```
-{
-  "eventType": "com.oraclecloud.objectstorage.createobject",
-  "source": "ObjectStorage",
-  "data": {
-    "compartmentId": "ocid1.compartment.oc1...",
-    "resourceName": "sales_report_2026.csv",
-    "additionalDetails": {
-      "bucketName": "finance-dropzone",
-      "namespace": "axiamain"
-    }
-  }
-}
-```
 
-For preprocessing, it looks like we no longer have a trigger
+## use queueing mechanism to notify of run end and trigger next ?
 
 ## create diff in ds function
 so that we can anticipate bogus csv and abort further processing
 
 ## Setup github dependabot
 
-## store and preserve historical data
-some data gets changed
+## github actions for diagrams
 
-Anomalies probables (régressions dans le fichier récent)
-Les vitesses et indicateurs horaires de 2022 ont disparu. v85ma_tcj, vtma_tcj, tir_tcj et hpm_* passent de 57 % de lignes renseignées à 0,15 %. Cela touche environ 790 lignes et 453 compteurs de tous types. Une partie des poids lourds 2021–2022 (mja_pl_*) est aussi devenue vide, environ 750 lignes.
-Environ 300 lignes « sens cumulés » (canal Z) ont été supprimées sur les années 2016–2024, alors que les canaux 0 et 1 de ces mêmes compteurs sont toujours là. Exemple : RM612 Mireval (id 2) n’a plus de Z entre 2016 et 2024, mais en garde en 2013, 2014, 2025 et 2026. La baisse du nombre de lignes par an entre 2016 et 2023 vient de là.
-Des sens 0 et 1 sont inversés sur des données historiques. Les valeurs sont permutées exactement : Bd Berthelot 2023 (108 :left_right_arrow: 7 090), Av. de Maurin 2023, Route de Lavérune 2023, Allée Henri II de Montmorency 2012 (1 :left_right_arrow: 1 169). C’est soit une correction, soit une erreur, et ça vaut le coup de demander à la Métropole.
-La période de Rue du Faubourg du Courreau 2025 a changé (juin devient septembre) et les valeurs s’effondrent : de 866 à 16 véh/j pour le canal 1, de 1 774 à 226 pour le cumul.
-Rue de la Thériaque : le libellé devient « RM986-E2 » et la commune passe de Lattes à Grabels. Les deux valeurs sont douteuses pour une rue de Montpellier.
+## use traficinfo specific oci config file
 
-Before implementation of per year dataset:
-Filtering on "MMM speed coverage" in the logs gave the following:
-````
-MMM speed coverage (input records): total=12715, v85=5877 (46.2%), mean=5877 (46.2%)```
-MMM speed coverage (GeoJSON features [VEHICULES, BICYCLES]): total=2202, v85=1544 (70.1%), mean=1544 (70.1%)"
-````
 
-After implementation
-````
-MMM speed coverage (input records): total=12239, v85=7164 (58.5%), mean=7164 (58.5%)
-MMM speed coverage (GeoJSON features [VEHICULES, BICYCLES]): total=2211, v85=1996 (90.3%), mean=1996 (90.3%)
-````
 
 ## Redundancy of some of the CsvDataSource fields
 things have moved to dsconfig.json

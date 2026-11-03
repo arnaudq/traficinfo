@@ -13,6 +13,23 @@ and optional `dataSourceFaviconUrl`. The `datasets` map is keyed by dataset ID;
 each entry holds its `datasetInfoUrl`, `inputs`, and `years`. The datasource's
 `activeDatasetId` selects the dataset currently monitored.
 
+### Example: preserving MMM historical speed data
+
+MMM previously used the latest CSV export, but newer exports tend to remove
+historical records or their measurements. Splitting the datasource into datasets
+with explicit year scopes allows older years to use richer archived files while
+the active dataset continues to use the current export.
+
+In the observed before/after runs, input records with V85 increased from
+5,877 (46.2%) to 7,164 (58.5%). Rendered GeoJSON features with V85 increased from
+1,544 (70.1%) to 1,996 (90.3%): **452 more features with V85**, a gain of
+**20.2 percentage points** in coverage. Mean-speed coverage showed the same
+counts and percentages. These gains occurred despite fewer total input records
+(12,715 to 12,239); total GeoJSON features increased slightly, from 2,202 to 2,211.
+
+See [MMM historical archive selection](mmm-archive-selection.md#observed-speed-coverage-after-historical-dataset-publication)
+for the selected files, full comparison and interpretation limits.
+
 ## Operating assumptions
 
 These assumptions govern the normal retrieval-to-preprocessing workflow:
