@@ -36,6 +36,57 @@ public class OSMWayInfoTest {
     }
 
     @Test
+    public void requiresExplicitOnewayAndBicycleExceptionForContraflow() {
+        for (String oneway : Arrays.asList("yes", "-1", "no", "", "reversible", "1")) {
+            for (String bicycle : Arrays.asList("no", "yes", "-1", "")) {
+                boolean expected = (oneway.equals("yes") || oneway.equals("-1")) && bicycle.equals("no");
+                assertEquals(oneway + "/" + bicycle, expected,
+                        new OSMWayInfo(NOW, Map.of("oneway", oneway, "oneway:bicycle", bicycle))
+                                .isBicycleContraflowAllowed());
+            }
+        }
+        for (Map<String, String> tags : Arrays.asList(Map.<String, String>of(),
+                Map.of("oneway", "yes"), Map.of("oneway:bicycle", "no"),
+                Map.of("cycleway", "opposite_lane"))) {
+            assertFalse(new OSMWayInfo(NOW, tags).isBicycleContraflowAllowed());
+        }
+    }
+
+    @Test
+    public void storesNullableContraflowOnEveryCounterType() throws Exception {
+        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        for (GeoJsonParser.DataSource source : GeoJsonParser.DataSource.values()) {
+            Comptage count = source.getDsComptageClass().getDeclaredConstructor().newInstance();
+            assertNull(count.getBicycleContraflowAllowed());
+            for (Boolean value : Arrays.asList(true, false, null)) {
+                count.setBicycleContraflowAllowed(value);
+                com.fasterxml.jackson.databind.node.ObjectNode json = mapper.createObjectNode();
+                json.set("bicycleContraflowAllowed", mapper.valueToTree(count).get("bicycleContraflowAllowed"));
+                Comptage decoded = mapper.readValue(json.toString(), source.getDsComptageClass());
+                assertEquals(value, decoded.getBicycleContraflowAllowed());
+            }
+        }
+    }
+
+    @Test
+    public void enrichesNullableContraflowAndClearsPreviouslyKnownValues() {
+        M3MComptage allowed = count(1L);
+        M3MComptage notAllowed = count(2L);
+        M3MComptage missingCache = count(3L);
+        M3MComptage missingId = count(null);
+        missingCache.setBicycleContraflowAllowed(true);
+        missingId.setBicycleContraflowAllowed(false);
+        GeoJsonParser.applyOsmInfo(Arrays.asList(allowed, notAllowed, missingCache, missingId),
+                Map.<Long, OSMWayInfo>of(
+                        1L, new OSMWayInfo(NOW, Map.of("oneway", "yes", "oneway:bicycle", "no")),
+                        2L, new OSMWayInfo(NOW, Map.of("oneway", "no")))::get);
+        assertEquals(Boolean.TRUE, allowed.getBicycleContraflowAllowed());
+        assertEquals(Boolean.FALSE, notAllowed.getBicycleContraflowAllowed());
+        assertNull(missingCache.getBicycleContraflowAllowed());
+        assertNull(missingId.getBicycleContraflowAllowed());
+    }
+
+    @Test
     public void enrichesCountsWithCachedSpeeds() {
         M3MComptage fresh = count(1L);
         M3MComptage stale = count(2L);

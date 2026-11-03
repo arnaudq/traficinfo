@@ -210,6 +210,7 @@ public class GeoJsonParser {
         List<Comptage> chronological = new ArrayList<>(comptages);
         chronological.sort(Comparator.comparingInt(Comptage::getAnnee));
         for (Comptage comptage : chronological) {
+            comptage.setBicycleContraflowAllowed(null);
             Long wayId = comptage.getOsmWayId();
             if (wayId == null || wayId <= 0) {
                 wayId = osmInfoProvider.getWayId(comptage.getCodeCentrale(),
@@ -220,6 +221,7 @@ public class GeoJsonParser {
                 continue;
             }
             OSMWayInfo info = osmInfoProvider.getWayInfo(wayId);
+            comptage.setBicycleContraflowAllowed(info == null ? null : info.isBicycleContraflowAllowed());
             comptage.setMaximumSpeed(info == null ? -1 : info.getMaximumSpeed());
         }
     }
@@ -359,6 +361,7 @@ public class GeoJsonParser {
         setPropertyIfPresent(feature, "v85_speed", comptage.getV85Speed());
         setPropertyIfPresent(feature, "mean_speed", comptage.getMeanSpeed());
         setPropertyIfPresent(feature, "maximum_speed", comptage.getMaximumSpeed());
+        setPropertyIfPresent(feature, "bicycle_contraflow_allowed", comptage.getBicycleContraflowAllowed());
 
         feature.setProperty("moyenne_annuelle_history", buildHistory(comptages, nbComptageHist));
 
@@ -414,6 +417,12 @@ public class GeoJsonParser {
             }
         }
         return builder.toString();
+    }
+
+    private static void setPropertyIfPresent(Feature feature, String property, Boolean value) {
+        if (value != null) {
+            feature.setProperty(property, value ? "yes" : "no");
+        }
     }
 
     private static void setPropertyIfPresent(Feature feature, String property, int value) {

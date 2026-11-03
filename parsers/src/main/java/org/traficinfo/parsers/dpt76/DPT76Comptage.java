@@ -33,6 +33,7 @@ public class DPT76Comptage implements Comptage {
   private int v85Speed;
   private int meanSpeed;
   private int maximumSpeed = -1;
+  private Boolean bicycleContraflowAllowed;
   private Type type = Type.VEHICULES;
 
   public Long getFid() { return fid; }
@@ -135,6 +136,16 @@ public class DPT76Comptage implements Comptage {
 
   public void setMeanSpeed(int meanSpeed) { this.meanSpeed = meanSpeed; }
 
+  @Override
+  public Boolean getBicycleContraflowAllowed() {
+    return bicycleContraflowAllowed;
+  }
+
+  @Override
+  public void setBicycleContraflowAllowed(Boolean bicycleContraflowAllowed) {
+    this.bicycleContraflowAllowed = bicycleContraflowAllowed;
+  }
+
   public int getMaximumSpeed() { return maximumSpeed; }
 
   public void setMaximumSpeed(int maximumSpeed) { this.maximumSpeed = maximumSpeed; }
@@ -195,11 +206,12 @@ public class DPT76Comptage implements Comptage {
         && Objects.equals(v85Speed, that.v85Speed)
         && Objects.equals(meanSpeed, that.meanSpeed)
         && Objects.equals(maximumSpeed, that.maximumSpeed)
+        && Objects.equals(bicycleContraflowAllowed, that.bicycleContraflowAllowed)
         && Objects.equals(type, that.type);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(fid, objectId, stationCode, routeId, cumuld, plod, absd, typeCompteur, mjaTvTcj, tmjaSens1, tmjaSens2, pourcentagePl, pourcentagePlSens1, pourcentagePlSens2, latitude, longitude, osmWayId, codeCentrale, cityName, displayName, annee, moyenneHeureDePointeMatin, moyenneHeureDePointeSoir, v85Speed, meanSpeed, maximumSpeed, type);
+    return Objects.hash(fid, objectId, stationCode, routeId, cumuld, plod, absd, typeCompteur, mjaTvTcj, tmjaSens1, tmjaSens2, pourcentagePl, pourcentagePlSens1, pourcentagePlSens2, latitude, longitude, osmWayId, codeCentrale, cityName, displayName, annee, moyenneHeureDePointeMatin, moyenneHeureDePointeSoir, v85Speed, meanSpeed, maximumSpeed, bicycleContraflowAllowed, type);
   }
 }

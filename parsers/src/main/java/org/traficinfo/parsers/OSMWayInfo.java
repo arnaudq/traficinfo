@@ -51,6 +51,14 @@ public class OSMWayInfo {
         }
     }
 
+    /** Explicit bicycle exception on a road tagged as one-way in either direction. */
+    @JsonIgnore
+    public boolean isBicycleContraflowAllowed() {
+        String oneway = tags.get("oneway");
+        return ("yes".equals(oneway) || "-1".equals(oneway))
+                && "no".equals(tags.get("oneway:bicycle"));
+    }
+
     /** Numeric maxspeed in km/h; absent or nonnumeric limits remain unknown. */
     @JsonIgnore
     public int getMaximumSpeed() {

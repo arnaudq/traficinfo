@@ -56,6 +56,7 @@ public class DPT34Comptage implements Comptage {
   private int meanSpeed;
 
   private int maximumSpeed = -1;
+  private Boolean bicycleContraflowAllowed;
 
   private String displayName;
 
@@ -224,6 +225,16 @@ public class DPT34Comptage implements Comptage {
   }
 
   @Override
+  public Boolean getBicycleContraflowAllowed() {
+    return bicycleContraflowAllowed;
+  }
+
+  @Override
+  public void setBicycleContraflowAllowed(Boolean bicycleContraflowAllowed) {
+    this.bicycleContraflowAllowed = bicycleContraflowAllowed;
+  }
+
+  @Override
   public int getMaximumSpeed() {
     return maximumSpeed;
   }
@@ -296,13 +307,14 @@ public class DPT34Comptage implements Comptage {
         && v85Speed == that.v85Speed
         && meanSpeed == that.meanSpeed
         && maximumSpeed == that.maximumSpeed
+        && Objects.equals(bicycleContraflowAllowed, that.bicycleContraflowAllowed)
         && Objects.equals(displayName, that.displayName)
         && Objects.equals(type, that.type);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(osmWayId, siteId, codeCentrale, streetName, altStreetName, cityName, routeId, annee, typeCompteur, sensRoute, latitude, longitude, mjaTvTcj, moyenneHeureDePointeMatin, moyenneHeureDePointeSoir, v85Speed, meanSpeed, maximumSpeed, displayName, type);
+    return Objects.hash(osmWayId, siteId, codeCentrale, streetName, altStreetName, cityName, routeId, annee, typeCompteur, sensRoute, latitude, longitude, mjaTvTcj, moyenneHeureDePointeMatin, moyenneHeureDePointeSoir, v85Speed, meanSpeed, maximumSpeed, bicycleContraflowAllowed, displayName, type);
   }
 
   @Override

@@ -32,6 +32,7 @@ public class NIMComptage implements Comptage {
   private int v85Speed;
   private int meanSpeed;
   private int maximumSpeed = -1;
+  private Boolean bicycleContraflowAllowed;
   private Type type = Type.VEHICULES;
 
   public Long getOsmWayId() { return osmWayId; }
@@ -126,6 +127,16 @@ public class NIMComptage implements Comptage {
 
   public void setMeanSpeed(int value) { meanSpeed = value; }
 
+  @Override
+  public Boolean getBicycleContraflowAllowed() {
+    return bicycleContraflowAllowed;
+  }
+
+  @Override
+  public void setBicycleContraflowAllowed(Boolean bicycleContraflowAllowed) {
+    this.bicycleContraflowAllowed = bicycleContraflowAllowed;
+  }
+
   public int getMaximumSpeed() { return maximumSpeed; }
 
   public void setMaximumSpeed(int value) { maximumSpeed = value; }
@@ -186,11 +197,12 @@ public class NIMComptage implements Comptage {
         && Objects.equals(v85Speed, that.v85Speed)
         && Objects.equals(meanSpeed, that.meanSpeed)
         && Objects.equals(maximumSpeed, that.maximumSpeed)
+        && Objects.equals(bicycleContraflowAllowed, that.bicycleContraflowAllowed)
         && Objects.equals(type, that.type);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(osmWayId, cameraId, codeCentrale, codeInsee, position, displayName, cityName, annee, latitude, longitude, dailyAverage, observedDays, completeDays, observedHours, conflictingHours, totalPassages, completeDayPassages, firstDate, lastDate, moyenneHeureDePointeMatin, moyenneHeureDePointeSoir, v85Speed, meanSpeed, maximumSpeed, type);
+    return Objects.hash(osmWayId, cameraId, codeCentrale, codeInsee, position, displayName, cityName, annee, latitude, longitude, dailyAverage, observedDays, completeDays, observedHours, conflictingHours, totalPassages, completeDayPassages, firstDate, lastDate, moyenneHeureDePointeMatin, moyenneHeureDePointeSoir, v85Speed, meanSpeed, maximumSpeed, bicycleContraflowAllowed, type);
   }
 }

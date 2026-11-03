@@ -222,6 +222,56 @@ public class GeoJsonParserTest extends ParserBaseTest {
     }
 
     @Test
+    public void testContraflowUsesSelectedYearsMappedWayAndReplacesReusedProperties() throws Exception {
+        for (Comptage.Type type : List.of(Comptage.Type.VEHICULES, Comptage.Type.BICYCLES)) {
+            for (String oneway : List.of("yes", "-1", "no", "missing-cache", "missing-id")) {
+                M3MComptage current = new M3MComptage();
+                current.setCodeCentrale("sample");
+                current.setAnnee(Year.now().getValue());
+                current.setMoyenneJourAnnuelle(500);
+                current.setType(type);
+                current.setGeometry(new Point(3, 43));
+                M3MComptage older = new M3MComptage();
+                older.setCodeCentrale("sample");
+                older.setAnnee(Year.now().getValue() - 1);
+                older.setMoyenneJourAnnuelle(600);
+                older.setType(type);
+                older.setOsmWayId(456L);
+                boolean expected = oneway.equals("yes") || oneway.equals("-1");
+                Feature supplied = new Feature();
+                supplied.setGeometry(new Point(3, 43));
+                supplied.setProperty("code_centrale", "sample");
+                supplied.setProperty("bicycle_contraflow_allowed", expected ? "no" : "yes");
+                FeatureCollection reused = new FeatureCollection();
+                reused.add(supplied);
+                OSMInfoProvider provider = new OSMInfoProvider() {
+                    @Override public Long getWayId(String id, Point point, String ref) {
+                        return oneway.equals("missing-id") ? null : 123L;
+                    }
+                    @Override public OSMWayInfo getWayInfo(long id) {
+                        if (id == 456L) {
+                            return new OSMWayInfo(java.time.Instant.EPOCH, java.util.Map.of("oneway", "yes", "oneway:bicycle", "no"));
+                        }
+                        return oneway.equals("missing-cache") ? null : new OSMWayInfo(java.time.Instant.EPOCH,
+                                java.util.Map.of("oneway", oneway, "oneway:bicycle", "no"));
+                    }
+                };
+                for (FeatureCollection input : List.of(new FeatureCollection(), reused)) {
+                    StringWriter writer = new StringWriter();
+                    GeoJsonParser.writeGeoJsonWithCount(GeoJsonParser.DataSource.M3MV2,
+                            List.of(current, older), input, writer, provider, type);
+                    Feature feature = GeoJsonParser.parseGeoJSON(new StringReader(writer.toString()))
+                            .getFeatures().get(0);
+                    boolean missing = oneway.equals("missing-cache") || oneway.equals("missing-id");
+                    assertEquals(type + "/" + oneway, missing ? null : expected ? "yes" : "no",
+                            feature.getProperty("bicycle_contraflow_allowed"));
+                    assertEquals(!missing, feature.getProperties().containsKey("bicycle_contraflow_allowed"));
+                }
+            }
+        }
+    }
+
+    @Test
     public void testWriteGeoJsonEnrichesParsedRecords() throws Exception {
         M3MComptage record = new M3MComptage();
         record.setCodeCentrale("sample");

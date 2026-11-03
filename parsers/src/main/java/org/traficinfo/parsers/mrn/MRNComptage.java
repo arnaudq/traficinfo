@@ -110,6 +110,7 @@ public class MRNComptage implements Comptage {
   private int meanSpeed;
 
   private int maximumSpeed = -1;
+  private Boolean bicycleContraflowAllowed;
 
   private Type type;
 
@@ -399,6 +400,16 @@ public class MRNComptage implements Comptage {
 
   public void setMeanSpeed(int meanSpeed) {
     this.meanSpeed = meanSpeed;
+  }
+
+  @Override
+  public Boolean getBicycleContraflowAllowed() {
+    return bicycleContraflowAllowed;
+  }
+
+  @Override
+  public void setBicycleContraflowAllowed(Boolean bicycleContraflowAllowed) {
+    this.bicycleContraflowAllowed = bicycleContraflowAllowed;
   }
 
   public int getMaximumSpeed() {

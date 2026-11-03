@@ -75,6 +75,11 @@ public interface Comptage {
 
   void setMaximumSpeed(int maximumSpeed);
 
+  /** Cached OSM bicycle contraflow exception, or null when way information is unavailable. */
+  Boolean getBicycleContraflowAllowed();
+
+  void setBicycleContraflowAllowed(Boolean bicycleContraflowAllowed);
+
   Type getType();
 
   void setType(Type type);
