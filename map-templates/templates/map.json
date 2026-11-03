@@ -34,6 +34,10 @@
       {
         "key": "maximum_speed",
         "type": "Number"
+      },
+      {
+        "key": "bicycle_contraflow_allowed",
+        "type": "Boolean"
       }
     ],
     "filters": [
@@ -61,6 +65,11 @@
         "label": "Limitation de vitesse",
         "widget": "Checkbox",
         "fieldKey": "maximum_speed"
+      },
+      {
+        "label": "Double sens cyclable autorisé",
+        "widget": "Switch",
+        "fieldKey": "bicycle_contraflow_allowed"
       }
     ],
     "iconUrl": "/uploads/pictogram/car.svg",

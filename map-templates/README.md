@@ -39,7 +39,11 @@ numeric year and include traffic and speed fields for all sources.
 The default icon URL is `/uploads/pictogram/car.svg`; bicycle layers override
 it with `/uploads/pictogram/bicycle.svg`.
 The “Type de comptage” checkbox filter selects `VEHICULES` or `BICYCLES`
-using its `type` property. Set each `dataSources` entry in `mapconfig.json` to
+using its `type` property. The “Double sens cyclable autorisé” Yes/No filter
+uses the Boolean field `bicycle_contraflow_allowed` on all layers. uMap reads
+`yes` as Yes and `no` or a missing property as No; missing cached OSM information
+therefore appears under No in this filter.
+Set each `dataSources` entry in `mapconfig.json` to
 an object such as `{"id": "MMM", "types": ["VEHICULES", "BICYCLES"]}` or
 `{"id": "DPT34", "types": ["VEHICULES"]}`. Only selected types generate layers,
 in the listed source order and then type order on screen. The generated array
