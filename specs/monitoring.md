@@ -3,7 +3,7 @@
 ## TraficInfo metrics
 
 Processing functions use OCI Monitoring for application metrics, published through
-its Java SDK. Currently only the final GeoJSON feature count is instrumented;
+its Java SDK. GeoJSON feature counts and records before/after filtering are instrumented;
 retrieval and preprocessing metrics can be added through the same abstraction.
 See the [functions README](../dsfunctions/README.md#geojson-output) for deployment
 and invocation. The [Alarms and Notifications](#alarms-and-notifications) chapter
@@ -12,8 +12,8 @@ describes the separate function failure alarms based on OCI's built-in metrics.
 ### GeoJSON feature counts
 
 After both GeoJSON uploads and OSM cache refresh succeed, the function publishes
-`GeoJsonFeatures` through the OCI Monitoring Java SDK. Each invocation sends one
-batch with two snapshot counts, including zero for an empty population:
+`GeoJsonFeatures` through the OCI Monitoring Java SDK. Each invocation includes
+two feature-count snapshots, including zero for an empty population:
 
 | Dimension | Values |
 | --- | --- |
@@ -29,6 +29,46 @@ features. For example, in namespace `traficinfo`:
 ```text
 GeoJsonFeatures[1h]{datasourceId = "DPT34", population = "VEHICULES"}.last()
 ```
+
+### GeoJSON record counts
+
+The same publication reports two more snapshot metrics:
+
+| Metric | Meaning |
+| --- | --- |
+| `GeoJsonRecordsBeforeFiltering` | Annual records loaded from the manifest for the selected population, before GeoJSON record filters |
+| `GeoJsonRecordsAfterFiltering` | Annual records passing the year, counter/city and traffic-value filters, before grouping into counter features |
+
+Both have `datasourceId`, `population` (`VEHICULES` or `BICYCLES`) and `year`
+(the observation year, e.g. `2024`) dimensions. Units are `count`. For every year
+represented in either exported population's input records, both populations emit
+both metrics, including zero when a population is absent or all its records are
+filtered out. A completely empty input emits only the two zero feature counts,
+since there is no record year to attribute. Years outside the rendering window
+still have before counts and zero after counts.
+
+The rendering window includes the current year and the preceding ten years;
+traffic values must be strictly greater than zero and less than 300,000.
+Counter and city filters apply when configured in the renderer. Population
+selection precedes the before count, so records classified as neither vehicles
+nor bicycles are excluded from both populations.
+
+After-filtering counts measure annual records, including several years for a
+single counter. They precede geometry selection and history truncation: a record
+can pass these predicates even if its counter cannot produce a feature because
+it has no geometry. Use `GeoJsonFeatures` for the final rendered output size.
+The statistics are collected from the same filtered list used for rendering,
+without rerunning the filters.
+
+```text
+GeoJsonRecordsBeforeFiltering[1h]{datasourceId = "DPT34", population = "VEHICULES", year = "2024"}.last()
+GeoJsonRecordsAfterFiltering[1h]{datasourceId = "DPT34", population = "VEHICULES", year = "2024"}.last()
+```
+
+All observations from a publication share a timestamp and are submitted together
+through `MetricsPublisher`. The OCI adapter splits requests at its 50-stream
+limit. Record metrics follow the same publication and failure behavior as the
+feature counts; they do not add percentage or previous-run metrics.
 
 ### Configuration and permissions
 

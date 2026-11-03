@@ -156,6 +156,9 @@ public class GeoJsonPublisherTest {
         assertEquals("OK", stub.function().publish());
         assertEquals(List.of("DPT34_Manifest.json"), stub.downloads);
         assertEquals(0, new ObjectMapper().readTree(stub.output).get("features").size());
+        assertEquals(2, stub.metrics.size());
+        assertTrue(stub.metrics.stream().allMatch(metric -> metric.name().equals("GeoJsonFeatures")
+                && metric.value() == 0));
         stub.assertStreamsClosed();
     }
 
@@ -178,8 +181,9 @@ public class GeoJsonPublisherTest {
     public void publishesFinalFeatureCountsIncludingEmptyPopulation() throws Exception {
         StorageStub stub = new StorageStub(false);
         assertEquals("OK", stub.function().publish());
-        assertEquals(2, stub.metrics.size());
-        for (var metric : stub.metrics) {
+        var features = stub.metrics.stream().filter(metric -> metric.name().equals("GeoJsonFeatures")).toList();
+        assertEquals(2, features.size());
+        for (var metric : features) {
             assertEquals("GeoJsonFeatures", metric.name());
             assertEquals("count", metric.unit());
             String population = metric.dimensions().get("population");
@@ -187,9 +191,9 @@ public class GeoJsonPublisherTest {
             byte[] output = population.equals("BICYCLES") ? stub.bicycleOutput : stub.output;
             assertEquals(new ObjectMapper().readTree(output).get("features").size(), metric.value(), 0);
         }
-        assertEquals(1.0, stub.metrics.get(0).value(), 0);
-        assertEquals(0.0, stub.metrics.get(1).value(), 0);
-        assertEquals(stub.metrics.get(0).timestamp(), stub.metrics.get(1).timestamp());
+        assertEquals(1.0, features.get(0).value(), 0);
+        assertEquals(0.0, features.get(1).value(), 0);
+        assertEquals(1, stub.metrics.stream().map(metric -> metric.timestamp()).distinct().count());
     }
 
     @Test
@@ -198,7 +202,7 @@ public class GeoJsonPublisherTest {
         stub.failMetrics = true;
         assertEquals("OK", stub.function().publish());
         assertEquals(2, stub.uploads);
-        assertEquals(2, stub.metrics.size());
+        assertEquals(10, stub.metrics.size());
     }
 
     @Test
@@ -211,6 +215,34 @@ public class GeoJsonPublisherTest {
             assertFunctionFailure(() -> stub.function().publish());
             assertTrue(stub.metrics.isEmpty());
         }
+    }
+
+    @Test
+    public void publishesYearlyRecordCountsBeforeAndAfterFiltering() throws Exception {
+        StorageStub stub = new StorageStub(false);
+        stub.csv += "Tou.034.0002.00.3;" + YEAR + ";D2;COMMUNE;3;0;43;3\n"
+                + "Tou.034.0003.00.3;" + YEAR + ";D3;COMMUNE;3;300000;43;3\n"
+                + "Tou.034.0004.00.3;" + (YEAR - 11) + ";D4;COMMUNE;3;500;43;3\n";
+        assertEquals("OK", stub.function().publish());
+        assertEquals(14, stub.metrics.size());
+        for (String metricName : List.of("GeoJsonRecordsBeforeFiltering", "GeoJsonRecordsAfterFiltering")) {
+            boolean before = metricName.equals("GeoJsonRecordsBeforeFiltering");
+            for (int year : List.of(YEAR, YEAR - 1, YEAR - 11)) {
+                for (String population : List.of("VEHICULES", "BICYCLES")) {
+                    var dimensions = Map.of("datasourceId", "DPT34", "population", population,
+                            "year", Integer.toString(year));
+                    var matches = stub.metrics.stream().filter(metric -> metric.name().equals(metricName)
+                            && metric.dimensions().equals(dimensions)).toList();
+                    assertEquals(1, matches.size());
+                    double expected = population.equals("BICYCLES") ? 0
+                            : year == YEAR ? (before ? 3 : 1)
+                            : year == YEAR - 1 ? 1 : (before ? 1 : 0);
+                    assertEquals(expected, matches.get(0).value(), 0);
+                    assertEquals("count", matches.get(0).unit());
+                }
+            }
+        }
+        assertEquals(1, new ObjectMapper().readTree(stub.output).get("features").size());
     }
 
     private static java.util.Set<java.nio.file.Path> temporaryOutputs() throws IOException {

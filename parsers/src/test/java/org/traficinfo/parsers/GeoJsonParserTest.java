@@ -62,6 +62,46 @@ public class GeoJsonParserTest extends ParserBaseTest {
     }
 
     @Test
+    public void statisticsSeparatePopulationsAndCountRecordsBeforeGrouping() throws Exception {
+        int year = Year.now().getValue();
+        String csv = "code_centrale,annee,type_compteur,mja_jo\n"
+                + "146966," + year + ",compteur permanent vélo,500\n"
+                + "146966," + (year - 1) + ",compteur permanent vélo,900\n"
+                + "472," + year + ",compteur permanent,1000\n";
+        var records = GeoJsonParser.DataSource.M3MV2.getParser().parseComptages(new StringReader(csv));
+        FeatureCollection supplied = new FeatureCollection();
+        for (String id : List.of("146966", "472")) {
+            Feature feature = new Feature();
+            feature.setProperty("code_centrale", id);
+            feature.setGeometry(new Point(3, 43));
+            supplied.add(feature);
+        }
+        for (Comptage.Type type : List.of(Comptage.Type.VEHICULES, Comptage.Type.BICYCLES)) {
+            var result = GeoJsonParser.writeGeoJsonWithStatistics(GeoJsonParser.DataSource.M3MV2,
+                    records, supplied, new StringWriter(), wayId -> null, type);
+            var expected = type == Comptage.Type.BICYCLES
+                    ? java.util.Map.of(year, 1L, year - 1, 1L) : java.util.Map.of(year, 1L);
+            assertEquals(expected, result.recordsBeforeFiltering());
+            assertEquals(expected, result.recordsAfterFiltering());
+            assertEquals(1, result.featureCount());
+        }
+    }
+
+    @Test
+    public void recordStatisticsPrecedeGeometrySelection() throws Exception {
+        int year = Year.now().getValue();
+        String csv = "Identifiant du compteur;Année;Localisation;Commune;Sens de la route;mja_tv_tcj;Latitude;Longitude\n"
+                + "Per.034.0001.00.3;" + year + ";D11;OLONZAC;3;500;;\n"
+                + "Per.034.0002.00.3;" + year + ";D11;OLONZAC;3;0;43;3\n";
+        var records = new DPT34ComptageParser().parseComptages(new StringReader(csv));
+        var result = GeoJsonParser.writeGeoJsonWithStatistics(GeoJsonParser.DataSource.DPT34,
+                records, new FeatureCollection(), new StringWriter(), wayId -> null, Comptage.Type.VEHICULES);
+        assertEquals(java.util.Map.of(year, 2L), result.recordsBeforeFiltering());
+        assertEquals(java.util.Map.of(year, 1L), result.recordsAfterFiltering());
+        assertEquals(0, result.featureCount());
+    }
+
+    @Test
     public void testFeatureCollectionOverloadMatchesReaderOutput() throws Exception {
         StringWriter readerOutput = new StringWriter();
         StringWriter collectionOutput = new StringWriter();

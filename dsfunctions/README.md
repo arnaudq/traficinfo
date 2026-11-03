@@ -151,7 +151,8 @@ failures fail the invocation; temporary output files are always removed.
 | `USE_RESOURCE_PRINCIPAL` | `true` |
 | `BUCKETNAME_OSM` | `osminfo` |
 
-GeoJSON publishes final feature counts through OCI Monitoring. See the
+GeoJSON publishes final feature counts and yearly record counts before/after
+filtering through OCI Monitoring. See the
 [processing metrics specification](../specs/monitoring.md#traficinfo-metrics) for metric
 definitions, runtime settings, IAM permissions and the monitoring abstraction.
 

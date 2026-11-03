@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.Map;
+import java.util.TreeSet;
 import java.time.Instant;
 
 import java.io.InputStream;
@@ -47,12 +48,12 @@ public final class GeoJsonPublisher {
             try {
                 var comptages = new ManifestComptageReader(inputClient).read(source.getDataSourceId());
                 osmInfoProvider.loadCache();
-                Map<Comptage.Type, Integer> featureCounts = new EnumMap<>(Comptage.Type.class);
+                Map<Comptage.Type, GeoJsonParser.RenderingStatistics> statistics = new EnumMap<>(Comptage.Type.class);
                 for (Comptage.Type type : List.of(Comptage.Type.VEHICULES, Comptage.Type.BICYCLES)) {
                     Path mergedFile = Files.createTempFile(source.getDataSourceId() + "-geojson-", ".geojson");
                     try {
                         try (Writer geojsonMergedWriter = Files.newBufferedWriter(mergedFile, StandardCharsets.UTF_8)) {
-                            featureCounts.put(type, GeoJsonParser.writeGeoJsonWithCount(source.getParserDataSource(), comptages,
+                            statistics.put(type, GeoJsonParser.writeGeoJsonWithStatistics(source.getParserDataSource(), comptages,
                                     new FeatureCollection(), geojsonMergedWriter, osmInfoProvider, type));
                         }
                         try (InputStream mergedInput = Files.newInputStream(mergedFile)) {
@@ -64,7 +65,7 @@ public final class GeoJsonPublisher {
                     }
                 }
                 osmInfoProvider.refreshCache();
-                publishMetrics(featureCounts);
+                publishMetrics(statistics);
                 return "OK";
             } catch (Exception failure) {
                 LOG.warn("Error while generating {} GeoJSON: {}", source.getDataSourceId(),
@@ -74,12 +75,23 @@ public final class GeoJsonPublisher {
         }
     }
 
-    private void publishMetrics(Map<Comptage.Type, Integer> featureCounts) {
+    private void publishMetrics(Map<Comptage.Type, GeoJsonParser.RenderingStatistics> statistics) {
         Instant timestamp = Instant.now();
         List<MetricSample> samples = new ArrayList<>();
-        featureCounts.forEach((population, count) -> samples.add(new MetricSample(
-                "GeoJsonFeatures", count, "count", timestamp,
-                Map.of("datasourceId", source.getDataSourceId(), "population", population.name()))));
+        var years = new TreeSet<Integer>();
+        statistics.values().forEach(result -> years.addAll(result.recordsBeforeFiltering().keySet()));
+        statistics.forEach((population, result) -> {
+            var dimensions = Map.of("datasourceId", source.getDataSourceId(), "population", population.name());
+            samples.add(new MetricSample("GeoJsonFeatures", result.featureCount(), "count", timestamp, dimensions));
+            for (int year : years) {
+                var yearlyDimensions = Map.of("datasourceId", source.getDataSourceId(),
+                        "population", population.name(), "year", Integer.toString(year));
+                samples.add(new MetricSample("GeoJsonRecordsBeforeFiltering",
+                        result.recordsBeforeFiltering().getOrDefault(year, 0L), "count", timestamp, yearlyDimensions));
+                samples.add(new MetricSample("GeoJsonRecordsAfterFiltering",
+                        result.recordsAfterFiltering().getOrDefault(year, 0L), "count", timestamp, yearlyDimensions));
+            }
+        });
         try {
             metrics.publish(List.copyOf(samples));
         } catch (RuntimeException failure) {

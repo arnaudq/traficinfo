@@ -157,6 +157,24 @@ public class GeoJsonParser {
     public static int writeGeoJsonWithCount(DataSource dataSource, List<? extends Comptage> comptages,
                                            FeatureCollection geoJsonColl, Writer geojsonMergedWriter,
                                            OSMInfoProvider osmInfoProvider, Comptage.Type type) throws IOException {
+        return writeGeoJsonWithStatistics(dataSource, comptages, geoJsonColl, geojsonMergedWriter,
+                osmInfoProvider, type).featureCount();
+    }
+
+    /** Counts annual records before/after record predicates, before grouping and geometry selection. */
+    public record RenderingStatistics(int featureCount, Map<Integer, Long> recordsBeforeFiltering,
+                                      Map<Integer, Long> recordsAfterFiltering) {
+        public RenderingStatistics {
+            recordsBeforeFiltering = Map.copyOf(recordsBeforeFiltering);
+            recordsAfterFiltering = Map.copyOf(recordsAfterFiltering);
+        }
+    }
+
+    /** Writes one population and measures the same records used by the renderer. */
+    public static RenderingStatistics writeGeoJsonWithStatistics(
+            DataSource dataSource, List<? extends Comptage> comptages,
+            FeatureCollection geoJsonColl, Writer geojsonMergedWriter,
+            OSMInfoProvider osmInfoProvider, Comptage.Type type) throws IOException {
         if (type != Comptage.Type.VEHICULES && type != Comptage.Type.BICYCLES) {
             throw new IllegalArgumentException("Unsupported GeoJSON population: " + type);
         }
@@ -166,13 +184,18 @@ public class GeoJsonParser {
                 selected.stream().filter(comptage -> comptage.getV85Speed() > 0).count(),
                 selected.stream().filter(comptage -> comptage.getMeanSpeed() > 0).count());
         applyOsmInfo(selected, osmInfoProvider);
-        FeatureCollection outCol = buildForType(geoJsonColl.getFeatures(), selected, EnumSet.of(type));
+        List<? extends Comptage> filtered = filterRecords(selected, EnumSet.of(type));
+        FeatureCollection outCol = buildFilteredRecords(geoJsonColl.getFeatures(), filtered);
         outCol.getFeatures().forEach(feature -> feature.setProperty("data_source", dataSource.getId()));
         logSpeedCoverage(dataSource, "GeoJSON features " + type, outCol.getFeatures().size(),
                 outCol.getFeatures().stream().filter(feature -> feature.getProperties().containsKey("v85_speed")).count(),
                 outCol.getFeatures().stream().filter(feature -> feature.getProperties().containsKey("mean_speed")).count());
         new ObjectMapper().writeValue(geojsonMergedWriter, outCol);
-        return outCol.getFeatures().size();
+        return new RenderingStatistics(outCol.getFeatures().size(), countByYear(selected), countByYear(filtered));
+    }
+
+    private static Map<Integer, Long> countByYear(List<? extends Comptage> records) {
+        return records.stream().collect(Collectors.groupingBy(Comptage::getAnnee, Collectors.counting()));
     }
 
     private static void logSpeedCoverage(DataSource dataSource, String stage, int total,
@@ -203,16 +226,27 @@ public class GeoJsonParser {
 
     static FeatureCollection buildForType(final List<Feature> unfilteredFeatures, final List<? extends Comptage> comptages,
                                           final EnumSet<Comptage.Type> typeFilter) {
+        return buildFilteredRecords(unfilteredFeatures, filterRecords(comptages, typeFilter));
+    }
+
+    private static List<? extends Comptage> filterRecords(List<? extends Comptage> comptages,
+                                                         EnumSet<Comptage.Type> typeFilter) {
         int currentYear = Year.now().getValue();
-        Map<String, List<Comptage>> idToComptagesMap = comptages.stream()
+        return comptages.stream()
           .filter(comptage -> comptage.getAnnee() >= currentYear - NB_YEARS
                   && comptage.getAnnee() <= currentYear)
           .filter(comptage -> GID_CSVFILTER.isEmpty() || GID_CSVFILTER.contains(comptage.getCodeCentrale()))
           .filter (comptage -> CITIES_FILTER.isEmpty() || CITIES_FILTER.contains(comptage.getCityName()))
           .filter(comptage -> typeFilter.contains(comptage.getType()))
           .filter(GeoJsonParser::isInRange)
-          .collect(Collectors.groupingBy(Comptage::getCodeCentrale));
-        LOG.info("Nb comptages for type {} after filtering: {}", typeFilter, idToComptagesMap.size());
+          .collect(Collectors.toList());
+    }
+
+    private static FeatureCollection buildFilteredRecords(List<Feature> unfilteredFeatures,
+                                                           List<? extends Comptage> filtered) {
+        Map<String, List<Comptage>> idToComptagesMap = filtered.stream()
+                .collect(Collectors.groupingBy(Comptage::getCodeCentrale));
+        LOG.info("Nb counters after filtering: {}", idToComptagesMap.size());
 
         List<Feature> features;
         if (unfilteredFeatures.isEmpty()) {
