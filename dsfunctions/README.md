@@ -488,6 +488,11 @@ Unresolved entries do not consume the existing 100-request way-tag budget.
 
 ## Hourly OSM mapping refresh
 
+The function publishes `OSMWayMappings` through OCI Monitoring, with `datasourceId`
+and `status` dimensions. Counts match the all-record status totals, including zero
+for empty categories. See the [monitoring specification](../specs/monitoring.md#osmwaymappings)
+for metric definitions, configuration and publication behavior.
+
 `org.traficinfo.dsfunctions.OSMInfoFunction::handleRequest` lists the objects in
 `osminfo`, shuffles the list, and processes objects ending in `_OSMWayMapping.json`.
 For each cache it loads that mapping and the matching `<prefix>_OSMInfo.json`

@@ -13,6 +13,8 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
+import java.time.Instant;
+import java.util.Objects;
 
 /** Hourly bounded reverse lookup of unresolved counter-to-way mappings in Object Storage. */
 public class OSMInfoFunction {
@@ -27,6 +29,7 @@ public class OSMInfoFunction {
     private ObjectStoreClient osmCacheOSClient;
     private OpenStreetMapClient osmClient;
     private final LongSupplier nanoTime;
+    private MetricsPublisher metrics;
 
     public OSMInfoFunction() {
         this(null);
@@ -37,14 +40,21 @@ public class OSMInfoFunction {
     }
 
     OSMInfoFunction(ObjectStoreClient osmCacheOSClient, OpenStreetMapClient osmClient, LongSupplier nanoTime) {
+        this(osmCacheOSClient, osmClient, nanoTime, samples -> {});
+    }
+
+    OSMInfoFunction(ObjectStoreClient osmCacheOSClient, OpenStreetMapClient osmClient, LongSupplier nanoTime,
+                    MetricsPublisher metrics) {
         this.osmCacheOSClient = osmCacheOSClient;
         this.osmClient = osmClient;
         this.nanoTime = nanoTime;
+        this.metrics = Objects.requireNonNull(metrics);
     }
 
     @FnConfiguration
     public void config(RuntimeContext ctx) {
         configureLimits(ctx);
+        metrics = FunctionMetrics.configured(ctx);
         String namespace = ctx.getConfigurationByKey("NAMESPACE").orElse("");
         String bucket = ctx.getConfigurationByKey("BUCKETNAME_OSM").orElse("osminfo");
         boolean useResourcePrincipal = Boolean.parseBoolean(
@@ -225,6 +235,21 @@ public class OSMInfoFunction {
         if (failures > 0) {
             throw new IllegalStateException("OSM mapping refresh failed with " + failures + " failure(s); see invocation logs");
         }
+        publishMappingMetrics(osmProvidersMap);
         return "OK";
+    }
+
+    private void publishMappingMetrics(Map<String, OSMInfoProviderImpl> providers) {
+        Instant timestamp = Instant.now();
+        var samples = providers.entrySet().stream().flatMap(source ->
+                source.getValue().getWayMappingStatusCounts().entrySet().stream().map(status -> new MetricSample(
+                        "OSMWayMappings", status.getValue(), "count", timestamp,
+                        Map.of("datasourceId", source.getKey(), "status", status.getKey().name())))).toList();
+        if (samples.isEmpty()) return;
+        try {
+            metrics.publish(samples);
+        } catch (RuntimeException failure) {
+            LOG.warn("Could not publish OSM mapping metrics", failure);
+        }
     }
 }

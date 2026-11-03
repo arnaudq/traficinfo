@@ -26,6 +26,76 @@ import static org.traficinfo.dsfunctions.FunctionFailureAssertions.assertFunctio
 
 public class OSMInfoFunctionTest {
     @Test
+    public void publishesAllMappingStatusesIncludingZeroAndUnchangedRuns() throws Exception {
+        Store store = new Store();
+        store.objects.put("DPT34_OSMWayMapping.json",
+                "{\"review\":{\"status\":\"NEEDS_REVIEW\",\"candidateOsmWayId\":456},"
+                        + "\"missing\":{\"status\":\"MISSING\"},"
+                        + "\"matched\":{\"status\":\"MATCHED\",\"osmWayId\":123},"
+                        + "\"notFound\":{\"status\":\"NOT_FOUND\"}}");
+        store.objects.put("MMM_OSMWayMapping.json", "{}");
+        List<List<MetricSample>> batches = new ArrayList<>();
+        OpenStreetMapClient client = new OpenStreetMapClient() {
+            @Override public Map<String, String> getWayTags(long wayId) { return Map.of(); }
+        };
+        OSMInfoFunction function = new OSMInfoFunction(store, client, () -> 0L, samples -> {
+            assertTrue(store.objects.containsKey(OSMWayMappingReviewStore.OBJECT_NAME));
+            batches.add(samples);
+        });
+        assertEquals("OK", function.handleRequest(""));
+        assertEquals(1, batches.size());
+        var batch = batches.get(0);
+        assertEquals(8, batch.size());
+        for (var metric : batch) {
+            assertEquals("OSMWayMappings", metric.name());
+            assertEquals("count", metric.unit());
+            assertEquals(2, metric.dimensions().size());
+            assertEquals(metric.dimensions().get("datasourceId").equals("DPT34") ? 1 : 0, metric.value(), 0);
+        }
+        for (OSMWayMappingStatus status : OSMWayMappingStatus.values()) {
+            assertStatusCount(batch, "DPT34", status, 1);
+            assertStatusCount(batch, "MMM", status, 0);
+        }
+        assertEquals(1, batch.stream().map(MetricSample::timestamp).distinct().count());
+        int writes = store.reviewWrites;
+        assertEquals("OK", function.handleRequest(""));
+        assertEquals(2, batches.size());
+        assertEquals(writes, store.reviewWrites);
+        store.objects.put("DPT34_OSMWayMapping.json", "{}");
+        assertEquals("OK", function.handleRequest(""));
+        assertTrue(batches.get(2).stream().allMatch(metric -> metric.value() == 0));
+    }
+
+    @Test
+    public void mappingMetricsFailureDoesNotFailSavedRefresh() {
+        Store store = new Store();
+        store.objects.put("MMM_OSMWayMapping.json", "{}");
+        var function = new OSMInfoFunction(store, new OpenStreetMapClient(), () -> 0L, samples -> {
+            throw new IllegalStateException("Monitoring unavailable");
+        });
+        assertEquals("OK", function.handleRequest(""));
+        assertEquals(1, store.reviewWrites);
+    }
+
+    @Test
+    public void failedRefreshOrReviewSaveDoesNotPublishMetrics() {
+        for (boolean loadFailure : List.of(false, true)) {
+            Store store = new Store() {
+                @Override public void putResource(String name, String type, OOSResourceMetadata metadata,
+                                                  InputStream body) throws IOException {
+                    if (name.equals(OSMWayMappingReviewStore.OBJECT_NAME)) throw new IOException("Save failed");
+                    super.putResource(name, type, metadata, body);
+                }
+            };
+            store.objects.put("MMM_OSMWayMapping.json", loadFailure ? null : "{}");
+            List<MetricSample> metrics = new ArrayList<>();
+            var function = new OSMInfoFunction(store, new OpenStreetMapClient(), () -> 0L, metrics::addAll);
+            assertFunctionFailure(() -> function.handleRequest(""));
+            assertTrue(metrics.isEmpty());
+        }
+    }
+
+    @Test
     public void countsUnknownWaysRegardlessOfStatusOrCandidate() throws Exception {
         String json = "{\"known\":{\"osmWayId\":123},\"missing\":{},"
                 + "\"null\":{\"osmWayId\":null},\"zero\":{\"osmWayId\":0},"
@@ -135,7 +205,8 @@ public class OSMInfoFunctionTest {
                     return new ObjectMapper().readTree("{\"error\":\"Unable to geocode\"}");
                 }
             };
-            OSMInfoFunction function = new OSMInfoFunction(store, client, elapsed::get);
+            List<MetricSample> metrics = new ArrayList<>();
+            OSMInfoFunction function = new OSMInfoFunction(store, client, elapsed::get, metrics::addAll);
             function.configureLimits(context(limits));
             assertEquals("OK", function.handleRequest(""));
             assertEquals(limits.isEmpty() ? 6 : 1, lookups.get());
@@ -145,6 +216,14 @@ public class OSMInfoFunctionTest {
             // Both sources remain present even though only one gets an API batch this run.
             assertEquals(1, review.get("A").size());
             assertEquals(1, review.get("B").size());
+            assertEquals(8, metrics.size());
+            assertEquals(java.util.Set.of("A", "B"), metrics.stream()
+                    .map(metric -> metric.dimensions().get("datasourceId")).collect(java.util.stream.Collectors.toSet()));
+            for (String source : List.of("A", "B")) {
+                assertStatusCount(metrics, source, OSMWayMappingStatus.NEEDS_REVIEW, 1);
+                assertEquals(9, metrics.stream().filter(metric -> source.equals(metric.dimensions().get("datasourceId")))
+                        .mapToDouble(MetricSample::value).sum(), 0);
+            }
             assertEquals("NEEDS_REVIEW", review.get("A").get("review").get("status").asText());
             assertEquals("NEEDS_REVIEW", review.get("B").get("review").get("status").asText());
         }
@@ -171,7 +250,13 @@ public class OSMInfoFunctionTest {
                 return Map.of("maxspeed", "80", "highway", "primary");
             }
         };
-        assertEquals("OK", new OSMInfoFunction(store, client, () -> 0L).handleRequest(""));
+        List<MetricSample> metrics = new ArrayList<>();
+        assertEquals("OK", new OSMInfoFunction(store, client, () -> 0L, metrics::addAll).handleRequest(""));
+        assertEquals(4, metrics.size());
+        assertStatusCount(metrics, "A", OSMWayMappingStatus.MATCHED, 2);
+        assertStatusCount(metrics, "A", OSMWayMappingStatus.NEEDS_REVIEW, 1);
+        assertStatusCount(metrics, "A", OSMWayMappingStatus.MISSING, 0);
+        assertStatusCount(metrics, "A", OSMWayMappingStatus.NOT_FOUND, 0);
         assertEquals(List.of("reverse:43.0", "reverse:44.0", "reverse:45.0", "tags:123"), requests);
         assertEquals(3, store.writes);
         JsonNode tags = new ObjectMapper().readTree(store.objects.get("A_OSMInfo.json"));
@@ -203,7 +288,12 @@ public class OSMInfoFunctionTest {
                 return Map.of("maxspeed", "80");
             }
         };
-        assertEquals("OK", new OSMInfoFunction(store, client, () -> 0L).handleRequest(""));
+        List<MetricSample> metrics = new ArrayList<>();
+        OSMInfoFunction function = new OSMInfoFunction(store, client, () -> 0L, metrics::addAll);
+        assertEquals("OK", function.handleRequest(""));
+        assertEquals(8, metrics.size());
+        assertStatusCount(metrics, "DPT30", OSMWayMappingStatus.NEEDS_REVIEW, 1);
+        assertStatusCount(metrics, "DPT34", OSMWayMappingStatus.NEEDS_REVIEW, 1);
         String reviewName = OSMWayMappingReviewStore.OBJECT_NAME;
         JsonNode review = json.readTree(store.objects.get(reviewName));
         assertEquals(2, review.size());
@@ -217,7 +307,12 @@ public class OSMInfoFunctionTest {
         approved.put("status", "MATCHED");
         approved.put("candidateOsmWayId", 777);
         store.objects.put(reviewName, json.writeValueAsString(review));
-        assertEquals("OK", new OSMInfoFunction(store, client, () -> 0L).handleRequest(""));
+        metrics.clear();
+        assertEquals("OK", function.handleRequest(""));
+        assertEquals(8, metrics.size());
+        assertStatusCount(metrics, "DPT30", OSMWayMappingStatus.NEEDS_REVIEW, 0);
+        assertStatusCount(metrics, "DPT30", OSMWayMappingStatus.MATCHED, 1);
+        assertStatusCount(metrics, "DPT34", OSMWayMappingStatus.NEEDS_REVIEW, 1);
         assertEquals(List.of(777L), tagsRequested);
         JsonNode saved = json.readTree(store.objects.get("DPT30_OSMWayMapping.json")).get("counter");
         assertEquals("MATCHED", saved.get("status").asText());
@@ -230,7 +325,7 @@ public class OSMInfoFunctionTest {
         assertEquals(0, review.get("DPT30").size());
         assertEquals(1, review.get("DPT34").size());
         int reviewWrites = store.reviewWrites;
-        assertEquals("OK", new OSMInfoFunction(store, client, () -> 0L).handleRequest(""));
+        assertEquals("OK", function.handleRequest(""));
         assertEquals(List.of(777L), tagsRequested);
         assertEquals(reviewWrites, store.reviewWrites);
     }
@@ -376,6 +471,14 @@ public class OSMInfoFunctionTest {
                     assertEquals("getConfigurationByKey", method.getName());
                     return Optional.ofNullable(configuration.get(args[0]));
                 });
+    }
+
+    private static void assertStatusCount(List<MetricSample> metrics, String source,
+                                          OSMWayMappingStatus status, int expected) {
+        var matching = metrics.stream().filter(metric -> metric.dimensions().equals(
+                Map.of("datasourceId", source, "status", status.name()))).toList();
+        assertEquals(1, matching.size());
+        assertEquals(expected, matching.get(0).value(), 0);
     }
 
     private static class Store extends ObjectStoreClient {

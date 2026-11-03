@@ -2,73 +2,119 @@
 
 ## TraficInfo metrics
 
-Processing functions use OCI Monitoring for application metrics, published through
-its Java SDK. GeoJSON feature counts and records before/after filtering are instrumented;
-retrieval and preprocessing metrics can be added through the same abstraction.
-See the [functions README](../dsfunctions/README.md#geojson-output) for deployment
-and invocation. The [Alarms and Notifications](#alarms-and-notifications) chapter
-describes the separate function failure alarms based on OCI's built-in metrics.
+Processing functions publish application metrics through the OCI Monitoring Java
+SDK in the `traficinfo` namespace by default. Every metric below has unit `count`
+and represents a snapshot, rather than an increment. Retrieval and preprocessing
+metrics can be added through the same abstraction.
+See the [functions README](../dsfunctions/README.md) for deployment and invocation.
+The [Alarms and Notifications](#alarms-and-notifications) chapter describes the
+separate function failure alarms based on OCI's built-in metrics.
 
-### GeoJSON feature counts
+### `GeoJsonFeatures`
 
-After both GeoJSON uploads and OSM cache refresh succeed, the function publishes
-`GeoJsonFeatures` through the OCI Monitoring Java SDK. Each invocation includes
-two feature-count snapshots, including zero for an empty population:
+Final number of GeoJSON features published for one datasource and population,
+after record filtering, grouping by counter and geometry selection. Each feature
+can combine several observation years, so this metric has no year dimension.
+Each successful publication emits both populations, including zero for an empty
+collection.
 
-| Dimension | Values |
+| Dimension | Description | Values |
+| --- | --- | --- |
+| `datasourceId` | Datasource being exported | Bundled source ID, e.g. `DPT34`, `MMM` |
+| `population` | Exported counter population | `VEHICULES`, `BICYCLES` |
+
+### `GeoJsonRecordsBeforeFiltering`
+
+Number of annual records loaded from the manifest for one datasource, population
+and observation year, before GeoJSON record filters. Population selection occurs
+before counting: records classified as neither vehicles nor bicycles are excluded.
+This measures annual records, so a counter present in two years contributes once
+to each year's count.
+
+| Dimension | Description | Values |
+| --- | --- | --- |
+| `datasourceId` | Datasource being exported | Bundled source ID, e.g. `DPT34`, `MMM` |
+| `population` | Exported counter population | `VEHICULES`, `BICYCLES` |
+| `year` | Record's observation year | Year as a string, e.g. `2025`, `2026` |
+
+### `GeoJsonRecordsAfterFiltering`
+
+Number of annual records passing GeoJSON's year, counter/city and traffic-value
+filters for one datasource, population and observation year. The rendering window
+includes the current year and the preceding ten years; traffic values must be
+strictly greater than zero and less than 300,000. Counter and city filters apply
+when configured in the renderer. Statistics use the same filtered list as rendering.
+
+This count precedes grouping, geometry selection and history truncation. A record
+can pass the filters even when its counter has no geometry and produces no feature.
+Use `GeoJsonFeatures` to measure the final rendered output size.
+
+| Dimension | Description | Values |
+| --- | --- | --- |
+| `datasourceId` | Datasource being exported | Bundled source ID, e.g. `DPT34`, `MMM` |
+| `population` | Exported counter population | `VEHICULES`, `BICYCLES` |
+| `year` | Record's observation year | Year as a string, e.g. `2025`, `2026` |
+
+### `OSMWayMappings`
+
+Number of counter-to-way mappings in each status for one datasource, after the
+hourly OSM refresh. Counts match the log's **all records** status totals, including
+mappings not attempted this run. They include uploaded approvals and newly created
+review candidates. They do not report only the processed-record subset.
+
+| Dimension | Description | Values |
+| --- | --- | --- |
+| `datasourceId` | Datasource whose mapping cache was loaded | Source ID from `<datasourceId>_OSMWayMapping.json`, e.g. `MMM` |
+| `status` | Mapping assignment outcome | `MISSING`, `MATCHED`, `NEEDS_REVIEW`, `NOT_FOUND` |
+
+| Status | Meaning |
 | --- | --- |
-| `datasourceId` | Bundled source ID, e.g. `DPT34` or `MMM` |
-| `population` | `VEHICULES` or `BICYCLES` |
+| `MISSING` | No usable assignment yet: lookup pending, coordinates unavailable, or an HTTP attempt failed |
+| `MATCHED` | A road way is assigned from the seed/manual cache or an accepted reverse lookup |
+| `NEEDS_REVIEW` | A candidate requires review because its road reference is missing or differs from the source |
+| `NOT_FOUND` | A successful reverse response contained no suitable road way |
 
-These count the final features after filtering and grouping by counter, not the
-annual input records. There is no year dimension because each feature can combine
-several years. Use `last()` for the latest observed count within a query interval;
-`sum()` would add snapshots from repeated invocations rather than count distinct
-features. For example, in namespace `traficinfo`:
+### GeoJSON publication
 
-```text
-GeoJsonFeatures[1h]{datasourceId = "DPT34", population = "VEHICULES"}.last()
-```
-
-### GeoJSON record counts
-
-The same publication reports two more snapshot metrics:
-
-| Metric | Meaning |
-| --- | --- |
-| `GeoJsonRecordsBeforeFiltering` | Annual records loaded from the manifest for the selected population, before GeoJSON record filters |
-| `GeoJsonRecordsAfterFiltering` | Annual records passing the year, counter/city and traffic-value filters, before grouping into counter features |
-
-Both have `datasourceId`, `population` (`VEHICULES` or `BICYCLES`) and `year`
-(the observation year, e.g. `2024`) dimensions. Units are `count`. For every year
-represented in either exported population's input records, both populations emit
-both metrics, including zero when a population is absent or all its records are
-filtered out. A completely empty input emits only the two zero feature counts,
-since there is no record year to attribute. Years outside the rendering window
-still have before counts and zero after counts.
-
-The rendering window includes the current year and the preceding ten years;
-traffic values must be strictly greater than zero and less than 300,000.
-Counter and city filters apply when configured in the renderer. Population
-selection precedes the before count, so records classified as neither vehicles
-nor bicycles are excluded from both populations.
-
-After-filtering counts measure annual records, including several years for a
-single counter. They precede geometry selection and history truncation: a record
-can pass these predicates even if its counter cannot produce a feature because
-it has no geometry. Use `GeoJsonFeatures` for the final rendered output size.
-The statistics are collected from the same filtered list used for rendering,
-without rerunning the filters.
-
-```text
-GeoJsonRecordsBeforeFiltering[1h]{datasourceId = "DPT34", population = "VEHICULES", year = "2024"}.last()
-GeoJsonRecordsAfterFiltering[1h]{datasourceId = "DPT34", population = "VEHICULES", year = "2024"}.last()
-```
+GeoJSON metrics are sent after both output uploads and OSM cache refresh succeed.
+For every year represented in either exported population's input records, both
+populations emit both record metrics, including zero when a population is absent
+or all its records are filtered out. Years outside the rendering window still
+have before counts and zero after counts. A completely empty input emits only
+the two zero feature counts because there is no record year to attribute.
 
 All observations from a publication share a timestamp and are submitted together
-through `MetricsPublisher`. The OCI adapter splits requests at its 50-stream
-limit. Record metrics follow the same publication and failure behavior as the
-feature counts; they do not add percentage or previous-run metrics.
+through `MetricsPublisher`. The OCI adapter splits requests at its 50-stream limit.
+No previous-run counts or percentage metrics are stored.
+
+### OSM publication
+
+Each successful hourly run emits all four statuses for every loaded datasource,
+including zero for empty categories and caches. Sources skipped by the
+reverse-lookup time budget are still included. Unchanged mapping/review documents
+still produce fresh samples. A run with no mapping caches emits no samples.
+All observations from the run share a timestamp.
+
+Metrics are published after a successful refresh and successful review-document
+save (including a skipped write when unchanged). A load, refresh or review-save
+failure suppresses the run's metrics and retains existing function failure
+behavior. Metrics failures are logged without failing the refresh. Publishing
+metrics does not change the reverse-lookup budget.
+
+### Querying snapshots
+
+Use the metric's dimensions to select the intended series. `max()` shows the
+highest snapshot in each interval; with one publication in that interval, this
+is the published count. `sum()` over repeated observations adds snapshots and
+should not be used to represent the current count. Intervals without publication
+have no data, rather than zero.
+
+```text
+GeoJsonFeatures[1h]{datasourceId = "MMM", population = "BICYCLES"}.max()
+GeoJsonRecordsBeforeFiltering[1h]{datasourceId = "MMM", population = "BICYCLES", year = "2025"}.max()
+GeoJsonRecordsAfterFiltering[1h]{datasourceId = "MMM", population = "BICYCLES", year = "2025"}.max()
+OSMWayMappings[1h]{datasourceId = "MMM", status = "NEEDS_REVIEW"}.max()
+```
 
 ### Configuration and permissions
 
@@ -78,7 +124,8 @@ feature counts; they do not add percentage or previous-run metrics.
 | `METRICS_NAMESPACE` | `traficinfo` |
 
 Deployment sets `METRICS_COMPARTMENT_ID` to the shared `OCI_COMPARTMENT_ID` exported
-by `scripts/setup.sh`. The function's resource-principal dynamic group needs an
+by `scripts/setup.sh` for both GeoJSON and OSM deployment. Each function's
+resource-principal dynamic group needs an
 additional IAM policy (substitute its name and compartment OCID):
 
 ```text
@@ -101,8 +148,9 @@ stored, and this does not create alarms or IAM policies.
 `MetricSample` and `MetricsPublisher` define the backend-independent publishing
 boundary. New observations can reuse that interface; OCI SDK types and namespace,
 compartment, batching and transport details are confined to `OciMetricsPublisher`.
-`GeoJsonPublisher` accepts any implementation, while `GeoJsonFunction` wires the
-OCI adapter. The four-argument publisher constructor disables metrics for callers
+`FunctionMetrics` shares runtime configuration and per-invocation OCI client
+lifecycle between GeoJSON and OSM. `GeoJsonPublisher` and `OSMInfoFunction` accept
+any `MetricsPublisher` implementation. The four-argument publisher constructor disables metrics for callers
 that do not supply a backend.
 
 ## Alarms and Notifications

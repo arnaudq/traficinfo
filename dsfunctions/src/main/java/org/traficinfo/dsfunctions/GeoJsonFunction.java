@@ -21,8 +21,7 @@ public class GeoJsonFunction {
     private String outputBucket;
     private String osmBucket;
     private boolean principal;
-    private String metricsCompartment;
-    private String metricsNamespace;
+    private MetricsPublisher metrics;
 
     protected DataSourceRegistry loadRegistry() { return DataSourceRegistry.bundled(); }
 
@@ -33,15 +32,7 @@ public class GeoJsonFunction {
     protected OpenStreetMapClient createOpenStreetMapClient() { return new OpenStreetMapClient(); }
 
     protected void publishMetrics(List<MetricSample> samples) {
-        if (metricsCompartment.isBlank()) {
-            LOG.warn("Skipping metrics: METRICS_COMPARTMENT_ID is not configured");
-            return;
-        }
-        try (var publisher = OciMetricsPublisher.create(principal, metricsCompartment, metricsNamespace)) {
-            publisher.publish(samples);
-        } catch (Exception failure) {
-            throw new IllegalStateException("Could not publish metrics to OCI Monitoring", failure);
-        }
+        metrics.publish(samples);
     }
 
     @FnConfiguration
@@ -51,8 +42,7 @@ public class GeoJsonFunction {
         outputBucket = context.getConfigurationByKey("BUCKETNAME_OUT").orElse("traficinfo");
         osmBucket = context.getConfigurationByKey("BUCKETNAME_OSM").orElse("osminfo");
         principal = Boolean.parseBoolean(context.getConfigurationByKey("USE_RESOURCE_PRINCIPAL").orElse("true"));
-        metricsCompartment = context.getConfigurationByKey("METRICS_COMPARTMENT_ID").orElse("");
-        metricsNamespace = context.getConfigurationByKey("METRICS_NAMESPACE").orElse("traficinfo");
+        metrics = FunctionMetrics.configured(context);
     }
 
     public String handleRequest(String input) {
