@@ -28,8 +28,9 @@ elif args[:2] == ['monitoring', 'alarm'] and args[2] in ('create', 'update'):
     def kebab(key):
         return ''.join('-' + char.lower() if char.isupper() else char for char in key)
     data = {('query' if key == 'queryText' else kebab(key)): item for key, item in payload.items()}
-    data.update({'id': 'alarm', 'lifecycle-state': 'ACTIVE', 'suppression': None})
-    state['alarms'] = [data]
+    alarm_id = 'alarm-not-found' if data['display-name'].endswith('NotFound') else 'alarm'
+    data.update({'id': alarm_id, 'lifecycle-state': 'ACTIVE', 'suppression': None})
+    state['alarms'] = [item for item in state.get('alarms', []) if item['id'] != alarm_id] + [data]
 else:
     raise AssertionError(args)
 path.write_text(json.dumps(state))
@@ -94,6 +95,34 @@ class OsmReviewAlarmTest(unittest.TestCase):
         alarm = self.read_state()['alarms'][0]
         self.assertEqual('P1D', alarm['repeat-notification-duration'])
         self.assertFalse(alarm['is-notifications-per-metric-dimension-enabled'])
+
+    def test_not_found_dry_run_and_creation_preserve_review_alarm(self):
+        self.assertEqual(0, self.run_script().returncode)
+        review_alarm = self.read_state()['alarms'][0]
+        result = self.run_script('--status', 'NOT_FOUND', '--dry-run')
+        self.assertEqual(0, result.returncode, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual('TraficInfo-OSMWayMappingsNotFound', payload['displayName'])
+        self.assertEqual('OSMWayMappings[1h]{status = "NOT_FOUND"}.groupBy(datasourceId).max() > 0',
+                         payload['queryText'])
+        self.assertFalse(payload['isNotificationsPerMetricDimensionEnabled'])
+        self.assertEqual('P1D', payload['repeatNotificationDuration'])
+        self.assertIn('<datasourceId>_OSMWayMapping.json', payload['body'])
+        self.assertNotIn('OSMWayMapping_NEEDS_REVIEW.json', payload['body'])
+        self.assertEqual(1, len(self.writes()))
+        result = self.run_script('--status', 'NOT_FOUND')
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(2, len(self.read_state()['alarms']))
+        self.assertEqual(review_alarm, self.read_state()['alarms'][0])
+        self.assertEqual(2, len(self.writes()))
+        result = self.run_script('--status', 'NOT_FOUND')
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(2, len(self.writes()))
+
+    def test_invalid_status_rejected_before_oci_calls(self):
+        for args in [('--status', 'MATCHED'), ('--status',)]:
+            self.assertNotEqual(0, self.run_script(*args).returncode)
+            self.assertEqual({}, self.read_state())
 
     def test_unconfirmed_email_rejected_without_writes(self):
         self.state.write_text(json.dumps({'subscription': 'PENDING'}))

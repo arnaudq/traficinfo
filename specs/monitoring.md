@@ -299,6 +299,32 @@ Daily repeats are not a strict email cap: recovery, resets and later firing epis
 can produce additional messages. This tradeoff is accepted for the manual review
 workflow, where the queue is expected to change slowly.
 
+### OSM ways not found
+
+`TraficInfo-OSMWayMappingsNotFound` adds a separate `WARNING` alarm for successful
+reverse lookups that returned no suitable road way. It uses:
+
+```text
+OSMWayMappings[1h]{status = "NOT_FOUND"}.groupBy(datasourceId).max() > 0
+```
+
+It uses the same confirmed email topic, grouped datasource details, one-minute
+pending duration and daily reminders as the review alarm. Configure it explicitly:
+
+```sh
+./scripts/setup-osm-review-alert.sh arnaudq@quillaud.org --status NOT_FOUND --dry-run
+./scripts/setup-osm-review-alert.sh arnaudq@quillaud.org --status NOT_FOUND
+```
+
+Without `--status`, the script continues to manage only `NEEDS_REVIEW`. Each call
+reconciles only its selected alarm. The `NOT_FOUND` email points to each affected
+`<datasourceId>_OSMWayMapping.json` cache and the stored reverse response; these
+records are not included in the dedicated `NEEDS_REVIEW` document.
+
+Daily repeats apply independently to each alarm. If both categories are nonzero,
+you can receive one reminder from each alarm per day while continuously firing,
+plus any recovery/reset or later firing notifications.
+
 ### Coverage and further monitoring
 
 The alarms detect errors recorded by OCI Functions, including runtime failures
