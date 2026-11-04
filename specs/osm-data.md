@@ -72,8 +72,14 @@ cache. All caches are loaded before the bounded API loop, so sources skipped by
 its time budget still appear in the review document and status summaries.
 GeoJSON parsing itself does not perform reverse lookups.
 
-The global `OSMWayMapping_NEEDS_REVIEW.json` object in the same bucket groups
-all `NEEDS_REVIEW` records by data source prefix, then counter ID. For example:
+Two global review objects in the same bucket group records by data source
+prefix, then counter ID:
+
+- `OSMWayMapping_NEEDS_REVIEW.json`: all `NEEDS_REVIEW` records.
+- `OSMWayMapping_NOT_FOUND.json`: all `NOT_FOUND` records, for manually finding
+  a road when reverse lookup returned no suitable way.
+
+For example, the `NEEDS_REVIEW` file contains:
 
 ```json
 {
@@ -82,13 +88,16 @@ all `NEEDS_REVIEW` records by data source prefix, then counter ID. For example:
 }
 ```
 
-Download this file, change an accepted record's `status` to `MATCHED`, and upload
-it to the same object. If necessary, correct its `candidateOsmWayId` as well.
+Download either file, set a positive `candidateOsmWayId` to the chosen road way,
+change the record's `status` to `MATCHED`, and upload it to the same object.
+`NOT_FOUND` records generally have no candidate ID, so add that field when
+approving them.
 At the start of the next run, accepted candidates become `osmWayId` assignments
 in their source caches, with tag refresh queued. Existing assigned ways are
-preserved. The final review file contains only records still needing review.
-If any source cache cannot be loaded or saved, the previous review file is kept
-so that pending decisions are not lost.
+preserved. The original `reverseLookupResult` remains unchanged. Each final
+review file contains only records still in its corresponding status. Unchanged
+files are not rewritten. If any source cache cannot be loaded or saved, the
+previous review files are kept so that pending decisions are not lost.
 
 Each mapping includes derived review links when the relevant values are available:
 `candidateOsmWayUrl`, `osmWayIdUrl`, and `coordinatesOsmUrl` (map zoom 17, with

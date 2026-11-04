@@ -148,11 +148,11 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
         return counts;
     }
 
-    /** Remaining review candidates, keyed by counter ID; the cache itself stays private. */
-    public Map<String, OSMWayMapping> getWayMappingsNeedingReview() {
+    /** Mappings with the requested status, keyed by counter ID; the cache itself stays private. */
+    public Map<String, OSMWayMapping> getWayMappingsByStatus(OSMWayMappingStatus status) {
         Map<String, OSMWayMapping> review = new LinkedHashMap<>();
         mappings.forEach((id, mapping) -> {
-            if (mapping != null && mapping.getStatus() == OSMWayMappingStatus.NEEDS_REVIEW) {
+            if (mapping != null && mapping.getStatus() == status) {
                 review.put(id, mapper.convertValue(mapping, OSMWayMapping.class));
             }
         });
@@ -181,7 +181,8 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
             OSMWayMapping current = mappings.get(entry.getKey());
             // A stale review must not replace a way that has already been assigned.
             if (decision.getStatus() != OSMWayMappingStatus.MATCHED || current == null
-                    || current.getStatus() != OSMWayMappingStatus.NEEDS_REVIEW || mappedWayId(current) != null) {
+                    || (current.getStatus() != OSMWayMappingStatus.NEEDS_REVIEW
+                        && current.getStatus() != OSMWayMappingStatus.NOT_FOUND) || mappedWayId(current) != null) {
                 continue;
             }
             current.setOsmWayId(decision.getCandidateOsmWayId());

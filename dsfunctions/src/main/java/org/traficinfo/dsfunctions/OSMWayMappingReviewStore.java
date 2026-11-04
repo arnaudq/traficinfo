@@ -14,6 +14,8 @@ import java.util.TreeMap;
 /** The global manual-review document, grouped by data source prefix and then counter ID. */
 class OSMWayMappingReviewStore {
     static final String OBJECT_NAME = "OSMWayMapping_NEEDS_REVIEW.json";
+    static final String NOT_FOUND_OBJECT_NAME = "OSMWayMapping_NOT_FOUND.json";
+    private final String objectName;
     private final ObjectStoreClient client;
     private final ObjectMapper mapper = new ObjectMapper()
             .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
@@ -22,11 +24,20 @@ class OSMWayMappingReviewStore {
     record SaveResult(boolean written, int added, int changed, int removed) { }
 
     OSMWayMappingReviewStore(ObjectStoreClient client) {
+        this(client, OSMWayMappingStatus.NEEDS_REVIEW);
+    }
+
+    OSMWayMappingReviewStore(ObjectStoreClient client, OSMWayMappingStatus status) {
         this.client = client;
+        this.objectName = "OSMWayMapping_" + status.name() + ".json";
+    }
+
+    String getObjectName() {
+        return objectName;
     }
 
     Map<String, Map<String, OSMWayMapping>> load() throws IOException {
-        try (InputStream input = client.getResource(OBJECT_NAME)) {
+        try (InputStream input = client.getResource(objectName)) {
             Map<String, Map<String, OSMWayMapping>> review = mapper.readValue(input,
                     new TypeReference<TreeMap<String, Map<String, OSMWayMapping>>>() { });
             if (review == null || review.values().stream().anyMatch(group -> group == null
@@ -68,7 +79,7 @@ class OSMWayMappingReviewStore {
         }
         byte[] json = mapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(review);
         try (InputStream input = new ByteArrayInputStream(json)) {
-            client.putResource(OBJECT_NAME, "application/json", new OOSResourceMetadata(), input);
+            client.putResource(objectName, "application/json", new OOSResourceMetadata(), input);
         }
         previousReview = current;
         return new SaveResult(true, added, changed, removed);

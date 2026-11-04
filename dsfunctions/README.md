@@ -513,27 +513,33 @@ budget still appear in the totals and global review document.
 A missing cache starts empty; other load/save errors throw after processing
 the remaining resources. An empty bucket returns `OK`.
 
-`OSMWayMapping_NEEDS_REVIEW.json` in the same bucket is a pretty-printed global
-review document: data source prefix → counter ID → mapping record. Every loaded
-source has an object, empty when it has no `NEEDS_REVIEW` records. At startup,
-the function reads this file (a missing object starts empty). A reviewer can
-change a record to `MATCHED` and optionally correct `candidateOsmWayId`, then
-reupload it. For a current review candidate, the function assigns that positive
+Two pretty-printed global review documents in the same bucket use the structure
+data source prefix → counter ID → mapping record:
+
+- `OSMWayMapping_NEEDS_REVIEW.json` contains `NEEDS_REVIEW` records.
+- `OSMWayMapping_NOT_FOUND.json` contains `NOT_FOUND` records.
+
+Every loaded source has an object in each document, empty when it has no records
+in that status. At startup, the function reads both files (a missing object
+starts empty). A reviewer can set a record to `MATCHED` and supply or correct a
+positive `candidateOsmWayId`, then reupload its file. For a current `NEEDS_REVIEW`
+or `NOT_FOUND` record, the function assigns that positive
 candidate ID to `osmWayId`, clears the candidate/review reason, updates
 `lastUpdated`, saves the source mapping cache, and queues tag refresh. Existing
 positive assignments are preserved. Invalid approvals fail without replacing
-the review file. Processed counts include manual approvals.
+the review files. Processed counts include manual approvals. The original
+`reverseLookupResult` is retained even when a different way is manually assigned.
 
-At the end, the document is rebuilt from all source caches, including sources
+At the end, each document is rebuilt from all source caches, including sources
 whose API batches were skipped by the time budget. Applied approvals disappear
-from it. The function logs added, changed, and removed record counts relative to
-the document loaded at startup, identifying records by data source and counter ID.
+from their status-specific file. The function logs added, changed, and removed
+record counts for each document relative to the document loaded at startup, identifying records by data source and counter ID.
 Changes to any serialized record field, including timestamps, count as changes;
 JSON formatting and object-key order do not. An unchanged document skips the PUT.
 A missing document is created even when empty; changes to empty source groups
 also update the document without increasing the record counts.
-A load/save failure preserves the previous review document rather than
-publishing incomplete results. Each mapping has generated `candidateOsmWayUrl`,
+A source-cache load/save failure preserves both previous review documents
+rather than publishing incomplete results. Each mapping has generated `candidateOsmWayUrl`,
 `osmWayIdUrl`, and `coordinatesOsmUrl` links where IDs/coordinates are valid; map
 links use `https://www.openstreetmap.org/?mlat={latitude}&mlon={longitude}#map=17/{latitude}/{longitude}`
 to show a marker at the exact coordinates. Uploaded
