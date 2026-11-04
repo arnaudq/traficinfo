@@ -1,6 +1,7 @@
 package org.traficinfo.parsers;
 
 import org.traficinfo.parsers.m3m.M3MComptage;
+import org.traficinfo.parsers.mrn.MRNComptage;
 import org.traficinfo.parsers.dpt34.DPT34ComptageParser;
 
 import org.geojson.Feature;
@@ -58,6 +59,55 @@ public class GeoJsonParserTest extends ParserBaseTest {
             assertEquals(type.name(), feature.getProperty("type"));
             assertFalse(feature.getProperties().containsKey("shape-icon"));
             assertEquals(bicycle ? 500 : 1000, (int) feature.getProperty("moyenne_jour_annuelle"));
+        }
+    }
+
+    @Test
+    public void filtersMrnRecordsBeforeRequestingOsmMappingsOrTags() throws Exception {
+        int year = Year.now().getValue();
+        for (Comptage.Type type : List.of(Comptage.Type.VEHICULES, Comptage.Type.BICYCLES)) {
+            List<MRNComptage> records = new ArrayList<>();
+            for (String name : List.of("validMapped", "validProvided", "missing", "zero", "negative", "tooLarge", "old", "unknown")) {
+                MRNComptage record = new MRNComptage();
+                record.setCodeCentrale("MRN_" + name);
+                record.setAnnee(name.equals("old") ? year - 100 : year);
+                record.setType(name.equals("unknown") ? Comptage.Type.UNKNOWN : type);
+                record.setLatitude(49.4);
+                record.setLongitude(1.1);
+                if (!name.equals("missing")) record.setMoyenneJourAnnuelle(500);
+                switch (name) {
+                    case "validProvided" -> record.setOsmWayId(123L);
+                    case "zero" -> { record.setMoyenneJourAnnuelle(0); record.setOsmWayId(456L); }
+                    case "negative" -> record.setMoyenneJourAnnuelle(-1);
+                    case "tooLarge" -> { record.setMoyenneJourAnnuelle(300000); record.setOsmWayId(789L); }
+                    default -> { }
+                }
+                records.add(record);
+            }
+            List<String> mappingRequests = new ArrayList<>();
+            Set<Long> tagRequests = new LinkedHashSet<>();
+            OSMInfoProvider provider = new OSMInfoProvider() {
+                @Override public Long getWayId(String id, Point point, String roadReference) {
+                    mappingRequests.add(id);
+                    return 321L;
+                }
+                @Override public OSMWayInfo getWayInfo(long id) {
+                    tagRequests.add(id);
+                    return new OSMWayInfo(java.time.Instant.EPOCH, java.util.Map.of("maxspeed", "50"));
+                }
+            };
+            StringWriter output = new StringWriter();
+            var statistics = GeoJsonParser.writeGeoJsonWithStatistics(GeoJsonParser.DataSource.MRN,
+                    records, new FeatureCollection(), output, provider, type);
+            assertEquals(List.of("MRN_validMapped"), mappingRequests);
+            assertEquals(Set.of(123L, 321L), tagRequests);
+            assertEquals(java.util.Map.of(year, 6L, year - 100, 1L), statistics.recordsBeforeFiltering());
+            assertEquals(java.util.Map.of(year, 2L), statistics.recordsAfterFiltering());
+            assertEquals(2, statistics.featureCount());
+            FeatureCollection result = GeoJsonParser.parseGeoJSON(new StringReader(output.toString()));
+            for (Feature feature : result.getFeatures()) {
+                assertEquals("50", feature.getProperty("maximum_speed"));
+            }
         }
     }
 

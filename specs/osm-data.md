@@ -97,7 +97,9 @@ objects per data source are stored in the `osminfo` bucket:
 - `<sourceId>_OSMInfo.json`: way IDs, their OSM tags, and the timestamp of the last
   successful tag refresh.
 
-GeoJSON generation reads these caches first. Missing way-tag entries and entries
+GeoJSON generation loads these caches, then filters records before OSM enrichment.
+Records excluded by count, year, population, or other output filters do not create
+mapping entries or queue tag requests. Missing way-tag entries and entries
 older than three calendar months are queued for refresh after publishing the
 GeoJSON. Existing cached values remain usable, and newly fetched data is
 available to subsequent invocations. Failed requests preserve existing tags.
@@ -131,8 +133,8 @@ For example, the `NEEDS_REVIEW` file contains:
 
 Download either file, set a positive `candidateOsmWayId` to the chosen road way,
 change the record's `status` to `MATCHED`, and upload it to the same object.
-`NOT_FOUND` records generally have no candidate ID, so add that field when
-approving them.
+`NOT_FOUND` records include `"candidateOsmWayId": null`; replace `null` with the
+chosen way ID when approving them.
 At the start of the next run, accepted candidates become `osmWayId` assignments
 in their source caches, with tag refresh queued. Existing assigned ways are
 preserved. The original `reverseLookupResult` remains unchanged. Each final

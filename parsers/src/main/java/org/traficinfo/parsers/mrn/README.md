@@ -63,7 +63,8 @@ The parser uses an explicit `TYPE_MAP` keyed by `Type de Campagne`, with a
 population-details map for soft-mode campaigns. Missing mappings default to
 `UNKNOWN`, never vehicles. Unknown populations and missing counts are retained
 by the parser. The shared
-GeoJSON filters exclude missing/zero averages and currently include only
+GeoJSON filters run before OSM enrichment, so excluded records do not create
+way mappings or queue OSM tag requests. They exclude missing/zero averages and currently include only
 vehicles and bicycles, exported separately as `MRN_TraficInfo.geojson` and
 `MRN_TraficInfo_BICYCLES.geojson`. Unknown populations are excluded even if they contain
 counts. Location-only junction and soft-mode surveys therefore

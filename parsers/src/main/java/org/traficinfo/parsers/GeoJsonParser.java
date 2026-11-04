@@ -183,8 +183,8 @@ public class GeoJsonParser {
         logSpeedCoverage(dataSource, "input records " + type, selected.size(),
                 selected.stream().filter(comptage -> comptage.getV85Speed() > 0).count(),
                 selected.stream().filter(comptage -> comptage.getMeanSpeed() > 0).count());
-        applyOsmInfo(selected, osmInfoProvider);
         List<? extends Comptage> filtered = filterRecords(selected, EnumSet.of(type));
+        applyOsmInfo(filtered, osmInfoProvider);
         FeatureCollection outCol = buildFilteredRecords(geoJsonColl.getFeatures(), filtered);
         outCol.getFeatures().forEach(feature -> feature.setProperty("data_source", dataSource.getId()));
         logSpeedCoverage(dataSource, "GeoJSON features " + type, outCol.getFeatures().size(),

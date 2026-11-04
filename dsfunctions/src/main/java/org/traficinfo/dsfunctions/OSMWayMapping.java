@@ -37,6 +37,7 @@ public class OSMWayMapping {
     private String firstSeen;
     private String lastSeen;
     private String lastUpdated;
+    @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonDeserialize(using = WayIdDeserializer.class)
     private Long candidateOsmWayId;
     private String osmRoadReference;

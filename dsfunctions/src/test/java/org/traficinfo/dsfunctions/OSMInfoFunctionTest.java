@@ -324,7 +324,7 @@ public class OSMInfoFunctionTest {
         assertEquals("MATCHED", saved.get("status").asText());
         assertEquals(777L, saved.get("osmWayId").asLong());
         assertEquals("https://www.openstreetmap.org/way/777", saved.get("osmWayIdUrl").asText());
-        assertFalse(saved.has("candidateOsmWayId"));
+        assertTrue(saved.get("candidateOsmWayId").isNull());
         assertFalse(saved.has("reviewReason"));
         assertEquals("D11", saved.get("sourceRoadReference").asText());
         review = json.readTree(store.objects.get(reviewName));
@@ -365,7 +365,7 @@ public class OSMInfoFunctionTest {
         assertEquals(1, json.readTree(store.objects.get(OSMWayMappingReviewStore.OBJECT_NAME)).get("DPT34").size());
         var approval = (com.fasterxml.jackson.databind.node.ObjectNode) notFound.get("DPT34").get("missingRoad");
         assertTrue(approval.has("coordinatesOsmUrl"));
-        assertFalse(approval.has("candidateOsmWayId"));
+        assertTrue(approval.get("candidateOsmWayId").isNull());
         JsonNode originalReverseResult = approval.get("reverseLookupResult").deepCopy();
         approval.put("candidateOsmWayId", 777);
         approval.put("status", "MATCHED");
@@ -375,7 +375,7 @@ public class OSMInfoFunctionTest {
         assertEquals("MATCHED", saved.get("status").asText());
         assertEquals(777, saved.get("osmWayId").asLong());
         assertFalse(saved.has("reviewReason"));
-        assertFalse(saved.has("candidateOsmWayId"));
+        assertTrue(saved.get("candidateOsmWayId").isNull());
         assertEquals(originalReverseResult, saved.get("reverseLookupResult"));
         assertEquals(List.of(777L), tagsRequested);
         JsonNode remaining = json.readTree(store.objects.get(objectName)).get("DPT34");
