@@ -46,6 +46,11 @@ public class OpenStreetMapClient implements AutoCloseable {
         this.reverseIntervalNanos = TimeUnit.MILLISECONDS.toNanos(reverseIntervalMillis);
     }
 
+    /** Deduplicate responses only within one run; preserve request spacing across reused invocations. */
+    synchronized void clearReverseLookupCache() {
+        reverseResults.clear();
+    }
+
     /** Public Nominatim scheduled jobs are limited to four requests per minute. */
     public synchronized JsonNode reverseLookup(double latitude, double longitude)
             throws IOException, InterruptedException {

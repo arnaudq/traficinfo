@@ -548,8 +548,8 @@ links are ignored and regenerated, including when a candidate ID is edited.
 Before the API loop, a cache-only first pass reports eligible reverse lookup
 counts per data source, the total number of eligible records, and the number of
 sources with pending lookups. Counts use the same eligibility rule as processing:
-no usable way ID, valid coordinates, and no reverse result cached for those
-coordinates. Cached review/negative outcomes and records without coordinates do
+no usable way ID, valid coordinates, and either `MISSING` status or no reverse
+result cached for those coordinates. Cached review/negative outcomes and records without coordinates do
 not inflate demand; HTTP failures and changed coordinates remain eligible.
 These counts determine each source’s share of the run-wide lookup budget.
 
@@ -573,8 +573,12 @@ integer constants in `OSMInfoFunction` provide defaults when the keys are absent
 All reverse interaction is initiated by `OSMInfoProviderImpl.refreshWayMappings()`.
 It uses valid cached coordinates and requests Nominatim with `format=jsonv2`,
 `zoom=17`, `layer=address`, `extratags=1`, and `namedetails=1`. Only positive OSM **way** IDs with
-road highway classifications are accepted; buildings, nodes, relations, and
-footways are rejected. When a source road reference exists, the OSM `namedetails.ref` must
+road highway classifications are accepted, using either `category=highway` with
+an accepted `type`, or an accepted `extratags.highway` value. This permits road
+ways classified by Nominatim as administrative boundaries. Nodes, relations,
+and ways without a supported road classification (such as steps or buildings)
+are rejected. `footway`, `cycleway`, and `path` are accepted for every counter
+regardless of transport type or bicycle-access tags; reference checks still apply. When a source road reference exists, the OSM `namedetails.ref` must
 match after removing spacing, punctuation, and leading zeroes from each number
 following a letter (`D0011` matches `D 11`; `D0111E01` matches `D 111E1`).
 A change from `D 11` to `M 11` requires review rather than automatic assignment.
@@ -590,6 +594,12 @@ query coordinates are saved in `reverseLookupResult`, `lastLookupLatitude`, and
 `lastLookupLongitude`, with attempt time in `lastLookupAt`. Successful negative
 and review responses are cached, so unchanged coordinates are not repeatedly
 queried on subsequent hourly runs. Changed coordinates become eligible again.
+Setting a source-cache record to `MISSING` explicitly requests another lookup,
+even when `reverseLookupResult` exists for unchanged coordinates. The successful
+response replaces the old result and determines the new status; an HTTP failure
+preserves the old result and leaves the record `MISSING` for a later retry.
+Demand counting uses the same rule. A valid location and no assigned positive
+way ID are still required, and existing batch limits and priority apply.
 HTTP errors remain eligible for later runs. Existing positive IDs and unrelated
 seed metadata are preserved; only changed mapping caches are written. Each
 successfully resolved mapping queues its way ID for tag refresh, deduplicated
@@ -601,7 +611,7 @@ failed requests count toward that limit and preserve previous cached tags.
 
 `OpenStreetMapClient` defines `REVERSE_INTERVAL_SECONDS` (`15`) and uses it in
 its default constructor. The shared reverse client spaces request starts by at least **15 seconds** across
-all resources, caches repeated coordinates within the process, identifies the
+all resources, caches repeated coordinates within each run, identifies the
 application with its User-Agent, and makes no immediate retries. Each reverse lookup logs its full request URL and response at INFO level,
 including the HTTP status and complete body for unsuccessful responses; cached
 responses are identified explicitly. Transport failures log the URL and error.

@@ -2,7 +2,7 @@ package org.traficinfo.dsfunctions;
 
 /** Outcome of assigning an OSM road way to a traffic counter. */
 public enum OSMWayMappingStatus {
-    /** No usable assignment yet: lookup is pending, coordinates are unavailable, or an HTTP attempt failed. */
+    /** Lookup is pending or explicitly requested again; coordinates may be unavailable or an HTTP attempt may have failed. */
     MISSING,
     /** A road way is assigned, either from the seed/manual cache or an accepted reverse lookup. */
     MATCHED,

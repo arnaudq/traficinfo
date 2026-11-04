@@ -114,6 +114,7 @@ public class OSMInfoFunction {
     }
 
     private String refreshMappings() {
+        osmClient.clearReverseLookupCache();
         int caches = 0;
         int failures = 0;
         boolean completeReview = false;

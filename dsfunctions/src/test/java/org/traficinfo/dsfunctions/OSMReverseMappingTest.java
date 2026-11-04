@@ -97,7 +97,7 @@ public class OSMReverseMappingTest {
     public void rejectsNonRoadObjectsAndMissingReferenceAndPersistsBeforeInterruption() throws Exception {
         for (String result : List.of(
                 "{\"osm_type\":\"node\",\"osm_id\":1,\"category\":\"highway\",\"type\":\"primary\"}",
-                "{\"osm_type\":\"way\",\"osm_id\":1,\"category\":\"highway\",\"type\":\"footway\"}",
+                "{\"osm_type\":\"way\",\"osm_id\":1,\"category\":\"highway\",\"type\":\"steps\"}",
                 "{\"osm_type\":\"way\",\"osm_id\":1,\"category\":\"highway\",\"type\":\"primary\"}")) {
             Store store = new Store();
             store.objects.put("mappings.json", ("{\"A\":{\"latitude\":43,\"longitude\":3,"
@@ -131,6 +131,178 @@ public class OSMReverseMappingTest {
         } finally {
             Thread.interrupted();
         }
+    }
+
+    @Test
+    public void acceptsRoadHighwayTagOnBoundaryWayAndStillValidatesReferenceAndObject() throws Exception {
+        for (String scenario : List.of("matched", "different_ref", "steps", "node", "invalid_id", "no_highway")) {
+            var result = (com.fasterxml.jackson.databind.node.ObjectNode) JSON.readTree(
+                    "{\"osm_type\":\"way\",\"osm_id\":35141862,\"category\":\"boundary\","
+                    + "\"type\":\"administrative\",\"name\":\"Route d'Ouville\","
+                    + "\"extratags\":{\"highway\":\"primary\",\"maxspeed\":\"80\"},"
+                    + "\"namedetails\":{\"ref\":\"D 925\"}}");
+            switch (scenario) {
+                case "different_ref" -> ((com.fasterxml.jackson.databind.node.ObjectNode) result.get("namedetails"))
+                        .put("ref", "D 926");
+                case "steps" -> ((com.fasterxml.jackson.databind.node.ObjectNode) result.get("extratags"))
+                        .put("highway", "steps");
+                case "node" -> result.put("osm_type", "node");
+                case "invalid_id" -> result.put("osm_id", 0);
+                case "no_highway" -> result.remove("extratags");
+                default -> { }
+            }
+            Store store = new Store();
+            OSMWayMapping mapping = new OSMWayMapping();
+            mapping.setLatitude(49.8923906373954);
+            mapping.setLongitude(1.03978726868645);
+            mapping.setSourceRoadReference("D0925");
+            store.objects.put("mappings.json", JSON.writeValueAsBytes(Map.of("DPT76_237", mapping)));
+            OSMInfoProviderImpl provider = provider(store, new OpenStreetMapClient() {
+                @Override public JsonNode reverseLookup(double latitude, double longitude) {
+                    return result;
+                }
+            });
+            provider.loadCache();
+            provider.refreshWayMappings(1);
+            JsonNode saved = JSON.readTree(store.objects.get("mappings.json")).get("DPT76_237");
+            String expected = scenario.equals("matched") ? "MATCHED"
+                    : scenario.equals("different_ref") ? "NEEDS_REVIEW" : "NOT_FOUND";
+            assertEquals(scenario, expected, saved.get("status").asText());
+            assertEquals(result, saved.get("reverseLookupResult"));
+            if (scenario.equals("matched")) {
+                assertEquals(35141862L, saved.get("osmWayId").asLong());
+                assertEquals("D 925", saved.get("osmRoadReference").asText());
+            } else {
+                assertTrue(saved.get("osmWayId").isNull());
+                assertEquals(scenario.equals("different_ref") ? "different_ref" : "no_road_way",
+                        saved.get("reviewReason").asText());
+            }
+        }
+    }
+
+    @Test
+    public void acceptsFootwaysCyclewaysAndPathsThroughEitherClassificationWithoutAccessChecks() throws Exception {
+        for (String highway : List.of("footway", "cycleway", "path")) {
+            for (boolean extraTags : List.of(false, true)) {
+                for (String referenceCase : List.of("absent", "matching", "different")) {
+                    Store store = new Store();
+                    OSMWayMapping mapping = new OSMWayMapping();
+                    mapping.setLatitude(43.5);
+                    mapping.setLongitude(3.2);
+                    if (!referenceCase.equals("absent")) {
+                        mapping.setSourceRoadReference(referenceCase.equals("matching") ? "D0123" : "D0124");
+                    }
+                    store.objects.put("mappings.json", JSON.writeValueAsBytes(Map.of("counter", mapping)));
+                    var result = JSON.createObjectNode();
+                    result.put("osm_type", "way");
+                    result.put("osm_id", 123);
+                    result.put("category", extraTags ? "boundary" : "highway");
+                    result.put("type", extraTags ? "administrative" : highway);
+                    if (extraTags) result.putObject("extratags").put("highway", highway);
+                    if (!referenceCase.equals("absent")) result.putObject("namedetails").put("ref", "D 123");
+                    OSMInfoProviderImpl provider = provider(store, new OpenStreetMapClient() {
+                        @Override public JsonNode reverseLookup(double latitude, double longitude) {
+                            return result;
+                        }
+                    });
+                    provider.loadCache();
+                    provider.refreshWayMappings(1);
+                    JsonNode saved = JSON.readTree(store.objects.get("mappings.json")).get("counter");
+                    String context = highway + ", extraTags=" + extraTags + ", reference=" + referenceCase;
+                    assertEquals(context, referenceCase.equals("different") ? "NEEDS_REVIEW" : "MATCHED",
+                            saved.get("status").asText());
+                    if (referenceCase.equals("different")) {
+                        assertEquals("different_ref", saved.get("reviewReason").asText());
+                        assertTrue(saved.get("osmWayId").isNull());
+                    } else {
+                        assertEquals(context, 123, saved.get("osmWayId").asLong());
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    public void missingStatusReplacesCachedOutcomeAndStillRequiresCoordinatesAndNoAssignedWay() throws Exception {
+        for (String outcome : List.of("MATCHED", "NEEDS_REVIEW", "NOT_FOUND")) {
+            Store store = new Store();
+            var mappings = JSON.createObjectNode();
+            var pending = mappings.putObject("reset");
+            pending.put("status", "MISSING").put("latitude", 43.5).put("longitude", 3.2)
+                    .put("lastLookupLatitude", 43.5).put("lastLookupLongitude", 3.2).put("sourceRoadReference", "D0123");
+            pending.putObject("reverseLookupResult").put("error", "Old lookup result");
+            for (String cachedStatus : List.of("NEEDS_REVIEW", "NOT_FOUND")) {
+                var cached = pending.deepCopy();
+                cached.put("status", cachedStatus);
+                mappings.set(cachedStatus, cached);
+            }
+            mappings.set("noCoordinates", pending.deepCopy().putNull("latitude"));
+            mappings.set("invalidCoordinates", pending.deepCopy().put("latitude", 91));
+            mappings.set("assigned", pending.deepCopy().put("osmWayId", 321));
+            store.objects.put("mappings.json", JSON.writeValueAsBytes(mappings));
+            var replacement = JSON.createObjectNode();
+            if (outcome.equals("NOT_FOUND")) {
+                replacement.put("error", "New lookup found no road");
+            } else {
+                replacement.put("osm_type", "way").put("osm_id", 123).put("category", "highway").put("type", "primary");
+                replacement.putObject("namedetails").put("ref", outcome.equals("MATCHED") ? "D 123" : "D 124");
+            }
+            List<Double> requests = new ArrayList<>();
+            OSMInfoProviderImpl provider = provider(store, new OpenStreetMapClient() {
+                @Override public JsonNode reverseLookup(double latitude, double longitude) {
+                    requests.add(latitude);
+                    return replacement;
+                }
+            });
+            provider.loadCache();
+            assertEquals(1, provider.getPendingReverseLookupCount());
+            assertTrue(requests.isEmpty());
+            provider.refreshWayMappings(10);
+            assertEquals(List.of(43.5), requests);
+            JsonNode saved = JSON.readTree(store.objects.get("mappings.json"));
+            assertEquals(outcome, saved.get("reset").get("status").asText());
+            assertEquals(replacement, saved.get("reset").get("reverseLookupResult"));
+            assertEquals(mappings.get("NOT_FOUND").get("reverseLookupResult"),
+                    saved.get("NOT_FOUND").get("reverseLookupResult"));
+            assertEquals(321, saved.get("assigned").get("osmWayId").asLong());
+            provider.loadCache();
+            assertEquals(0, provider.getPendingReverseLookupCount());
+            provider.refreshWayMappings(10);
+            assertEquals(List.of(43.5), requests);
+        }
+    }
+
+    @Test
+    public void failedExplicitRetryRetainsPreviousResponseAndRemainsEligible() throws Exception {
+        Store store = new Store();
+        var mapping = JSON.createObjectNode();
+        mapping.put("status", "MISSING").put("latitude", 43.5).put("longitude", 3.2)
+                .put("lastLookupLatitude", 43.5).put("lastLookupLongitude", 3.2);
+        var previous = mapping.putObject("reverseLookupResult").put("error", "Old lookup result").deepCopy();
+        store.objects.put("mappings.json", JSON.writeValueAsBytes(Map.of("reset", mapping)));
+        List<Double> requests = new ArrayList<>();
+        var replacement = JSON.createObjectNode().put("error", "New lookup result");
+        OpenStreetMapClient client = new OpenStreetMapClient() {
+            @Override public JsonNode reverseLookup(double latitude, double longitude) throws IOException {
+                requests.add(latitude);
+                if (requests.size() == 1) throw new IOException("HTTP 503");
+                return replacement;
+            }
+        };
+        OSMInfoProviderImpl provider = provider(store, client);
+        provider.loadCache();
+        provider.refreshWayMappings(1);
+        JsonNode failed = JSON.readTree(store.objects.get("mappings.json")).get("reset");
+        assertEquals("MISSING", failed.get("status").asText());
+        assertEquals(previous, failed.get("reverseLookupResult"));
+        provider.loadCache();
+        assertEquals(1, provider.getPendingReverseLookupCount());
+        provider.refreshWayMappings(1);
+        JsonNode saved = JSON.readTree(store.objects.get("mappings.json")).get("reset");
+        assertEquals("NOT_FOUND", saved.get("status").asText());
+        assertEquals(replacement, saved.get("reverseLookupResult"));
+        assertEquals(List.of(43.5, 43.5), requests);
+        assertEquals(0, provider.getPendingReverseLookupCount());
     }
 
     @Test

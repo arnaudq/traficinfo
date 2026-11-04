@@ -460,6 +460,45 @@ public class OSMInfoFunctionTest {
     }
 
     @Test
+    public void missingResetMakesFreshHttpRequestWhenFunctionInstanceIsReused() throws Exception {
+        var server = com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1", 0), 0);
+        AtomicInteger requests = new AtomicInteger();
+        server.createContext("/reverse", exchange -> {
+            String body = requests.incrementAndGet() == 1 ? "{\"error\":\"No road found\"}"
+                    : "{\"osm_type\":\"way\",\"osm_id\":123,\"category\":\"highway\",\"type\":\"primary\"}";
+            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200, bytes.length);
+            exchange.getResponseBody().write(bytes);
+            exchange.close();
+        });
+        server.start();
+        try {
+            var base = java.net.URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/");
+            OpenStreetMapClient client = new OpenStreetMapClient(java.net.http.HttpClient.newHttpClient(), base, base, 0) {
+                @Override public Map<String, String> getWayTags(long wayId) { return Map.of(); }
+            };
+            Store store = new Store();
+            store.objects.put("DPT34_OSMWayMapping.json", "{\"counter\":{\"latitude\":43.5,\"longitude\":3.2}}");
+            OSMInfoFunction function = new OSMInfoFunction(store, client, () -> 0L);
+            assertEquals("OK", function.handleRequest(""));
+            ObjectMapper json = new ObjectMapper();
+            var cache = (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree(store.objects.get("DPT34_OSMWayMapping.json"));
+            var counter = (com.fasterxml.jackson.databind.node.ObjectNode) cache.get("counter");
+            assertEquals("NOT_FOUND", counter.get("status").asText());
+            counter.put("status", "MISSING"); // Keep the old response and lookup coordinates.
+            store.objects.put("DPT34_OSMWayMapping.json", json.writeValueAsString(cache));
+            assertEquals("OK", function.handleRequest(""));
+            JsonNode saved = json.readTree(store.objects.get("DPT34_OSMWayMapping.json")).get("counter");
+            assertEquals(2, requests.get());
+            assertEquals("MATCHED", saved.get("status").asText());
+            assertEquals(123, saved.get("osmWayId").asLong());
+            assertEquals(123, saved.get("reverseLookupResult").get("osm_id").asLong());
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
     public void sharesRunBudgetEvenlyAndRedistributesUnusedShares() {
         Map<String, Integer> demand = new LinkedHashMap<>();
         demand.put("MMM", 0);

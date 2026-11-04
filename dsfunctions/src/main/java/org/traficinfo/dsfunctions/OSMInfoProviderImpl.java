@@ -33,6 +33,9 @@ import java.util.EnumMap;
 public class OSMInfoProviderImpl implements OSMInfoProvider {
     private static final Logger LOG = LoggerFactory.getLogger(OSMInfoProviderImpl.class);
     private static final int MAX_OSM_REQUESTS = 100;
+    private static final Set<String> ROAD_HIGHWAY_TYPES = Set.of("motorway", "trunk", "primary", "secondary",
+            "tertiary", "unclassified", "residential", "living_street", "service", "road", "motorway_link",
+            "trunk_link", "primary_link", "secondary_link", "tertiary_link", "footway", "cycleway", "path");
 
     private final ObjectStoreClient osmCacheOSClient;
     private final OpenStreetMapClient osmClient;
@@ -118,7 +121,7 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
         return (int) mappings.values().stream().filter(mapping -> mappedWayId(mapping) == null).count();
     }
 
-    /** Records eligible for a reverse request now, excluding cached outcomes and missing/invalid coordinates. */
+    /** Records eligible now: MISSING requests a fresh lookup; other cached outcomes remain reusable. */
     public int getPendingReverseLookupCount() {
         if (mappingObject == null) {
             return 0;
@@ -237,7 +240,7 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
         return null;
     }
 
-    /** Resolves a bounded batch; successful negative and review results are cached until coordinates change. */
+    /** Resolves a bounded batch; cached outcomes are reused until coordinates change or status is reset to MISSING. */
     public void refreshWayMappings(int maximumMappings) throws IOException, InterruptedException {
         if (mappingObject == null || maximumMappings <= 0) {
             return;
@@ -300,7 +303,8 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
     }
 
     private static boolean needsReverseLookup(OSMWayMapping mapping) {
-        return mappedWayId(mapping) == null && hasCoordinates(mapping) && !hasCachedReverseResult(mapping);
+        return mappedWayId(mapping) == null && hasCoordinates(mapping)
+                && (mapping.getStatus() == OSMWayMappingStatus.MISSING || !hasCachedReverseResult(mapping));
     }
 
     private static boolean hasCoordinates(OSMWayMapping mapping) {
@@ -317,11 +321,11 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
 
     private static void applyReverseResult(OSMWayMapping mapping, JsonNode result) {
         Long wayId = reverseWayId(result.path("osm_id"));
+        // Nominatim can classify a road way as an administrative boundary while retaining its highway tag.
         boolean road = "way".equals(result.path("osm_type").asText())
-                && "highway".equals(result.path("category").asText())
-                && Set.of("motorway", "trunk", "primary", "secondary", "tertiary", "unclassified",
-                        "residential", "living_street", "service", "road", "motorway_link", "trunk_link",
-                        "primary_link", "secondary_link", "tertiary_link").contains(result.path("type").asText());
+                && (("highway".equals(result.path("category").asText())
+                        && ROAD_HIGHWAY_TYPES.contains(result.path("type").asText()))
+                    || ROAD_HIGHWAY_TYPES.contains(result.path("extratags").path("highway").asText()));
         mapping.setLastUpdated(mapping.getLastLookupAt());
         mapping.setDistanceMeters(null);
         if (!road || wayId == null) {

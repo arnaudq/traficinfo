@@ -21,8 +21,10 @@ We use two APIs:
   unknown rather than being guessed.
 - **Nominatim reverse API:** `https://nominatim.openstreetmap.org/reverse`
   finds an OSM object near a counter's latitude and longitude. We request road
-  level results and accept only suitable road ways. Where available, the source
-  road reference is compared with OSM's `namedetails.ref` (using `namedetails=1`), allowing formatting differences
+  level results and accept only suitable road ways. A supported road classification
+  may come from `category=highway` and `type`, or from `extratags.highway`; this
+  also accepts road ways classified as administrative boundaries by Nominatim.
+  Where available, the source road reference is compared with OSM's `namedetails.ref` (using `namedetails=1`), allowing formatting differences
   such as `D0011` versus `D 11` or `D0111E01` versus `D 111E1`. If a source reference is provided, a missing or
   differing OSM reference leaves a candidate for review instead of assigning
   the way automatically.
@@ -30,6 +32,42 @@ We use two APIs:
 Reverse geocoding can return a nearby different road or another kind of object.
 The response is therefore a candidate to validate, not proof of the correct road.
 Existing positive way IDs are preserved.
+
+## Candidate acceptance
+
+Automatic validation uses the Nominatim fields `osm_type`, `osm_id`, `category`,
+`type`, `extratags.highway`, and `namedetails.ref`, together with the source road
+identifier. The first four are response fields rather than OSM tags.
+
+The following table checks whether the candidate is a suitable road way before
+comparing references. `any` means that field does not affect that row's result.
+A valid ID is a positive integer fitting in a Java `long`, supplied as a JSON
+integer or a string containing only digits.
+
+| `osm_type` | `osm_id` | `category` | `type` | `extratags.highway` | Decision |
+| --- | --- | --- | --- | --- | --- |
+| `way` | Valid | `highway` | Supported road type | Any | Compare references below |
+| `way` | Valid | `boundary` | `administrative` | Supported road type | Compare references below |
+| `way` | Valid | Any | Any | Supported road type | Compare references below |
+| `node`, `relation`, other, or missing | Any | Any | Any | Any | `NOT_FOUND` (`no_road_way`) |
+| `way` | Missing, zero, negative, fractional, malformed, or overflowing | Any | Any | Any | `NOT_FOUND` (`no_road_way`) |
+| `way` | Valid | `highway` | Unsupported or missing | Unsupported or missing | `NOT_FOUND` (`no_road_way`) |
+| `way` | Valid | Other or missing | Any | Unsupported or missing | `NOT_FOUND` (`no_road_way`) |
+
+Supported road types for either `type` or `extratags.highway` are:
+`motorway`, `trunk`, `primary`, `secondary`, `tertiary`, `unclassified`,
+`residential`, `living_street`, `service`, `road`, `motorway_link`, `trunk_link`,
+`primary_link`, `secondary_link`, `tertiary_link`, `footway`, `cycleway`, and
+`path`. These are accepted regardless of the counter's transport type, without
+checking bicycle-access tags. Either road-classification path can qualify
+the way; an unsupported value in one path does not override a supported value
+in the other.
+
+For example, the DPT76 response with `category=boundary`, `type=administrative`,
+and `extratags.highway=primary` qualifies as a road. Its `namedetails.ref=D 925`
+matches source identifier `D0925`, producing `MATCHED`.
+
+### Road reference comparison
 
 For a suitable road way, the following table determines whether its reference
 is accepted. Rows are the `Comptage` road identifier; columns are OSM's
@@ -45,6 +83,9 @@ references after normalization (for example, `D0011` and `D 11` both represent `
 When a source identifier exists, `NEEDS_REVIEW` has reason `missing_osm_ref`
 if the OSM reference is absent, or `different_ref` if it differs. Without a
 source identifier, a suitable road way is accepted regardless of its reference.
+OSM references separated by `;` are compared individually; any normalized match
+is sufficient. Fields such as `name`, `address`, `maxspeed`, `lanes`, and
+`admin_level` do not determine candidate acceptance.
 
 ## Caching and processing
 
@@ -105,11 +146,16 @@ a marker at the exact latitude and longitude).
 Uploaded link values are ignored and regenerated from IDs and coordinates.
 
 Unsuitable or absent road results are recorded as `NOT_FOUND`; ambiguous road
-references are recorded as `NEEDS_REVIEW`. `MISSING` means no assignment yet,
-and `MATCHED` means an accepted way assignment. These values are defined in
+references are recorded as `NEEDS_REVIEW`. `MISSING` means lookup pending,
+including a manually requested retry; `MATCHED` means an accepted way assignment. These values are defined in
 `OSMWayMappingStatus`. These responses are cached for
-unchanged coordinates to avoid repeating unsuccessful queries. HTTP failures
-remain eligible for a later retry.
+unchanged coordinates to avoid repeating unsuccessful queries. To request a new
+lookup, set the record's status to `MISSING` in its source
+`<sourceId>_OSMWayMapping.json` cache and reupload it. No need to remove the old
+`reverseLookupResult`: a successful response replaces it and sets the new status.
+HTTP failures preserve the old response and leave `MISSING` eligible for retry.
+Valid coordinates and no positive assigned `osmWayId` are still required. The
+usual request limits, spacing, and processing priority apply.
 
 Reverse requests are sequential and spaced at least 15 seconds apart, per the
 [Nominatim usage policy](https://operations.osmfoundation.org/policies/nominatim/),
