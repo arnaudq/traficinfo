@@ -255,7 +255,7 @@ matching settings and verifies applied changes. During migration it creates
 availability coverage first, then renames and narrows the legacy
 `3MOpenDataProcessor-FunctionErrors` alarm. It does not create topics or
 subscriptions. Setup commands are in the
-[root README](../README.md#function-failure-emails).
+[setup specification](setup.md#function-failure-emails).
 
 After receiving an alert, use the function's resource ID to find its metrics
 and invocation logs. Inspect the failed operation and any outputs already

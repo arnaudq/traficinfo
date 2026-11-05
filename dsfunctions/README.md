@@ -76,7 +76,7 @@ Clients are created for the selected source inside its logging scope and closed
 after every invocation. No mutable source selection survives between requests.
 Configuration changes require rebuilding/redeploying the shared JAR; clock
 changes require only schedule setup. `setup-schedules.sh` generates
-`<id>Retrieval` schedules with minimal BODY payloads. See the root README for
+`<id>Retrieval` schedules with minimal BODY payloads. See the [setup specification](../specs/setup.md#retrieval-schedules) for
 per-source `scheduleClock` overrides and scheduler IAM requirements.
 
 `SourceObjectPublisher` streams changed inputs to the existing current Object
@@ -640,7 +640,7 @@ variables `MAX_LOOP_DURATION_SECONDS` and `MAX_WAY_MAPPINGS_PER_RUN` before depl
 the script applies these values on creation and updates. Keep the function runtime
 timeout above the configured loop budget plus time for the last bounded batch.
 The scheduling tag namespace/key and scheduler invoke permissions must already
-be configured as described in the root README.
+be configured as described in the [setup specification](../specs/setup.md#retrieval-schedules).
 
 ## Deployment and invocation
 
@@ -692,8 +692,8 @@ produce a failing exit status.
 
 The function resource principals need Object read/write access to the configured
 buckets; preprocessing also needs create/delete permissions for its publication lock. Scheduler principals must be allowed to invoke the shared retrieval function.
-See the root README for generated schedules, per-source `scheduleClock` overrides,
-application logging setup and event configuration.
+See the [setup specification](../specs/setup.md) for generated schedules,
+per-source `scheduleClock` overrides, application logging setup and event configuration.
 
 ## Manifest storage
 
@@ -709,4 +709,5 @@ GeoJSON and OSM handlers return `OK` on success and throw on invocation
 failure so OCI records an error for the function failure alarm. OSM refresh
 continues processing other caches before throwing if any cache failed.
 Recoverable OSM HTTP lookup failures keep their retry behavior. Set up email
-alerts using `scripts/setup-function-alerts.sh` as described in the root README.
+alerts using `scripts/setup-function-alerts.sh` as described in the
+[setup specification](../specs/setup.md#function-failure-emails).
