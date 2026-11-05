@@ -181,8 +181,8 @@ public class OSMReverseMappingTest {
     }
 
     @Test
-    public void acceptsFootwaysCyclewaysAndPathsThroughEitherClassificationWithoutAccessChecks() throws Exception {
-        for (String highway : List.of("footway", "cycleway", "path")) {
+    public void acceptsFootwaysCyclewaysPathsAndPedestrianWaysThroughEitherClassificationWithoutAccessChecks() throws Exception {
+        for (String highway : List.of("footway", "cycleway", "path", "pedestrian")) {
             for (boolean extraTags : List.of(false, true)) {
                 for (String referenceCase : List.of("absent", "matching", "different")) {
                     Store store = new Store();

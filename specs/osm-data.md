@@ -57,8 +57,8 @@ integer or a string containing only digits.
 Supported road types for either `type` or `extratags.highway` are:
 `motorway`, `trunk`, `primary`, `secondary`, `tertiary`, `unclassified`,
 `residential`, `living_street`, `service`, `road`, `motorway_link`, `trunk_link`,
-`primary_link`, `secondary_link`, `tertiary_link`, `footway`, `cycleway`, and
-`path`. These are accepted regardless of the counter's transport type, without
+`primary_link`, `secondary_link`, `tertiary_link`, `footway`, `cycleway`, `path`, and
+`pedestrian`. These are accepted regardless of the counter's transport type, without
 checking bicycle-access tags. Either road-classification path can qualify
 the way; an unsupported value in one path does not override a supported value
 in the other.
