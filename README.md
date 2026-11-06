@@ -2,46 +2,47 @@
 
 Traffic count and speed information are being made available by many local and regional authorities as open data. Unfortunately, it is usually published in its raw form, as a set of csv or geojson files, with at best, a rather clumsy map.
 
-TraficInfo brings public traffic-count data onto interactive maps so that anybody can answer questions like:
-* how many cars are passing in my street per day,
-* is the new generalized 30km/h default limit and zero vision of my city a reality ?
-* which streets would need a separate bike lane based on the street's trafic and average speed ?
-
-It combines vehicle and bicycle counts from different
-publishers into a common GeoJSON format, with annual history, daily averages
-and speed measurements where available. OpenStreetMap data adds road context,
-including speed limits and bicycle contraflow information.
+TraficInfo (single f in french :smile:) brings traffic-count data onto public interactive maps so that anybody can answer questions like:
+* How many cars are passing in my street per day ?
+* Is the new generalized 30km/h default limit of my city really enforced ?
+* Based on the street's traffic and average speed, which streets need a separate bike lane to become safe for cyclists  ?
+* Are we moving in the right directions towards [Vision Zero](https://en.wikipedia.org/wiki/Vision_Zero) ?
 
 The maps help readers explore traffic volumes by location and year. Select a
 counter to see its measurements and history, or use the map filters to narrow
 the displayed data. Coverage and available measurements depend on each source.
 
+TraficInfo combines vehicle and bicycle counts from different
+publishers into a common GeoJSON format, with annual history, daily averages
+and speed measurements where available. Using OpenStreetMap, it adds road context,
+including speed limits and bicycle contraflow information.
+
+
 ## Maps
 
-| Area | Data sources and counts | Map |
-| --- | --- | --- |
-| Montpellier and Hérault | Montpellier Méditerranée Métropole: vehicles and bicycles; Hérault department: vehicles | [Open map](http://umap.openstreetmap.fr/en/map/comptage-vehicules-montpellier_754880) |
-| Nîmes and Gard | Nîmes Métropole and Gard department: vehicles | [Open map](http://umap.openstreetmap.fr/en/map/comptage-vehicules-nimes_1478574) |
-| Rouen and Seine-Maritime | Métropole Rouen Normandie: vehicles and bicycles; Seine-Maritime department: vehicles | [uMap template](map-templates/MRN.umap); no public map URL is recorded yet |
+| Area | Data sources and counts | Count per Day (yearly average) | V85 Speed | Average Speed |
+| --- | --- | :---: | :---: | :---: |
+| [Montpellier - France](http://umap.openstreetmap.fr/en/map/comptage-vehicules-montpellier_754880) | Montpellier Méditerranée Métropole (:car: + :bike:) ; <br/>Hérault department: (:car:) | X | X | X |
+| [Nîmes - France](http://umap.openstreetmap.fr/en/map/comptage-vehicules-nimes_1478574) | Nîmes Métropole and Gard department: (:car:) | X |  |  |
+| [Rouen - France](https://umap.openstreetmap.fr/en/map/comptage-vehicules-rouen_1475742) | Métropole Rouen Normandie (:car: + :bike:); <br/> Seine-Maritime department (:car:) | X | X | X |
 
-[Map configuration](mapconfig.json) records the maps, their selected data
-sources and published URLs. Maps use uMap with remote GeoJSON layers, so data
-can be refreshed without rebuilding the map.
 
 ## How it works
 
-Scheduled retrieval downloads open datasets into object storage. Changes trigger
-preprocessing, which normalizes and validates the records and publishes yearly
-data. A changed manifest then triggers GeoJSON generation for the map layers.
+The service currently runs on Oracle Cloud Infrastructure (OCI), using cloud
+functions (serverless), object storage, schedules, events,
+logging, monitoring and notifications. These are pretty standard IaaS/PaaS building
+blocks, available from other cloud providers. The same architecture could be used
+elsewhere, but migration would require adapting the OCI SDK integrations and deployment scripts.
+
+Processing is quite simple:
+1) Scheduled retrieval functions download open datasets into object storage upon detecting changes (leveraging HTTP ETag wherever possible).
+2) Changes trigger preprocessing function, which normalizes and validates the records and publishes yearly
+data and an associated manifest objects in the datasource specific bucket.
+3) A changed manifest then triggers GeoJSON generation for the map layers, enriching the counters with data from OpenStreetMap.
+
 An hourly OpenStreetMap refresh maintains cached road information used to enrich
 the counters.
-
-The service currently runs on Oracle Cloud Infrastructure (OCI), using cloud
-functions, object storage, schedules, events, identity and access management,
-logging, monitoring and notifications. These are common IaaS/PaaS building
-blocks available from other cloud providers. The same architecture could run
-elsewhere, but migration would require adapting the OCI SDK integrations,
-authentication and deployment scripts.
 
 ## Development and operations
 

@@ -11,19 +11,9 @@ so that we can anticipate bogus csv and abort further processing
 
 ## Setup github dependabot
 
-## use github issues
-getting a generic error at the moment
-
 ## github actions for diagrams
 
 ## use traficinfo specific oci config file
-
-## count type
-
-In the map filter, one can filter on the type of count (VEHICULES versus BICYCLES).
-The raw value from the java enum is used in the geojson and then in the map.
-Assuming a small number of locale and a map template per locale, we could have a per locale property and have locale dependant map template use the designated property name (e.g. type_en versus type_fr).
-
 
 ## Redundancy of some of the CsvDataSource fields
 things have moved to dsconfig.json
@@ -84,15 +74,11 @@ channels other than 0, 1, and Z account for 454 of 12,681 rows (3.6%): w has 226
 
 Annuaire at https://trafic-routier.data.cerema.fr/acces-aux-donnees-de-trafic-routier-open-data-r25.html?lang=fr
 
-
-MEL (Métropole Européenne de Lille)
-https://data.lillemetropole.fr/catalogue/dataset/19a68c5f-2914-4422-be83-d88fd99dfe73
-https://data.lillemetropole.fr/catalogue/dataset/comptages-voirie
-https://data.lillemetropole.fr/public/logo-mel.jpg (already in bucket)
-
 Données nationales: https://transport.data.gouv.fr/datasets/etat-de-circulation-en-temps-reel-sur-le-reseau-national-routier-non-concede
 
 Infractions routières: https://www.data.gouv.fr/datasets/jeux-de-donnees-des-vitesses-relevees-par-les-voitures-radars-a-conduite-externalisee
+
+API Avatar: https://avatar.cerema.fr/documentation
 
 Telraam: https://telraam.net/api/segments/snapshot/traffic
 https://www.eco-compteur.com/actualites/quanteo-eco-compteur-acquisition-societe-belge-telraam
