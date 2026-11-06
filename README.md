@@ -20,11 +20,11 @@ including speed limits and bicycle contraflow information.
 
 ## Maps
 
-| Area | Data sources and counts | Count per Day (yearly average) | V85 Speed | Average Speed |
+| Map | Data sources and counts | Count per Day (yearly average) | V85 Speed | Average Speed |
 | --- | --- | :---: | :---: | :---: |
-| [Montpellier - France](http://umap.openstreetmap.fr/en/map/comptage-vehicules-montpellier_754880) | Montpellier Méditerranée Métropole (:car: + :bike:) ; <br/>Hérault department: (:car:) | X | X | X |
-| [Nîmes - France](http://umap.openstreetmap.fr/en/map/comptage-vehicules-nimes_1478574) | Nîmes Métropole and Gard department: (:car:) | X |  |  |
-| [Rouen - France](https://umap.openstreetmap.fr/en/map/comptage-vehicules-rouen_1475742) | Métropole Rouen Normandie (:car: + :bike:); <br/> Seine-Maritime department (:car:) | X | X | X |
+| [Montpellier - France](http://umap.openstreetmap.fr/en/map/comptage-vehicules-montpellier_754880) | Montpellier Méditerranée Métropole ( :car: + :bike: ) ; <br/>Hérault department: ( :car: ) | X | X | X |
+| [Nîmes - France](http://umap.openstreetmap.fr/en/map/comptage-vehicules-nimes_1478574) | Nîmes Métropole and Gard department: ( :car: ) | X |  |  |
+| [Rouen - France](https://umap.openstreetmap.fr/en/map/comptage-vehicules-rouen_1475742) | Métropole Rouen Normandie ( :car: + :bike: ); <br/> Seine-Maritime department ( :car: ) | X | X | X |
 
 
 ## How it works
