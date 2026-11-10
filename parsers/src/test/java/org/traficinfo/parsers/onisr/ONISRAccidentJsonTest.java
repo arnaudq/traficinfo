@@ -53,4 +53,28 @@ public class ONISRAccidentJsonTest {
             }
         }
     }
+
+    @Test
+    public void storesOnlySelectedParticipantFieldsAndReadsOlderAccidentsWithoutParticipants() throws Exception {
+        var accident = new ONISRAccidentParser().parseAccidents(new StringReader(CSV)).get(0);
+        var participants = new ONISRAccidentParticipantParser().parseParticipants(new StringReader(
+                "Num_Acc;id_usager;id_vehicule;catu;grav;an_nais;sexe;trajet\n"
+                        + "202500000001;123;456;3;2;1990;2;discarded\n"), java.util.Set.of(accident.getAccidentId()), 2025);
+        var codec = new ONISRAccidentJson();
+        byte[] bytes = codec.write(List.of(accident.withParticipants(participants.get(accident.getAccidentId()))));
+        var tree = new ObjectMapper().readTree(bytes);
+        var participant = tree.get(0).get("participants").get(0);
+        assertEquals(6, participant.size());
+        assertEquals("FEMALE", participant.get("sex").asText());
+        assertEquals("KILLED", participant.get("injurySeverity").asText());
+        assertFalse(participant.has("accidentId"));
+        assertFalse(participant.has("sourceFields"));
+        assertFalse(participant.has("trajet"));
+        var stored = codec.read(new ByteArrayInputStream(bytes)).get(0).getParticipants().get(0);
+        assertEquals(org.traficinfo.parsers.AccidentParticipant.Sex.FEMALE, stored.getSex());
+        assertEquals("456", stored.getVehicleId());
+        assertArrayEquals(bytes, codec.write(codec.read(new ByteArrayInputStream(bytes))));
+        ((com.fasterxml.jackson.databind.node.ObjectNode) tree.get(0)).remove("participants");
+        assertTrue(codec.read(new ByteArrayInputStream(new ObjectMapper().writeValueAsBytes(tree))).get(0).getParticipants().isEmpty());
+    }
 }

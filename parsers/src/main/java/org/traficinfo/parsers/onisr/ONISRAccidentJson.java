@@ -98,6 +98,7 @@ public final class ONISRAccidentJson {
                      @JsonProperty("address") String address,
                      @JsonProperty("latitude") Double latitude,
                      @JsonProperty("longitude") Double longitude,
-                     @JsonProperty("sourceFields") Map<String, String> sourceFields) {}
+                     @JsonProperty("sourceFields") Map<String, String> sourceFields,
+                     @JsonProperty("participants") List<ONISRAccidentParticipant> participants) {}
     }
 }

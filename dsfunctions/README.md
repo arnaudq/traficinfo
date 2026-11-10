@@ -645,7 +645,8 @@ be configured as described in the [setup specification](../specs/setup.md#retrie
 
 ## Local ONISR accident processing
 
-`ONISRAccidentProcessor` imports one manually selected characteristics CSV and
+`ONISRAccidentProcessor` imports a manually selected characteristics CSV, optionally
+joined with a usagers CSV, and
 publishes regional accident JSON using supplied storage clients. It is processing
 logic separate from the manual function handler described below. There is no
 accident event rule or retrieval schedule. Tests use in-memory storage and fake OSM responses;
@@ -657,7 +658,7 @@ The caller owns both clients. For example, once clients have been supplied:
 ```java
 var processor = new ONISRAccidentProcessor(accidentStore, osmStore);
 Map<String, ONISRAccidentProcessor.Statistics> imported =
-        processor.importCsv("caract-2025.csv", 2025);
+        processor.importCsv("caract-2025.csv", "usagers-2025.csv", 2025);
 
 // Later, after the hourly OSM refresh or a mapping review:
 Map<String, ONISRAccidentProcessor.Statistics> refreshed = processor.refresh();
@@ -677,11 +678,22 @@ the combined output. Reimporting a revised year replaces its previous records;
 it does not append accidents or remove other years. Even an empty region is
 stored as `[]` for the imported year to clear previously imported records.
 
+For an enriched import, characteristics are filtered first. The usagers parser
+then processes only rows whose `Num_Acc` belongs to those retained accidents,
+before parsing or validating participant fields. Participant IDs, vehicle IDs,
+roles, injury severities, birth years and sex are attached to each accident.
+Unused usagers fields are discarded. Both parsers finish before any yearly record
+is replaced, so missing or invalid selected usagers data fails the import without
+replacing the previous records. Reimport replaces the participant lists too.
+The two-argument `importCsv(objectName, year)` remains available for
+characteristics-only imports; it produces empty participant lists.
+
 Storage names are:
 
 | Bucket | Object | Contents |
 | --- | --- | --- |
 | `onisrinfo` | Uploaded CSV, e.g. `caract-2025.csv` | Unmodified raw source |
+| `onisrinfo` | `usagers-2025.csv` | Unmodified participant source |
 | `onisrinfo` | `data/ONISR_DPT30/2025.json` | Regional source records for one year, including unmatched/unlocated accidents |
 | `onisrinfo` | `ONISR_DPT30_Accidents.json` | All imported years, grouped by usable OSM way ID |
 | `osminfo` | `ONISR_DPT30_OSMWayMapping.json` | Accident-ID-to-way assignments and pending/review records |
@@ -718,14 +730,15 @@ total, matched and unmatched accidents and distinct ways per regional ID.
 ## Manual ONISR accident function
 
 `ONISRAccidentFunction` wraps the local processor. For now it hardcodes
-`onisrinfo/caract-2025.csv`, year **2025**, and regional IDs **30, 34, 76**. The
-object name is case-sensitive. Other uploaded CSVs are not selected, and request
-payloads cannot override the filename or year. ONISR is not added to `dsconfig.json`.
+`onisrinfo/caract-2025.csv` and `onisrinfo/usagers-2025.csv`, year **2025**, and regional
+IDs **30, 34, 76**. Object names are case-sensitive. Other uploaded CSVs are not
+selected, and request payloads cannot override filenames or year. ONISR is not
+added to `dsconfig.json`.
 
 An empty request, `{}` or `{"action":"import"}` imports the fixed 2025 input and
 rebuilds the combined regional output. `{"action":"refresh"}` only rebuilds
 output using stored regional records and current OSM mappings, without reading
-the raw CSV. The handler returns `OK` and logs regional statistics on success;
+either raw CSV. The handler returns `OK` and logs regional statistics on success;
 parsing, storage and publication failures fail the invocation. Both storage
 clients are closed after each invocation.
 

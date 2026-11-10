@@ -10,6 +10,11 @@ regional ID, municipality ID and address belong to `Accident`. For France,
 code. A municipality identifier is neither a city name nor a postal code, and a
 source address is not automatically an official road reference.
 
+`Accident.getParticipants()` exposes involved people through `AccidentParticipant`:
+participant ID, associated vehicle ID, role, injury severity, birth year and sex.
+The ONISR implementation retains only these selected fields from usagers and
+does not keep a raw participant metadata map.
+
 `ONISRAccidentParser` reads the BAAC characteristics CSV into `ONISRAccident`
 objects. It accepts a caller-owned `Reader` or a `File`. For example:
 

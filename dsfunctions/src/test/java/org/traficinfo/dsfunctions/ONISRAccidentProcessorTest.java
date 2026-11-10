@@ -262,6 +262,70 @@ public class ONISRAccidentProcessorTest {
         assertEquals(1, result.get("30").accidents());
     }
 
+    @Test
+    public void joinsOnlySelectedUsagersPersistsSexAndReplacesParticipantsOnReimport() throws Exception {
+        Store data = new Store();
+        Store osm = new Store();
+        var processor = processor(data, osm, "30");
+        data.text("2025.csv", HEADER + row(2025, 1, "30", "43", "3") + row(2025, 2, "75", "48", "2"));
+        String header = "Num_Acc;id_usager;id_vehicule;catu;grav;an_nais;sexe;trajet\n";
+        String first = "202500000001;123;456;1;3;1990;1;discarded\n";
+        String second = "202500000001;124;456;2;4;1991;2;discarded\n";
+        data.text("users.csv", header + second + first + "202500000002;invalid\n");
+        known(osm, "30", "202500000001", 77);
+        processor.importCsv("2025.csv", "users.csv", 2025);
+        String year = ONISRAccidentProcessor.yearObject("30", 2025);
+        String output = ONISRAccidentProcessor.outputObject("30");
+        JsonNode stored = data.json(year).get(0).get("participants");
+        assertEquals(2, stored.size());
+        assertEquals("123", stored.get(0).get("participantId").asText());
+        assertEquals("FEMALE", stored.get(1).get("sex").asText());
+        assertFalse(stored.get(0).has("sourceFields"));
+        assertFalse(stored.get(0).has("trajet"));
+        assertEquals(stored, data.json(output).get("77").get(0).get("participants"));
+        data.writes.clear();
+        data.text("users.csv", header + first + second);
+        processor.importCsv("2025.csv", "users.csv", 2025);
+        assertTrue("Reordering participants must not republish", data.writes.isEmpty());
+        data.text("users.csv", header + second);
+        processor.importCsv("2025.csv", "users.csv", 2025);
+        assertEquals(1, data.json(year).get(0).get("participants").size());
+        assertEquals("124", data.json(output).get("77").get(0).get("participants").get(0).get("participantId").asText());
+        data.objects.remove("2025.csv");
+        data.objects.remove("users.csv");
+        processor.refresh();
+        assertEquals("FEMALE", data.json(output).get("77").get(0).get("participants").get(0).get("sex").asText());
+    }
+
+    @Test
+    public void missingOrInvalidSelectedUsagersDoNotReplaceExistingYear() throws Exception {
+        Store data = new Store();
+        Store osm = new Store();
+        var processor = processor(data, osm, "30");
+        data.text("2025.csv", HEADER + row(2025, 1, "30", "43", "3"));
+        processor.importCsv("2025.csv", 2025);
+        String year = ONISRAccidentProcessor.yearObject("30", 2025);
+        byte[] original = data.objects.get(year);
+        data.writes.clear();
+        osm.writes.clear();
+        try {
+            processor.importCsv("2025.csv", "users.csv", 2025);
+            fail("Missing companion must fail");
+        } catch (BmcException expected) {
+            assertEquals(404, expected.getStatusCode());
+        }
+        data.text("users.csv", "Num_Acc;id_usager;id_vehicule;catu;grav;an_nais;sexe\n"
+                + "202500000001;123;456;1;3;2026;1\n");
+        try {
+            processor.importCsv("2025.csv", "users.csv", 2025);
+            fail("Invalid selected participant must fail");
+        } catch (IOException expected) {
+            assertArrayEquals(original, data.objects.get(year));
+        }
+        assertTrue(data.writes.isEmpty());
+        assertTrue(osm.writes.isEmpty());
+    }
+
     private static class Store extends ObjectStoreClient {
         final Map<String, byte[]> objects = new LinkedHashMap<>();
         final List<String> writes = new ArrayList<>();

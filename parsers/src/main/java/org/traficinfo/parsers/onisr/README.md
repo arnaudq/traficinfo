@@ -4,8 +4,9 @@ Source: [annual BAAC accident files, 2005–2025](https://www.data.gouv.fr/datas
 published by the Ministry of the Interior and administered by ONISR. The
 [BAAC data dictionary](https://www.data.gouv.fr/api/1/datasets/r/21e46f4e-fa29-40bb-9ec8-905e41e041aa)
 describes characteristics, locations, vehicles and users, joined by `Num_Acc`.
-This parser currently reads characteristics only; vehicle types and casualty
-counts are not present in that file and are not inferred.
+The characteristics parser reads accident records. The participant parser joins
+the 2025 usagers file for involved people and their injury severity. Vehicle types
+still require the separate vehicles file and are not inferred.
 
 ## API and model
 
@@ -52,6 +53,48 @@ processing layer additionally validates stored region/year scope and identities.
 The reader retains ownership of its input stream. See the
 [local processor usage](../../../../../../../../dsfunctions/README.md#local-onisr-accident-processing)
 for year replacement, output naming and OSM cache handling.
+
+## Participants from the 2025 usagers file
+
+`AccidentParticipant` has an immutable `ONISRAccidentParticipant` implementation.
+Each accident exposes a `participants` list; an uninjured involved person is also
+a participant. The parser uses `Num_Acc` only as the join key, without duplicating
+it inside nested participant JSON. Only these six fields are retained:
+
+| Source column | Model field | Representation |
+| --- | --- | --- |
+| `id_usager` | `participantId` | Required string ID |
+| `id_vehicule` | `vehicleId` | Nullable string ID; for pedestrians, references the striking vehicle |
+| `catu` | `role` | `DRIVER`, `PASSENGER`, `PEDESTRIAN`, `UNKNOWN` |
+| `grav` | `injurySeverity` | `UNINJURED`, `KILLED`, `HOSPITALIZED`, `LIGHTLY_INJURED`, `UNKNOWN` |
+| `an_nais` | `birthYear` | Nullable integer |
+| `sexe` | `sex` | `MALE`, `FEMALE`, `UNKNOWN` |
+
+The participant model has no `sourceFields` map. `num_veh`, `place`, `trajet`,
+`secu1`, `secu2`, `secu3`, `locp`, `actp` and `etatp` are discarded. The existing
+characteristics `sourceFields` map contains no usagers data.
+
+`ONISRAccidentParticipantParser.parseParticipants(reader, accidentIds, year)`
+reads semicolon-separated UTF-8 usagers data and returns participant lists keyed
+by accident ID. Membership in the filtered accident-ID set is checked before
+validating row width or parsing any participant field. Unselected rows are never
+retained, including their IDs, codes and metadata. An empty selection retains
+nothing. CSV syntax and the shared header still need to be readable. The caller
+owns the reader.
+
+Participant and vehicle IDs are strings. Whitespace, including nonbreaking and
+narrow nonbreaking digit separators, is removed consistently; leading zeroes are
+preserved. Duplicate normalized participant IDs in the selected set fail parsing.
+Missing or unrecognized numeric role, injury and sex codes map to `UNKNOWN`;
+malformed nonnumeric values fail. Blank, dot, `N/A`, zero and `-1` birth years map
+to null; other birth years must be positive and no later than the accident year.
+Severity code `2` means killed, `3` hospitalized, `4` lightly injured, and `1`
+uninjured: numeric codes and enum ordering must not be used as a severity ranking.
+
+Participants are sorted by ID for deterministic storage. Importing characteristics
+without a usagers companion yields empty participant lists, as does reading older
+stored JSON without a `participants` property. Refresh reads the stored lists and
+does not require the raw usagers file.
 
 ## Source formats
 

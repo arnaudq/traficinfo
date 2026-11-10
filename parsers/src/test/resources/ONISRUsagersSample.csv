@@ -1,0 +1,5 @@
+Num_Acc;id_usager;id_vehicule;num_veh;place;catu;grav;sexe;an_nais;trajet;secu1;secu2;secu3;locp;actp;etatp
+202500000001;204 248 638;155 975 242;A01;1;1;3;1;2004;5;2;6;-1;0;0;-1
+202500000001;204 248 639;155 975 242;A01;2;2;1;2;2005;5;1;0;-1;0;0;-1
+202500000002;204 248 640;155 975 243;B01;10;3;4;-1;;0;8;-1;-1;3;3;1
+202500009999;invalid;invalid;BAD;BAD;BAD;BAD;BAD;BAD;BAD;BAD;BAD;BAD;BAD;BAD;BAD

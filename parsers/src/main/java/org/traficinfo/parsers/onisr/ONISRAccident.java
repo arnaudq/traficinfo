@@ -8,6 +8,7 @@ import java.time.LocalTime;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.List;
 
 /** A BAAC characteristics record; raw columns remain available for future companion joins. */
 public final class ONISRAccident implements Accident {
@@ -20,11 +21,18 @@ public final class ONISRAccident implements Accident {
   private final Double latitude;
   private final Double longitude;
   private final Map<String, String> sourceFields;
+  private final List<ONISRAccidentParticipant> participants;
   private Long osmWayId;
 
   ONISRAccident(String accidentId, LocalDate date, LocalTime time, String regionalId,
       String municipalityId, String address, Double latitude, Double longitude,
       Map<String, String> sourceFields) {
+    this(accidentId, date, time, regionalId, municipalityId, address, latitude, longitude, sourceFields, List.of());
+  }
+
+  ONISRAccident(String accidentId, LocalDate date, LocalTime time, String regionalId,
+      String municipalityId, String address, Double latitude, Double longitude,
+      Map<String, String> sourceFields, List<ONISRAccidentParticipant> participants) {
     this.accidentId = accidentId;
     this.date = date;
     this.time = time;
@@ -34,6 +42,7 @@ public final class ONISRAccident implements Accident {
     this.latitude = latitude;
     this.longitude = longitude;
     this.sourceFields = Collections.unmodifiableMap(new LinkedHashMap<>(sourceFields));
+    this.participants = participants == null ? List.of() : List.copyOf(participants);
   }
 
   @Override public String getAccidentId() { return accidentId; }
@@ -46,6 +55,14 @@ public final class ONISRAccident implements Accident {
   public Double getLongitude() { return longitude; }
   @Override public Long getOsmWayId() { return osmWayId; }
   @Override public void setOsmWayId(Long osmWayId) { this.osmWayId = osmWayId; }
+  @Override public List<ONISRAccidentParticipant> getParticipants() { return participants; }
+
+  public ONISRAccident withParticipants(List<ONISRAccidentParticipant> participants) {
+    ONISRAccident enriched = new ONISRAccident(accidentId, date, time, regionalId, municipalityId,
+        address, latitude, longitude, sourceFields, participants);
+    enriched.setOsmWayId(osmWayId);
+    return enriched;
+  }
 
   @Override
   public Point getGeometry() {

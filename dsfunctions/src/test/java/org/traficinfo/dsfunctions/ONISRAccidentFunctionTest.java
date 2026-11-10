@@ -24,12 +24,15 @@ public class ONISRAccidentFunctionTest {
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final String CSV = "Num_Acc;an;mois;jour;hrmn;dep;com;adr;lat;long\n"
             + "202500000001;2025;1;2;12:30;34;34172;Rue de l'École;43,6;3,8\n";
+    private static final String USERS = "Num_Acc;id_usager;id_vehicule;catu;grav;an_nais;sexe\n"
+            + "202500000001;1;2;1;3;2000;2\n";
 
     @Test
     public void fnImportsFixed2025ObjectAndClosesBothStores() throws Exception {
         Probe probe = configured(Map.of("NAMESPACE", "namespace"));
         assertTrue(probe.connections.isEmpty());
         probe.accidentStore.text("caract-2025.csv", CSV);
+        probe.accidentStore.text("usagers-2025.csv", USERS);
         probe.accidentStore.text("caract-2024.csv", "must not be read");
         assertEquals("OK", probe.handleRequest("{}"));
         assertEquals(List.of("true/namespace/onisrinfo", "true/namespace/osminfo"), probe.connections);
@@ -38,6 +41,7 @@ public class ONISRAccidentFunctionTest {
         JsonNode records = JSON.readTree(probe.accidentStore.objects.get("data/ONISR_DPT34/2025.json"));
         assertEquals(1, records.size());
         assertEquals("2025-01-02", records.get(0).get("date").asText());
+        assertEquals("FEMALE", records.get(0).get("participants").get(0).get("sex").asText());
         assertFalse(probe.accidentStore.objects.containsKey("data/ONISR_DPT34/2024.json"));
         assertTrue(probe.osmStore.objects.containsKey("ONISR_DPT34_OSMWayMapping.json"));
     }
@@ -47,13 +51,16 @@ public class ONISRAccidentFunctionTest {
         Probe probe = configured(Map.of("NAMESPACE", "namespace", "USE_RESOURCE_PRINCIPAL", "false",
                 "BUCKETNAME_OSM", "custom-osm"));
         probe.accidentStore.text("caract-2025.csv", CSV);
+        probe.accidentStore.text("usagers-2025.csv", USERS);
         assertEquals("OK", probe.handleRequest(""));
         assertEquals(List.of("false/namespace/onisrinfo", "false/namespace/custom-osm"), probe.connections);
         probe.accidentStore.objects.remove("caract-2025.csv");
+        probe.accidentStore.objects.remove("usagers-2025.csv");
         probe.osmStore.text("ONISR_DPT34_OSMWayMapping.json", "{\"202500000001\":{\"osmWayId\":123,\"status\":\"MATCHED\"}}");
         assertEquals("OK", probe.handleRequest("{\"action\":\"refresh\"}"));
         JsonNode output = JSON.readTree(probe.accidentStore.objects.get("ONISR_DPT34_Accidents.json"));
         assertEquals(1, output.get("123").size());
+        assertEquals("FEMALE", output.get("123").get(0).get("participants").get(0).get("sex").asText());
     }
 
     @Test

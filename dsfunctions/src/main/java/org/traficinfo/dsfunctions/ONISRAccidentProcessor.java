@@ -4,10 +4,13 @@ import com.oracle.bmc.model.BmcException;
 import org.traficinfo.parsers.onisr.ONISRAccident;
 import org.traficinfo.parsers.onisr.ONISRAccidentJson;
 import org.traficinfo.parsers.onisr.ONISRAccidentParser;
+import org.traficinfo.parsers.onisr.ONISRAccidentParticipantParser;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -55,6 +58,11 @@ public final class ONISRAccidentProcessor {
 
     /** Replace this year for every selected region, including regions with no matching rows. */
     public Map<String, Statistics> importCsv(String objectName, int year) throws IOException {
+        return importCsv(objectName, null, year);
+    }
+
+    /** Import characteristics and only participants belonging to the filtered accidents. */
+    public Map<String, Statistics> importCsv(String objectName, String participantsObject, int year) throws IOException {
         if (objectName == null || !objectName.endsWith(".csv") || year < 2005 || year > 9999) {
             throw new IllegalArgumentException("A CSV object name and a year from 2005 to 9999 are required");
         }
@@ -70,6 +78,16 @@ public final class ONISRAccidentProcessor {
         }
         // Validate the complete import before replacing any stored regional year.
         for (ONISRAccident accident : parsed) validate(accident, accident.getRegionalId(), year);
+        if (participantsObject != null) {
+            Set<String> accidentIds = new HashSet<>();
+            parsed.forEach(accident -> accidentIds.add(accident.getAccidentId()));
+            try (InputStream input = accidentStore.getResource(participantsObject);
+                 var reader = new InputStreamReader(input, StandardCharsets.UTF_8)) {
+                var participants = new ONISRAccidentParticipantParser().parseParticipants(reader, accidentIds, year);
+                parsed = parsed.stream().map(accident -> accident.withParticipants(
+                        participants.getOrDefault(accident.getAccidentId(), List.of()))).toList();
+            }
+        }
         for (String region : new TreeSet<>(regionalIds)) {
             List<ONISRAccident> rows = parsed.stream().filter(row -> region.equals(row.getRegionalId()))
                     .sorted(Comparator.comparing(ONISRAccident::getAccidentId)).toList();
@@ -137,6 +155,13 @@ public final class ONISRAccidentProcessor {
         if ((latitude != null && (!Double.isFinite(latitude) || Math.abs(latitude) > 90))
                 || (longitude != null && (!Double.isFinite(longitude) || Math.abs(longitude) > 180))) {
             throw new IOException("Invalid stored accident coordinates: " + accident.getAccidentId());
+        }
+        Set<String> participantIds = new HashSet<>();
+        for (var participant : accident.getParticipants()) {
+            if (!participantIds.add(participant.getParticipantId())
+                    || (participant.getBirthYear() != null && participant.getBirthYear() > year)) {
+                throw new IOException("Invalid stored participant for accident: " + accident.getAccidentId());
+            }
         }
     }
 

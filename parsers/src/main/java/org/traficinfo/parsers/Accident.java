@@ -2,6 +2,7 @@ package org.traficinfo.parsers;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.List;
 
 /** One road accident, independent of the source's vehicle and casualty tables. */
 public interface Accident extends GeographicRecord {
@@ -21,4 +22,6 @@ public interface Accident extends GeographicRecord {
 
   /** Source address, or null when unknown; not necessarily an official road reference. */
   String getAddress();
+
+  List<? extends AccidentParticipant> getParticipants();
 }
