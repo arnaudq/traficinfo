@@ -1,0 +1,1954 @@
+{
+  "analysis_date": "2026-10-31",
+  "scope": "Exploratory crosswalk; no runtime integration. Website labels are name correspondences except the site-exposed Tanneurs/Albert 1er serial binding. Detail URLs are extracted from website navigation.",
+  "sources": {
+    "annual": {
+      "url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_MMM_Comptage.json",
+      "local_file": "/Users/aquillau/Downloads/MMM_MMM_Comptage.json",
+      "local_file_download_date": "2026-10-16 (filesystem timestamp)",
+      "sha256": "eaa982a1efd776299d638e2458887c8615cbabfaebef46a66f2e7b730b3037b6"
+    },
+    "daily_locations": {
+      "url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_MMM_GeolocCompteurs.geojson",
+      "retrieval": "Web cached response retrieved 2026-10-31; cache says crawled five months ago, so freshness is not established.",
+      "sha256_normalized_json": "34835a5b030f1e7166faacc2b5561983a638a03e2ff854083c4d209493c3b4c3"
+    },
+    "website": "https://compteurs.velocite-montpellier.fr/",
+    "serial_replacements": "https://data.montpellier3m.fr/dataset/comptages-velo-et-pieton-issus-des-compteurs-de-velo"
+  },
+  "method": "Annual bicycle rows deduplicated by code_centrale, latest year. Point-to-LineString distance with local equirectangular projection (111195 m/degree and cosine latitude), rounded to 0.1 m. Candidates within 100 m or matching OSM ID. Strong means OSM match, compatible name, <=50 m and no identified conflict; manual conflict review overrides. Proximity is supporting evidence, not proof.",
+  "summary": {
+    "annual_bicycle_sites": 57,
+    "annual_permanent_bicycle_sites": 46,
+    "daily_location_records": 60,
+    "status_counts": {
+      "probable": 6,
+      "strong": 37,
+      "review": 5,
+      "unmatched": 12
+    },
+    "distinct_proposed_annual_sites": 43
+  },
+  "counters": [
+    {
+      "name": "Compteur Vélo Tanneurs",
+      "serial": "XTH19101158",
+      "point": [
+        3.87440800666809,
+        43.6162094554924
+      ],
+      "osm_id": 188609530,
+      "candidates": [
+        {
+          "code_centrale": "77574",
+          "id_centrale": 1529,
+          "label": "MONTPELLIER.Quai des Tanneurs (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 188609530,
+          "same_osm": true,
+          "distance_m": 73.7
+        }
+      ],
+      "daily_serial_before_replacement": "XTH19101158",
+      "daily_serial_current_candidate": "XTH19101158",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_XTH19101158.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_XTH19101158_archive.json",
+      "website_label": "Albert 1er",
+      "website_label_evidence": "A cached error response at /detail/clos-larmet exposes the site constructor binding serial XTH19101158 to Albert 1er; /detail/albert-1er is linked in counter navigation.",
+      "status": "probable",
+      "proposed_code_centrale": "77574",
+      "notes": "Same OSM way, but point is 73.7 m from our segment. Website calls this serial Albert 1er; official location file calls it Tanneurs. Annual-site match remains probable.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/albert-1er",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Piéton/Vélo Berracasa",
+      "serial": "X2H19070220",
+      "point": [
+        3.896939992904659,
+        43.60969924926759
+      ],
+      "osm_id": 121403593,
+      "candidates": [
+        {
+          "code_centrale": "78960",
+          "id_centrale": 1452,
+          "label": "MONTPELLIER. Allee Alegria Beracasa ( Pietons  Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 121403593,
+          "same_osm": true,
+          "distance_m": 16.4
+        }
+      ],
+      "daily_serial_before_replacement": "X2H19070220",
+      "daily_serial_current_candidate": "X2H19070220",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H19070220.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H19070220_archive.json",
+      "website_label": "Beracasa",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "78960",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/beracasa",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Lodève Celleneuve",
+      "serial": "Y2H20042633",
+      "point": [
+        3.8336,
+        43.61465
+      ],
+      "osm_id": 734202564,
+      "candidates": [
+        {
+          "code_centrale": "180120",
+          "id_centrale": 1583,
+          "label": "MONTPELLIER. Avenue de Lodeve-Celleneuve (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 734202564,
+          "same_osm": true,
+          "distance_m": 0.7
+        }
+      ],
+      "daily_serial_before_replacement": "X2H20042633",
+      "daily_serial_current_candidate": "X2H20042633",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H20042633.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H20042633_archive.json",
+      "website_label": "Celleneuve",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "180120",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry. Location-file serial has Y2H; resource list uses X2H. Preserve both forms.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/celleneuve",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Lavérune",
+      "serial": "X2H24042101",
+      "point": [
+        3.81324,
+        43.5907
+      ],
+      "osm_id": 97705885,
+      "candidates": [
+        {
+          "code_centrale": "55912",
+          "id_centrale": 1585,
+          "label": "LAVERUNE. RM5 (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 97705885,
+          "same_osm": true,
+          "distance_m": 2.7
+        }
+      ],
+      "daily_serial_before_replacement": "X2H24042101",
+      "daily_serial_current_candidate": "X2H24042101",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H24042101.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H24042101_archive.json",
+      "website_label": "Lavérune",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "55912",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/laverune",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Vieille poste",
+      "serial": "ZLT25011699",
+      "point": [
+        3.9096322,
+        43.6157418
+      ],
+      "osm_id": 676645909,
+      "candidates": [
+        {
+          "code_centrale": "77317",
+          "id_centrale": 83893,
+          "label": "MONTPELLIER. Rue de la Vieille Poste (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 676645909,
+          "same_osm": true,
+          "distance_m": 6.7
+        }
+      ],
+      "daily_serial_before_replacement": "ZLT25011699",
+      "daily_serial_current_candidate": "ZLT25011699",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_ZLT25011699.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_ZLT25011699_archive.json",
+      "website_label": "Vieille-Poste (2025)",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "77317",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/vieille-poste-2025",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Delmas 2",
+      "serial": "Y2H20063164",
+      "point": [
+        3.8956288,
+        43.6266977
+      ],
+      "osm_id": 105575465,
+      "candidates": [
+        {
+          "code_centrale": "53588",
+          "id_centrale": 1578,
+          "label": "MONTPELLIER. Avenue Francois Delmas piste nord (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 888741756,
+          "same_osm": false,
+          "distance_m": 5.6
+        },
+        {
+          "code_centrale": "63476",
+          "id_centrale": 82801,
+          "label": "MONTPELLIER. Saint Lazare - Delmas(Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 105575465,
+          "same_osm": true,
+          "distance_m": 430.2
+        }
+      ],
+      "daily_serial_before_replacement": "X2H20063164",
+      "daily_serial_current_candidate": "ZLT26063737",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_ZLT26063737.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_ZLT26063737_archive.json",
+      "website_label": "Delmas 2",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "review",
+      "proposed_code_centrale": null,
+      "notes": "Delmas 1/2 share exactly the same published point. Candidate 53588 is 5.6 m away, but the published OSM ID points to Saint-Lazare (63476), 430.2 m away. Cannot establish separate side/channel identities. Location-file serial has Y2H; resource list uses X2H. Preserve both forms. Replacement serial follows the publisher notice effective 2026-07-07; continuity of counts not validated.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/delmas-2",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Delmas 1",
+      "serial": "Y2H20063163",
+      "point": [
+        3.8956288,
+        43.6266977
+      ],
+      "osm_id": 105575465,
+      "candidates": [
+        {
+          "code_centrale": "53588",
+          "id_centrale": 1578,
+          "label": "MONTPELLIER. Avenue Francois Delmas piste nord (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 888741756,
+          "same_osm": false,
+          "distance_m": 5.6
+        },
+        {
+          "code_centrale": "63476",
+          "id_centrale": 82801,
+          "label": "MONTPELLIER. Saint Lazare - Delmas(Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 105575465,
+          "same_osm": true,
+          "distance_m": 430.2
+        }
+      ],
+      "daily_serial_before_replacement": "X2H20063163",
+      "daily_serial_current_candidate": "ZLT26063736",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_ZLT26063736.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_ZLT26063736_archive.json",
+      "website_label": "Delmas 1",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "review",
+      "proposed_code_centrale": null,
+      "notes": "Delmas 1/2 share exactly the same published point. Candidate 53588 is 5.6 m away, but the published OSM ID points to Saint-Lazare (63476), 430.2 m away. Do not map to Saint-Lazare merely by OSM ID. Location-file serial has Y2H; resource list uses X2H. Preserve both forms. Replacement serial follows the publisher notice effective 2026-07-07; continuity of counts not validated.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/delmas-1",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Gerhardt 1",
+      "serial": "Y2H20063162",
+      "point": [
+        3.8684671,
+        43.6138841
+      ],
+      "osm_id": 23231541,
+      "candidates": [
+        {
+          "code_centrale": "83588",
+          "id_centrale": 83903,
+          "label": "MONTPELLIER. Rue Gerhardt impair (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 1355280004,
+          "same_osm": false,
+          "distance_m": 1.4
+        },
+        {
+          "code_centrale": "113978",
+          "id_centrale": 83904,
+          "label": "MONTPELLIER. Rue Gerhardt pair (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 1396155904,
+          "same_osm": false,
+          "distance_m": 6.6
+        }
+      ],
+      "daily_serial_before_replacement": "X2H20063162",
+      "daily_serial_current_candidate": "X2H20063162",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H20063162.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H20063162_archive.json",
+      "website_label": "Gerhardt",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "review",
+      "proposed_code_centrale": null,
+      "notes": "Two Gerhardt lines are 1.4 m and 6.6 m away. Nearest is impair (83588); serial-to-side needs confirmation. Gerhardt 2 independently matches pair (113978). Location-file serial has Y2H; resource list uses X2H. Preserve both forms.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/gerhardt",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Lattes 2",
+      "serial": "Y2H20042634",
+      "point": [
+        3.93327,
+        43.57926
+      ],
+      "osm_id": 25871951,
+      "candidates": [
+        {
+          "code_centrale": "3738",
+          "id_centrale": 1579,
+          "label": "PEROLS. RM21 Route de la Mer Nord (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 25871951,
+          "same_osm": true,
+          "distance_m": 2.6
+        },
+        {
+          "code_centrale": "55695",
+          "id_centrale": 1581,
+          "label": "PEROLS. RM21 Route de la Mer Sud (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 137058167,
+          "same_osm": false,
+          "distance_m": 45.3
+        }
+      ],
+      "daily_serial_before_replacement": "X2H20042634",
+      "daily_serial_current_candidate": "X2H20042634",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H20042634.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H20042634_archive.json",
+      "website_label": "Lattes 2",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "3738",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry. Location-file serial has Y2H; resource list uses X2H. Preserve both forms.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/lattes-2",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Lattes 1",
+      "serial": "Y2H20042635",
+      "point": [
+        3.93324,
+        43.57883
+      ],
+      "osm_id": 137058167,
+      "candidates": [
+        {
+          "code_centrale": "55695",
+          "id_centrale": 1581,
+          "label": "PEROLS. RM21 Route de la Mer Sud (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 137058167,
+          "same_osm": true,
+          "distance_m": 3.9
+        },
+        {
+          "code_centrale": "3738",
+          "id_centrale": 1579,
+          "label": "PEROLS. RM21 Route de la Mer Nord (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 25871951,
+          "same_osm": false,
+          "distance_m": 37.1
+        }
+      ],
+      "daily_serial_before_replacement": "X2H20042635",
+      "daily_serial_current_candidate": "X2H20042635",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H20042635.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H20042635_archive.json",
+      "website_label": "Lattes 1",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "55695",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry. Location-file serial has Y2H; resource list uses X2H. Preserve both forms.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/lattes-1",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Méric",
+      "serial": "X2H20104132",
+      "point": [
+        3.89352841233989,
+        43.629534011319116
+      ],
+      "osm_id": 10429699,
+      "candidates": [],
+      "daily_serial_before_replacement": "X2H20104132",
+      "daily_serial_current_candidate": "X2H20104132",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H20104132.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H20104132_archive.json",
+      "website_label": "Méric",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "unmatched",
+      "proposed_code_centrale": null,
+      "notes": "No bicycle site within 100 m or sharing the published OSM way in this snapshot.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/meric",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Père Soulas 1",
+      "serial": "X2H21070341",
+      "point": [
+        3.8535306577403,
+        43.623773755552435
+      ],
+      "osm_id": 135001721,
+      "candidates": [],
+      "daily_serial_before_replacement": "X2H21070341",
+      "daily_serial_current_candidate": "X2H21070341",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H21070341.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H21070341_archive.json",
+      "website_label": "Père Soulas 1",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "unmatched",
+      "proposed_code_centrale": null,
+      "notes": "No bicycle site within 100 m or sharing the published OSM way in this snapshot.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/pere-soulas-1",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Père Soulas 2",
+      "serial": "X2H21070342",
+      "point": [
+        3.853519608376403,
+        43.62376270618854
+      ],
+      "osm_id": 135001721,
+      "candidates": [],
+      "daily_serial_before_replacement": "X2H21070342",
+      "daily_serial_current_candidate": "ZLT26063735",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_ZLT26063735.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_ZLT26063735_archive.json",
+      "website_label": "Père Soulas 2",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "unmatched",
+      "proposed_code_centrale": null,
+      "notes": "No bicycle site within 100 m or sharing the published OSM way in this snapshot. Replacement serial follows the publisher notice effective 2026-07-07; continuity of counts not validated.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/pere-soulas-2",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo M17 Montferrier 1",
+      "serial": "X2H21070343",
+      "point": [
+        3.867928592748969,
+        43.67151867079606
+      ],
+      "osm_id": 755700690,
+      "candidates": [],
+      "daily_serial_before_replacement": "X2H21070343",
+      "daily_serial_current_candidate": "X2H21070343",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H21070343.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H21070343_archive.json",
+      "website_label": "Montferrier 1",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "unmatched",
+      "proposed_code_centrale": null,
+      "notes": "No bicycle site within 100 m or sharing the published OSM way in this snapshot.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/montferrier-1",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo N17 Montferrier 2",
+      "serial": "X2H21070347",
+      "point": [
+        3.867982611861345,
+        43.67153033401351
+      ],
+      "osm_id": 755700690,
+      "candidates": [],
+      "daily_serial_before_replacement": "X2H21070347",
+      "daily_serial_current_candidate": "X2H21070347",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H21070347.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H21070347_archive.json",
+      "website_label": "Montferrier 2",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "unmatched",
+      "proposed_code_centrale": null,
+      "notes": "No bicycle site within 100 m or sharing the published OSM way in this snapshot.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/montferrier-2",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Figuerolles",
+      "serial": "X2H21070344",
+      "point": [
+        3.863979059010072,
+        43.606270949289254
+      ],
+      "osm_id": 813676445,
+      "candidates": [
+        {
+          "code_centrale": "213357",
+          "id_centrale": 1813,
+          "label": "MONTPELLIER. Rue du Faubourg Figuerolles (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 813676445,
+          "same_osm": true,
+          "distance_m": 0.5
+        }
+      ],
+      "daily_serial_before_replacement": "X2H21070344",
+      "daily_serial_current_candidate": "X2H21070344",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H21070344.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H21070344_archive.json",
+      "website_label": "Figuerolles",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "213357",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/figuerolles",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Piéton/vélo Pavelet",
+      "serial": "X2H21070345",
+      "point": [
+        3.859739786395711,
+        43.58519797078096
+      ],
+      "osm_id": 563115296,
+      "candidates": [
+        {
+          "code_centrale": "45810",
+          "id_centrale": 1822,
+          "label": "MONTPELLIER. Rue du Mas Nouguier (Pietons Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 37618929,
+          "same_osm": false,
+          "distance_m": 1.4
+        }
+      ],
+      "daily_serial_before_replacement": "X2H21070345",
+      "daily_serial_current_candidate": "X2H21070345",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H21070345.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H21070345_archive.json",
+      "website_label": "Pavelet",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "probable",
+      "proposed_code_centrale": "45810",
+      "notes": "Point is near Rue du Mas Nouguier, whose name differs from Pavelet and whose OSM ID differs. Check the measured population and source channels before accepting.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/pavelet",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo M21 Jacou",
+      "serial": "X2H21070346",
+      "point": [
+        3.912920988675683,
+        43.67112150754941
+      ],
+      "osm_id": 243439664,
+      "candidates": [
+        {
+          "code_centrale": "99616",
+          "id_centrale": 1167,
+          "label": "JACOU. RM21 (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 243439664,
+          "same_osm": true,
+          "distance_m": 11.1
+        }
+      ],
+      "daily_serial_before_replacement": "X2H21070346",
+      "daily_serial_current_candidate": "X2H21070346",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H21070346.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H21070346_archive.json",
+      "website_label": "Jacou",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "99616",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/jacou",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Einstein",
+      "serial": "X2H21070348",
+      "point": [
+        3.913575970413236,
+        43.610300897843196
+      ],
+      "osm_id": 359148100,
+      "candidates": [
+        {
+          "code_centrale": "127425",
+          "id_centrale": 1811,
+          "label": "MONTPELLIER. Avenue Albert Einstein (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 1396542031,
+          "same_osm": false,
+          "distance_m": 0.0
+        }
+      ],
+      "daily_serial_before_replacement": "X2H21070348",
+      "daily_serial_current_candidate": "X2H21070348",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H21070348.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H21070348_archive.json",
+      "website_label": "Albert Einstein",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "probable",
+      "proposed_code_centrale": "127425",
+      "notes": "Matching name and point on our line, but different OSM IDs.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/albert-einstein",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Lapeyronie",
+      "serial": "X2H21070349",
+      "point": [
+        3.85205495380677,
+        43.631968700441234
+      ],
+      "osm_id": 374829525,
+      "candidates": [
+        {
+          "code_centrale": "139182",
+          "id_centrale": 1814,
+          "label": "MONTPELLIER. Lapeyronie (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 374829525,
+          "same_osm": true,
+          "distance_m": 123.1
+        }
+      ],
+      "daily_serial_before_replacement": "X2H21070349",
+      "daily_serial_current_candidate": "X2H21070349",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H21070349.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H21070349_archive.json",
+      "website_label": "Lapeyronie",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "probable",
+      "proposed_code_centrale": "139182",
+      "notes": "Same OSM way and name, but point is 123.1 m from our segment; retained through OSM match, beyond spatial search radius.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/lapeyronie",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo M185 Arnel",
+      "serial": "X2H25023006",
+      "point": [
+        3.88719806952823,
+        43.539357843102145
+      ],
+      "osm_id": 31450087,
+      "candidates": [
+        {
+          "code_centrale": "13833",
+          "id_centrale": 1817,
+          "label": "VILLENEUVE. RM185 Arnel (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 31450087,
+          "same_osm": true,
+          "distance_m": 0.1
+        }
+      ],
+      "daily_serial_before_replacement": "X2H25023006",
+      "daily_serial_current_candidate": "X2H25023006",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H25023006.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H25023006_archive.json",
+      "website_label": "Arnel",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "13833",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/arnel",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Mas de Gau",
+      "serial": "X2H21070351",
+      "point": [
+        3.90802734817732,
+        43.58418695398467
+      ],
+      "osm_id": 253757735,
+      "candidates": [
+        {
+          "code_centrale": "110400",
+          "id_centrale": 1815,
+          "label": "LATTES. RM58 Mas de Gau (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 253757735,
+          "same_osm": true,
+          "distance_m": 11.7
+        }
+      ],
+      "daily_serial_before_replacement": "X2H21070351",
+      "daily_serial_current_candidate": "ZLT26043541",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_ZLT26043541.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_ZLT26043541_archive.json",
+      "website_label": "Mas de Gau",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "110400",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry. Replacement serial follows the publisher notice effective 2026-07-07; continuity of counts not validated.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/mas-de-gau",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo M5 Lèques",
+      "serial": "XTH21015106",
+      "point": [
+        3.800471612316719,
+        43.58992249462649
+      ],
+      "osm_id": 97705917,
+      "candidates": [
+        {
+          "code_centrale": "71888",
+          "id_centrale": 1816,
+          "label": "LAVERUNE. RM5 Chemin des Leques (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 97705917,
+          "same_osm": true,
+          "distance_m": 0.4
+        }
+      ],
+      "daily_serial_before_replacement": "XTH21015106",
+      "daily_serial_current_candidate": "XTH21015106",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_XTH21015106.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_XTH21015106_archive.json",
+      "website_label": "Lèques (Totem Lavérune)",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "71888",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/leques-totem-laverune",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Clapiers",
+      "serial": "XTH24072390",
+      "point": [
+        3.900965576941343,
+        43.66004835682959
+      ],
+      "osm_id": 930381158,
+      "candidates": [
+        {
+          "code_centrale": "175423",
+          "id_centrale": 1843,
+          "label": "CLAPIERS. Giratoire RM21-RM112 (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 930381158,
+          "same_osm": true,
+          "distance_m": 0.0
+        }
+      ],
+      "daily_serial_before_replacement": "XTH24072390",
+      "daily_serial_current_candidate": "XTH24072390",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_XTH24072390.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_XTH24072390_archive.json",
+      "website_label": "Clapiers (Totem Simone Veil)",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "175423",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/clapiers-totem-simone-veil",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Saint-Jaumes 1",
+      "serial": "X2H21111120",
+      "point": [
+        3.868231844054546,
+        43.61676390914395
+      ],
+      "osm_id": 437445704,
+      "candidates": [
+        {
+          "code_centrale": "143921",
+          "id_centrale": 1886,
+          "label": "MONTPELLIER. Rue du Faubourg Saint Jaumes 40 (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 437445704,
+          "same_osm": true,
+          "distance_m": 0.9
+        }
+      ],
+      "daily_serial_before_replacement": "X2H21111120",
+      "daily_serial_current_candidate": "ZLT26063734",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_ZLT26063734.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_ZLT26063734_archive.json",
+      "website_label": "Saint-Jaumes nord",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "143921",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry. Replacement serial follows the publisher notice effective 2026-07-07; continuity of counts not validated.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/saint-jaumes-nord",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Saint-Jaumes 2",
+      "serial": "X2H21111121",
+      "point": [
+        3.870097277864347,
+        43.61463892559912
+      ],
+      "osm_id": 563323786,
+      "candidates": [
+        {
+          "code_centrale": "182559",
+          "id_centrale": 1891,
+          "label": "MONTPELLIER. Rue du Faubourg Saint Jaumes 14 (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 563323786,
+          "same_osm": true,
+          "distance_m": 1.3
+        }
+      ],
+      "daily_serial_before_replacement": "X2H21111121",
+      "daily_serial_current_candidate": "X2H21111121",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H21111121.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H21111121_archive.json",
+      "website_label": "Saint-Jaumes sud",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "182559",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/saint-jaumes-sud",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo RM65 Thomassy",
+      "serial": "X2H22043029",
+      "point": [
+        3.856231212073433,
+        43.64905190220725
+      ],
+      "osm_id": 249866952,
+      "candidates": [
+        {
+          "code_centrale": "123163",
+          "id_centrale": 1168,
+          "label": "MONTPELLIER. RM65 THOMASSY. (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 249866952,
+          "same_osm": true,
+          "distance_m": 0.1
+        }
+      ],
+      "daily_serial_before_replacement": "X2H22043029",
+      "daily_serial_current_candidate": "X2H22043029",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22043029.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22043029_archive.json",
+      "website_label": "Thomassy (RM65)",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "123163",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/thomassy-rm65",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Juvignac Europe",
+      "serial": "X2H22043030",
+      "point": [
+        3.815600881734892,
+        43.614938655818726
+      ],
+      "osm_id": 249856379,
+      "candidates": [
+        {
+          "code_centrale": "118585",
+          "id_centrale": 1966,
+          "label": "JUVIGNAC. Allee de l'Europe (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 249856379,
+          "same_osm": true,
+          "distance_m": 0.1
+        }
+      ],
+      "daily_serial_before_replacement": "X2H22043030",
+      "daily_serial_current_candidate": "X2H22043030",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22043030.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22043030_archive.json",
+      "website_label": "Juvignac Europe",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "118585",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/juvignac-europe",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Castelnau Route de Nimes 1",
+      "serial": "X2H22043031",
+      "point": [
+        3.929509134160485,
+        43.63759109725815
+      ],
+      "osm_id": 60703759,
+      "candidates": [
+        {
+          "code_centrale": "43444",
+          "id_centrale": 1970,
+          "label": "CASTELNAU LE LEZ. Route de Nimes Nord (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 60703759,
+          "same_osm": true,
+          "distance_m": 0.9
+        },
+        {
+          "code_centrale": "43448",
+          "id_centrale": 1967,
+          "label": "CASTELNAU LE LEZ. Route de Nimes Sud (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 60703959,
+          "same_osm": false,
+          "distance_m": 16.2
+        }
+      ],
+      "daily_serial_before_replacement": "X2H22043031",
+      "daily_serial_current_candidate": "X2H22043031",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22043031.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22043031_archive.json",
+      "website_label": "Castelnau - Aube-Rouge 1",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "43444",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/castelnau-aube-rouge-1",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Castelnau Route de Nimes 2",
+      "serial": "X2H22043032",
+      "point": [
+        3.929638246864717,
+        43.637473327255016
+      ],
+      "osm_id": 60703959,
+      "candidates": [
+        {
+          "code_centrale": "43448",
+          "id_centrale": 1967,
+          "label": "CASTELNAU LE LEZ. Route de Nimes Sud (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 60703959,
+          "same_osm": true,
+          "distance_m": 0.2
+        },
+        {
+          "code_centrale": "43444",
+          "id_centrale": 1970,
+          "label": "CASTELNAU LE LEZ. Route de Nimes Nord (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 60703759,
+          "same_osm": false,
+          "distance_m": 15.9
+        }
+      ],
+      "daily_serial_before_replacement": "X2H22043032",
+      "daily_serial_current_candidate": "X2H22043032",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22043032.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22043032_archive.json",
+      "website_label": "Castelnau - Aube-Rouge 2",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "43448",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/castelnau-aube-rouge-2",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Allée de la Méditerranée",
+      "serial": "X2H22043033",
+      "point": [
+        3.898694041683555,
+        43.59883097415739
+      ],
+      "osm_id": 399988317,
+      "candidates": [
+        {
+          "code_centrale": "148467",
+          "id_centrale": 1969,
+          "label": "MONTPELLIER. Allee de la Mediterranee (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 399988317,
+          "same_osm": true,
+          "distance_m": 27.2
+        }
+      ],
+      "daily_serial_before_replacement": "X2H22043033",
+      "daily_serial_current_candidate": "X2H22043033",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22043033.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22043033_archive.json",
+      "website_label": "Allée de la Méditerranée",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "148467",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/allee-de-la-mediterranee",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Renouvier bande cyclable",
+      "serial": "X2H22043034",
+      "point": [
+        3.867682517800408,
+        43.60385578336974
+      ],
+      "osm_id": 295726077,
+      "candidates": [],
+      "daily_serial_before_replacement": "X2H22043034",
+      "daily_serial_current_candidate": "X2H22043034",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22043034.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22043034_archive.json",
+      "website_label": "Renouvier bande cyclable",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "unmatched",
+      "proposed_code_centrale": null,
+      "notes": "No bicycle site within 100 m or sharing the published OSM way in this snapshot.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/renouvier-bande-cyclable",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Renouvier chaussée",
+      "serial": "X2H22043035",
+      "point": [
+        3.867765118853567,
+        43.60386164117374
+      ],
+      "osm_id": 295726077,
+      "candidates": [],
+      "daily_serial_before_replacement": "X2H22043035",
+      "daily_serial_current_candidate": "X2H22043035",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22043035.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22043035_archive.json",
+      "website_label": "Renouvier chaussée",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "unmatched",
+      "proposed_code_centrale": null,
+      "notes": "No bicycle site within 100 m or sharing the published OSM way in this snapshot.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/renouvier-chaussee",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Gerhardt 2",
+      "serial": "X2H22104770",
+      "point": [
+        3.868512676848621,
+        43.613840164945586
+      ],
+      "osm_id": 1396155904,
+      "candidates": [
+        {
+          "code_centrale": "113978",
+          "id_centrale": 83904,
+          "label": "MONTPELLIER. Rue Gerhardt pair (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 1396155904,
+          "same_osm": true,
+          "distance_m": 0.7
+        },
+        {
+          "code_centrale": "83588",
+          "id_centrale": 83903,
+          "label": "MONTPELLIER. Rue Gerhardt impair (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 1355280004,
+          "same_osm": false,
+          "distance_m": 4.5
+        }
+      ],
+      "daily_serial_before_replacement": "X2H22104770",
+      "daily_serial_current_candidate": "X2H22104770",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22104770.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22104770_archive.json",
+      "website_label": "Gerhardt 2",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "113978",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/gerhardt-2",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Jean Mermoz",
+      "serial": "X2H22104768",
+      "point": [
+        3.889818799334975,
+        43.61130274355122
+      ],
+      "osm_id": 155831324,
+      "candidates": [
+        {
+          "code_centrale": "52371",
+          "id_centrale": 52211,
+          "label": "MONTPELLIER. Avenue Jean Mermoz (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 155831324,
+          "same_osm": true,
+          "distance_m": 0.1
+        }
+      ],
+      "daily_serial_before_replacement": "X2H22104768",
+      "daily_serial_current_candidate": "X2H22104768",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22104768.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22104768_archive.json",
+      "website_label": "Mermoz",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "52371",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/mermoz",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Vieussens1",
+      "serial": "X2H22104775",
+      "point": [
+        3.877649940498084,
+        43.60011734280271
+      ],
+      "osm_id": 8584788,
+      "candidates": [],
+      "daily_serial_before_replacement": "X2H22104775",
+      "daily_serial_current_candidate": "X2H22104775",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22104775.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22104775_archive.json",
+      "website_label": "Vieussens (côté pair)",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "unmatched",
+      "proposed_code_centrale": null,
+      "notes": "No bicycle site within 100 m or sharing the published OSM way in this snapshot.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/vieussens-cote-pair",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Vieussens2",
+      "serial": "X2H22104776",
+      "point": [
+        3.877415237141062,
+        43.60014923184578
+      ],
+      "osm_id": 8584788,
+      "candidates": [],
+      "daily_serial_before_replacement": "X2H22104776",
+      "daily_serial_current_candidate": "X2H22104776",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22104776.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22104776_archive.json",
+      "website_label": "Vieussens (côté impair)",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "unmatched",
+      "proposed_code_centrale": null,
+      "notes": "No bicycle site within 100 m or sharing the published OSM way in this snapshot.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/vieussens-cote-impair",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Pompignane1",
+      "serial": "X2H22104773",
+      "point": [
+        3.898039156858491,
+        43.61400884774643
+      ],
+      "osm_id": 376991821,
+      "candidates": [
+        {
+          "code_centrale": "142874",
+          "id_centrale": 52204,
+          "label": "MONTPELLIER. Avenue de la Pompignane Ouest (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 376991821,
+          "same_osm": true,
+          "distance_m": 3.9
+        },
+        {
+          "code_centrale": "48995",
+          "id_centrale": 52206,
+          "label": "MONTPELLIER. Avenue de la Pompignane Est (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 31450626,
+          "same_osm": false,
+          "distance_m": 14.2
+        }
+      ],
+      "daily_serial_before_replacement": "X2H22104773",
+      "daily_serial_current_candidate": "X2H22104773",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22104773.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22104773_archive.json",
+      "website_label": "Pompignane 1",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "142874",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/pompignane-1",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Pompignane2",
+      "serial": "X2H22104774",
+      "point": [
+        3.898217735499705,
+        43.61390233834256
+      ],
+      "osm_id": 31450626,
+      "candidates": [
+        {
+          "code_centrale": "48995",
+          "id_centrale": 52206,
+          "label": "MONTPELLIER. Avenue de la Pompignane Est (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 31450626,
+          "same_osm": true,
+          "distance_m": 0.2
+        },
+        {
+          "code_centrale": "142874",
+          "id_centrale": 52204,
+          "label": "MONTPELLIER. Avenue de la Pompignane Ouest (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 376991821,
+          "same_osm": false,
+          "distance_m": 10.1
+        }
+      ],
+      "daily_serial_before_replacement": "X2H22104774",
+      "daily_serial_current_candidate": "X2H22104774",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22104774.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22104774_archive.json",
+      "website_label": "Pompignane 2",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "48995",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/pompignane-2",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Clos l'armet",
+      "serial": "X2H22104767",
+      "point": [
+        3.914574304370027,
+        43.6314045568803
+      ],
+      "osm_id": 104300810,
+      "candidates": [
+        {
+          "code_centrale": "66551",
+          "id_centrale": 52209,
+          "label": "CASTELNAU LE LEZ. Chemin Clos l'Armet (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 1127589696,
+          "same_osm": false,
+          "distance_m": 19.6
+        }
+      ],
+      "daily_serial_before_replacement": "X2H22104767",
+      "daily_serial_current_candidate": "X2H22104767",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22104767.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22104767_archive.json",
+      "website_label": "Clos l‘Armet",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "probable",
+      "proposed_code_centrale": "66551",
+      "notes": "Matching name, 19.6 m away, but different OSM IDs.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/clos-larmet",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Grabels",
+      "serial": "X2H22104766",
+      "point": [
+        3.822333116925764,
+        43.64510462343349
+      ],
+      "osm_id": 162938367,
+      "candidates": [
+        {
+          "code_centrale": "75407",
+          "id_centrale": 52208,
+          "label": "GRABELS. RM127 (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 162938367,
+          "same_osm": true,
+          "distance_m": 0.1
+        }
+      ],
+      "daily_serial_before_replacement": "X2H22104766",
+      "daily_serial_current_candidate": "X2H22104766",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22104766.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22104766_archive.json",
+      "website_label": "Grabels",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "75407",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/grabels",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Cournonsec",
+      "serial": "X2H22104765",
+      "point": [
+        3.698824398731411,
+        43.53805847040914
+      ],
+      "osm_id": 1085031414,
+      "candidates": [
+        {
+          "code_centrale": "89094",
+          "id_centrale": 52207,
+          "label": "COURNONSEC. RM5 (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 1085031414,
+          "same_osm": true,
+          "distance_m": 0.2
+        }
+      ],
+      "daily_serial_before_replacement": "X2H22104765",
+      "daily_serial_current_candidate": "X2H22104765",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22104765.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22104765_archive.json",
+      "website_label": "Cournonsec",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "89094",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/cournonsec",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Grossec",
+      "serial": "X2H22104769",
+      "point": [
+        3.861142483689855,
+        43.575238909321754
+      ],
+      "osm_id": 38292462,
+      "candidates": [
+        {
+          "code_centrale": "16190",
+          "id_centrale": 52212,
+          "label": "MONTPELLIER. Rue François Joseph Gossec (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 38292462,
+          "same_osm": true,
+          "distance_m": 0.3
+        }
+      ],
+      "daily_serial_before_replacement": "X2H22104769",
+      "daily_serial_current_candidate": "X2H22104769",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22104769.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22104769_archive.json",
+      "website_label": "Gossec",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "16190",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/gossec",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Léon Vallois",
+      "serial": "X2H22104777",
+      "point": [
+        3.884894975086918,
+        43.61399998947964
+      ],
+      "osm_id": 643789819,
+      "candidates": [
+        {
+          "code_centrale": "175319",
+          "id_centrale": 55781,
+          "label": "MONTPELLIER. Rue du Professeur Leon Vallois (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 643789819,
+          "same_osm": true,
+          "distance_m": 0.4
+        }
+      ],
+      "daily_serial_before_replacement": "X2H22104777",
+      "daily_serial_current_candidate": "X2H22104777",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22104777.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22104777_archive.json",
+      "website_label": "Léon Vallois",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "175319",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/leon-vallois",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Castelnau G. Frêche 1",
+      "serial": "X2H22104772",
+      "point": [
+        3.908884763980524,
+        43.623171927757575
+      ],
+      "osm_id": 477652563,
+      "candidates": [
+        {
+          "code_centrale": "167044",
+          "id_centrale": 52224,
+          "label": "CASTELNAU LE LEZ. Avenue Georges Freche Ouest (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 477652563,
+          "same_osm": true,
+          "distance_m": 0.2
+        },
+        {
+          "code_centrale": "143800",
+          "id_centrale": 52225,
+          "label": "CASTELNAU LE LEZ. Avenue Georges Freche Est (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 477652564,
+          "same_osm": false,
+          "distance_m": 11.0
+        }
+      ],
+      "daily_serial_before_replacement": "X2H22104772",
+      "daily_serial_current_candidate": "ZLT26063738",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_ZLT26063738.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_ZLT26063738_archive.json",
+      "website_label": "Georges Frêche 1",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "167044",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry. Replacement serial follows the publisher notice effective 2026-07-07; continuity of counts not validated.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/georges-freche-1",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Castelnau G. Frêche 2",
+      "serial": "X2H22104771",
+      "point": [
+        3.908787052489064,
+        43.62310333558475
+      ],
+      "osm_id": 477652564,
+      "candidates": [
+        {
+          "code_centrale": "143800",
+          "id_centrale": 52225,
+          "label": "CASTELNAU LE LEZ. Avenue Georges Freche Est (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 477652564,
+          "same_osm": true,
+          "distance_m": 0.1
+        },
+        {
+          "code_centrale": "167044",
+          "id_centrale": 52224,
+          "label": "CASTELNAU LE LEZ. Avenue Georges Freche Ouest (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 477652563,
+          "same_osm": false,
+          "distance_m": 10.6
+        }
+      ],
+      "daily_serial_before_replacement": "X2H22104771",
+      "daily_serial_current_candidate": "X2H22104771",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22104771.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_X2H22104771_archive.json",
+      "website_label": "Georges Frêche 2",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "143800",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/georges-freche-2",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Sabines",
+      "serial": "COM23120110",
+      "point": [
+        3.8610267527322,
+        43.58429988136376
+      ],
+      "osm_id": 37618918,
+      "candidates": [],
+      "daily_serial_before_replacement": "COM23120110",
+      "daily_serial_current_candidate": "COM23120110",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_COM23120110.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_COM23120110_archive.json",
+      "website_label": "Sabines",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "unmatched",
+      "proposed_code_centrale": null,
+      "notes": "No bicycle site within 100 m or sharing the published OSM way in this snapshot.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/sabines",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Saint-Martin Cité Mion",
+      "serial": "COM23120111",
+      "point": [
+        3.883731489029596,
+        43.59700156366261
+      ],
+      "osm_id": 1182343623,
+      "candidates": [
+        {
+          "code_centrale": "22646",
+          "id_centrale": 82792,
+          "label": "MONTPELLIER. Saint Martin cite Mion - Dubout (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 1182343623,
+          "same_osm": true,
+          "distance_m": 1.2
+        }
+      ],
+      "daily_serial_before_replacement": "COM23120111",
+      "daily_serial_current_candidate": "COM23120111",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_COM23120111.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_COM23120111_archive.json",
+      "website_label": "Saint-Martin Cité Mion",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "22646",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/saint-martin-cite-mion",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Rue Pierre Causse",
+      "serial": "COM23120112",
+      "point": [
+        3.841721058176745,
+        43.608990852814394
+      ],
+      "osm_id": 140548130,
+      "candidates": [],
+      "daily_serial_before_replacement": "COM23120112",
+      "daily_serial_current_candidate": "COM23120112",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_COM23120112.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_COM23120112_archive.json",
+      "website_label": "Rue Pierre Causse",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "unmatched",
+      "proposed_code_centrale": null,
+      "notes": "No bicycle site within 100 m or sharing the published OSM way in this snapshot.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/rue-pierre-causse",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Saint-Lazare",
+      "serial": "COM23120113",
+      "point": [
+        3.892233885266607,
+        43.62357095291798
+      ],
+      "osm_id": 105575465,
+      "candidates": [
+        {
+          "code_centrale": "63476",
+          "id_centrale": 82801,
+          "label": "MONTPELLIER. Saint Lazare - Delmas(Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 105575465,
+          "same_osm": true,
+          "distance_m": 0.0
+        }
+      ],
+      "daily_serial_before_replacement": "COM23120113",
+      "daily_serial_current_candidate": "COM23120113",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_COM23120113.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_COM23120113_archive.json",
+      "website_label": "Saint-Lazare",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "63476",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/saint-lazare",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Quai de Cythère",
+      "serial": "COM23120114",
+      "point": [
+        3.898652611413219,
+        43.60982104639774
+      ],
+      "osm_id": 121403595,
+      "candidates": [
+        {
+          "code_centrale": "146966",
+          "id_centrale": 82802,
+          "label": "MONTPELLIER. Pompignane Quai Cythere (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 406595705,
+          "same_osm": false,
+          "distance_m": 0.1
+        }
+      ],
+      "daily_serial_before_replacement": "COM23120114",
+      "daily_serial_current_candidate": "COM23120114",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_COM23120114.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_COM23120114_archive.json",
+      "website_label": "Quai de Cythère",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "probable",
+      "proposed_code_centrale": "146966",
+      "notes": "Matching name and point on our line, but different OSM IDs.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/quai-de-cythere",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Lac du Crès",
+      "serial": "COM23120117",
+      "point": [
+        3.93510495544346,
+        43.655245578614306
+      ],
+      "osm_id": 162937166,
+      "candidates": [
+        {
+          "code_centrale": "90608",
+          "id_centrale": 83662,
+          "label": "LE CRES. Avenue du Mistral (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 162937166,
+          "same_osm": true,
+          "distance_m": 3.7
+        }
+      ],
+      "daily_serial_before_replacement": "COM23120117",
+      "daily_serial_current_candidate": "COM23120117",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_COM23120117.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_COM23120117_archive.json",
+      "website_label": "Lac du Crès",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "90608",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/lac-du-cres",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Villeneuve",
+      "serial": "COM24010120",
+      "point": [
+        3.870428356355221,
+        43.53846399817031
+      ],
+      "osm_id": 365190978,
+      "candidates": [
+        {
+          "code_centrale": "105782",
+          "id_centrale": 83661,
+          "label": "VILLENEUVE CAMPING(velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 365190978,
+          "same_osm": true,
+          "distance_m": 3.2
+        }
+      ],
+      "daily_serial_before_replacement": "COM24010120",
+      "daily_serial_current_candidate": "COM24010120",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_COM24010120.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_COM24010120_archive.json",
+      "website_label": "Villeneuve",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "105782",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/villeneuve",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Université Paul Valery",
+      "serial": "COM24010121",
+      "point": [
+        3.869374733256279,
+        43.63063820498228
+      ],
+      "osm_id": 368597548,
+      "candidates": [
+        {
+          "code_centrale": "106699",
+          "id_centrale": 83934,
+          "label": "MONTPELLIER Universite Paul Valery - Rte de Mende (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 368597548,
+          "same_osm": true,
+          "distance_m": 0.0
+        }
+      ],
+      "daily_serial_before_replacement": "COM24010121",
+      "daily_serial_current_candidate": "COM24010121",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_COM24010121.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_COM24010121_archive.json",
+      "website_label": "Université Paul Valéry",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "106699",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/universite-paul-valery",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Saint Georges d’Orques ",
+      "serial": "COM24010119",
+      "point": [
+        3.78969465713092,
+        43.60873798615075
+      ],
+      "osm_id": 73897211,
+      "candidates": [
+        {
+          "code_centrale": "13790",
+          "id_centrale": 83933,
+          "label": "SAINT GEORGES D'ORQUES. RM27E6 (Velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 73897211,
+          "same_osm": true,
+          "distance_m": 0.0
+        }
+      ],
+      "daily_serial_before_replacement": "COM24010119",
+      "daily_serial_current_candidate": "COM24010119",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_COM24010119.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_COM24010119_archive.json",
+      "website_label": "Saint-Georges-d'Orques",
+      "website_label_evidence": "Name correspondence with Saint-Georges-d’Orques in website counter navigation; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "13790",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/saint-georges-dorques",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Pas du Loup 1 pair",
+      "serial": "ZLT25112719",
+      "point": [
+        3.848768519586933,
+        43.6003861810911
+      ],
+      "osm_id": 1435092124,
+      "candidates": [
+        {
+          "code_centrale": "22382",
+          "id_centrale": 83952,
+          "label": "MONTPELLIER. Rue du Pas du Loup (Pair - 2) (velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 1415342430,
+          "same_osm": false,
+          "distance_m": 15.1
+        }
+      ],
+      "daily_serial_before_replacement": "ZLT25112719",
+      "daily_serial_current_candidate": "ZLT25112719",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_ZLT25112719.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_ZLT25112719_archive.json",
+      "website_label": "Pas du loup (pair)",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "review",
+      "proposed_code_centrale": null,
+      "notes": "Daily location says pair, but nearest annual site is labelled Pair - 2 and matches the OTHER serial by OSM ID. Leave both sides unresolved.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/pas-du-loup-pair",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Pas du Loup 2 impair",
+      "serial": "ZLT25112718",
+      "point": [
+        3.848669458438164,
+        43.60053998655893
+      ],
+      "osm_id": 1415342430,
+      "candidates": [
+        {
+          "code_centrale": "22382",
+          "id_centrale": 83952,
+          "label": "MONTPELLIER. Rue du Pas du Loup (Pair - 2) (velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 1415342430,
+          "same_osm": true,
+          "distance_m": 3.7
+        }
+      ],
+      "daily_serial_before_replacement": "ZLT25112718",
+      "daily_serial_current_candidate": "ZLT25112718",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_ZLT25112718.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_ZLT25112718_archive.json",
+      "website_label": "Pas du loup (impair)",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "review",
+      "proposed_code_centrale": null,
+      "notes": "OSM and distance support 22382, but the daily label says impair whereas the annual label says Pair - 2. Leave both sides unresolved.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/pas-du-loup-impair",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Galerie cyclable Victor Hugo",
+      "serial": "ZLT25112692",
+      "point": [
+        3.878110171164917,
+        43.606844707303594
+      ],
+      "osm_id": 1315709015,
+      "candidates": [
+        {
+          "code_centrale": "69765",
+          "id_centrale": 83958,
+          "label": "MONTPELLIER. Galerie cyclable Comedie Victor Hugo (velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 1315709015,
+          "same_osm": true,
+          "distance_m": 0.1
+        }
+      ],
+      "daily_serial_before_replacement": "ZLT25112692",
+      "daily_serial_current_candidate": "ZLT25112692",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_ZLT25112692.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_ZLT25112692_archive.json",
+      "website_label": "Galerie (V. Hugo)",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "69765",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/galerie-v-hugo",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo Galerie cyclable Frédéric Mistral",
+      "serial": "ZLT25112669",
+      "point": [
+        3.88270673881139,
+        43.60995470600042
+      ],
+      "osm_id": 1315709018,
+      "candidates": [
+        {
+          "code_centrale": "23756",
+          "id_centrale": 1138,
+          "label": "MONTPELLIER. Galerie cyclable Comedie Frederic Mistral (velos)",
+          "type_compteur": "compteur permanent vélo",
+          "osm_id": 1315709018,
+          "same_osm": true,
+          "distance_m": 0.0
+        }
+      ],
+      "daily_serial_before_replacement": "ZLT25112669",
+      "daily_serial_current_candidate": "ZLT25112669",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_ZLT25112669.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_ZLT25112669_archive.json",
+      "website_label": "Galerie (F. Mistral)",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "strong",
+      "proposed_code_centrale": "23756",
+      "notes": "Matching OSM way, compatible name, and point within 50 m of annual road geometry.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/galerie-f-mistral",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    },
+    {
+      "name": "Compteur Vélo et Trottinette Cours Gambetta",
+      "serial": "ZLT25112720",
+      "point": [
+        3.870472035220561,
+        43.60720706255831
+      ],
+      "osm_id": 1230331740,
+      "candidates": [],
+      "daily_serial_before_replacement": "ZLT25112720",
+      "daily_serial_current_candidate": "ZLT25112720",
+      "daily_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_ZLT25112720.json",
+      "archive_resource_url": "https://data.montpellier3m.fr/sites/default/files/ressources/MMM_EcoCompt_ZLT25112720_archive.json",
+      "website_label": "Gambetta",
+      "website_label_evidence": "Name correspondence only; frontend serial binding not independently extracted.",
+      "status": "unmatched",
+      "proposed_code_centrale": null,
+      "notes": "No bicycle site within 100 m or sharing the published OSM way in this snapshot.",
+      "website_detail_url": "https://compteurs.velocite-montpellier.fr/detail/gambetta",
+      "website_detail_url_evidence": "Detail link extracted from the website counter navigation on 2026-10-31; correspondence follows website_label. Link destination may be cached or unavailable."
+    }
+  ],
+  "annual_sites_without_strong_or_probable_link": [
+    {
+      "code_centrale": "117029",
+      "label": "MONTPELLIER Avenue de Lodeve Poste 10.2B",
+      "type": "compteur ponctuel vélo"
+    },
+    {
+      "code_centrale": "121123",
+      "label": "MONTPELLIER. Avenue Charles Flahault Sud",
+      "type": "compteur ponctuel vélo"
+    },
+    {
+      "code_centrale": "125325",
+      "label": "MONTPELLIER. Route de Ganges Poste 3.1B",
+      "type": "compteur ponctuel vélo"
+    },
+    {
+      "code_centrale": "154357",
+      "label": "MONTPELLIER. Avenue de Lodeve Poste 10.2B",
+      "type": "compteur ponctuel vélo"
+    },
+    {
+      "code_centrale": "22382",
+      "label": "MONTPELLIER. Rue du Pas du Loup (Pair - 2) (velos)",
+      "type": "compteur permanent vélo"
+    },
+    {
+      "code_centrale": "47007",
+      "label": "MONTPELLIER. Rue Francois-Joseph Gossec",
+      "type": "compteur ponctuel vélo"
+    },
+    {
+      "code_centrale": "4846",
+      "label": "MONTFERRIER SUR LEZ. Boulevard de la Lironde",
+      "type": "compteur ponctuel vélo"
+    },
+    {
+      "code_centrale": "53588",
+      "label": "MONTPELLIER. Avenue Francois Delmas piste nord (Velos)",
+      "type": "compteur permanent vélo"
+    },
+    {
+      "code_centrale": "66196",
+      "label": "MONTFERRIER SUR LEZ. Boulevard de la Lironde",
+      "type": "compteur ponctuel vélo"
+    },
+    {
+      "code_centrale": "83588",
+      "label": "MONTPELLIER. Rue Gerhardt impair (Velos)",
+      "type": "compteur permanent vélo"
+    },
+    {
+      "code_centrale": "84338",
+      "label": "MONTPELLIER.  Avenue du Mondial 98",
+      "type": "compteur ponctuel vélo"
+    },
+    {
+      "code_centrale": "84457",
+      "label": "MONTPELLIER. Route de Ganges Poste 3.2A",
+      "type": "compteur ponctuel vélo"
+    },
+    {
+      "code_centrale": "89310",
+      "label": "MONTPELLIER. Avenue Bouisson BertrandV",
+      "type": "compteur ponctuel vélo"
+    },
+    {
+      "code_centrale": "94550",
+      "label": "MONTPELLIER. Avenue Charles Flahault Nord",
+      "type": "compteur ponctuel vélo"
+    }
+  ]
+}
