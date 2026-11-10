@@ -569,6 +569,7 @@ class OciScriptsTest(unittest.TestCase):
 
     def test_invoke_rejects_invalid_arguments_before_oci_calls(self):
         for args in [(), ('osm', 'DPT34'), ('osm', 'extra', 'extra'),
+                     ('accidents', '2024'), ('accidents', 'refresh', 'extra'),
                      ('ds',), ('geojson',), ('ds', 'MMM', 'extra'), ('unknown',)]:
             with self.subTest(args=args):
                 self.assertIn('Usage:', self.script('invoke.sh', *args, success=False).stderr)
@@ -582,8 +583,12 @@ class OciScriptsTest(unittest.TestCase):
                     self.state['writes'] = []
                     self.save()
                 self.deploy()
-                self.assertEqual(len(self.state['writes']), 4)
+                self.assertEqual(len(self.state['writes']), 5)
                 functions = {f['display-name']: f for f in self.state['functions']}
+                self.assertEqual(functions['ONISRAccidentFunction']['config'],
+                                 {'NAMESPACE': 'testnamespace', 'BUCKETNAME_OSM': 'osminfo'})
+                self.assertEqual(functions['ONISRAccidentFunction']['defined-tags'], {})
+                self.assertEqual(functions['ONISRAccidentFunction']['timeout-in-seconds'], 300)
                 self.assertEqual(functions['OSMInfoFunction']['config'],
                                  {'NAMESPACE': 'testnamespace', 'BUCKETNAME_OSM': 'osminfo',
                                   'MAX_LOOP_DURATION_SECONDS': '180', 'MAX_WAY_MAPPINGS_PER_RUN': '12'})
@@ -597,6 +602,26 @@ class OciScriptsTest(unittest.TestCase):
                                   'BUCKETNAME_OSM': 'osminfo'})
                 self.assertEqual(functions['GeoJsonFunction']['defined-tags'], {})
                 self.assertEqual(functions['GeoJsonFunction']['timeout-in-seconds'], 300)
+
+    def test_accidents_deploy_and_invoke_manual_import_and_refresh(self):
+        self.env['BUCKETNAME_OSM'] = 'custom-osm'
+        for _ in range(2):
+            self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main accidents')
+            function = next(f for f in self.state['functions'] if f['display-name'] == 'ONISRAccidentFunction')
+            self.assertEqual(function['config'], {'NAMESPACE': 'testnamespace', 'BUCKETNAME_OSM': 'custom-osm'})
+            self.assertEqual(function['defined-tags'], {})
+            self.assertEqual(function['timeout-in-seconds'], 300)
+            call = next(c for c in reversed(self.state['calls']) if '--handler' in c)
+            self.assertEqual(call[call.index('--handler') + 1],
+                             'org.traficinfo.dsfunctions.ONISRAccidentFunction::handleRequest')
+        self.assertTrue(all(w[2] == 'ONISRAccidentFunction' for w in self.state['writes']))
+        self.config_file.unlink()  # Manual accident invocation has no datasource registry dependency.
+        for args, body in [(('accidents',), {}), (('accidents', 'refresh'), {'action': 'refresh'})]:
+            self.script('invoke.sh', *args)
+            call = self.state['calls'][-1]
+            self.assertEqual(call[call.index('--function-id') + 1], function['id'])
+            self.assertEqual(call[call.index('--read-timeout') + 1], '360')
+            self.assertEqual(json.loads(call[call.index('--body') + 1]), body)
 
     def test_osm_report_uses_bucket_override_and_handler(self):
         self.env['BUCKETNAME_OSM'] = 'custom-osminfo'

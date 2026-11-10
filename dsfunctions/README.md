@@ -1,7 +1,7 @@
 # Data source functions
 
 The module provides shared retrieval, preprocessing and GeoJSON functions,
-and an OSM cache refresh function. Retrieval selects its datasource
+an OSM cache refresh function and a manually invoked ONISR accident function. Retrieval selects its datasource
 from each request and loads the source settings from the bundled configuration.
 
 Files are gzip-compressed before upload, keeping their original object names and
@@ -29,7 +29,8 @@ metadata, sequence numbers and nanosecond precision are omitted.
 During retrieval, preprocessing and GeoJSON invocations, the `mdc` object
 contains `datasourceId` and `stage` (`retrieval`, `preprocess`, or `geojson`).
 The OSM function uses stage `osminfo` and adds `datasourceId` while processing each
-source; cross-source summary logs have no datasource ID. Startup and runtime
+source; cross-source summary logs have no datasource ID. The accident function uses
+stage `accidents` and datasource ID `ONISR`, logging statistics per regional ID. Startup and runtime
 logs outside these scopes can also lack datasource context. The context is
 restored when a scope exits, including on failure, so reused invocation threads
 do not retain the previous source. New background tasks must explicitly propagate
@@ -646,8 +647,8 @@ be configured as described in the [setup specification](../specs/setup.md#retrie
 
 `ONISRAccidentProcessor` imports one manually selected characteristics CSV and
 publishes regional accident JSON using supplied storage clients. It is processing
-logic only: there is no accident Fn handler, deployment registration, event rule
-or retrieval schedule yet. Tests use in-memory storage and fake OSM responses;
+logic separate from the manual function handler described below. There is no
+accident event rule or retrieval schedule. Tests use in-memory storage and fake OSM responses;
 the processor itself makes no OSM HTTP requests.
 
 The first client targets `onisrinfo`; the second targets the existing `osminfo`.
@@ -656,7 +657,7 @@ The caller owns both clients. For example, once clients have been supplied:
 ```java
 var processor = new ONISRAccidentProcessor(accidentStore, osmStore);
 Map<String, ONISRAccidentProcessor.Statistics> imported =
-        processor.importCsv("Caract_2025.csv", 2025);
+        processor.importCsv("caract-2025.csv", 2025);
 
 // Later, after the hourly OSM refresh or a mapping review:
 Map<String, ONISRAccidentProcessor.Statistics> refreshed = processor.refresh();
@@ -680,7 +681,7 @@ Storage names are:
 
 | Bucket | Object | Contents |
 | --- | --- | --- |
-| `onisrinfo` | Uploaded CSV, e.g. `Caract_2025.csv` | Unmodified raw source |
+| `onisrinfo` | Uploaded CSV, e.g. `caract-2025.csv` | Unmodified raw source |
 | `onisrinfo` | `data/ONISR_DPT30/2025.json` | Regional source records for one year, including unmatched/unlocated accidents |
 | `onisrinfo` | `ONISR_DPT30_Accidents.json` | All imported years, grouped by usable OSM way ID |
 | `osminfo` | `ONISR_DPT30_OSMWayMapping.json` | Accident-ID-to-way assignments and pending/review records |
@@ -714,6 +715,38 @@ are not a transaction. A later manual import or refresh can finish a failed run;
 there are no immediate retries or added locks. The returned statistics report
 total, matched and unmatched accidents and distinct ways per regional ID.
 
+## Manual ONISR accident function
+
+`ONISRAccidentFunction` wraps the local processor. For now it hardcodes
+`onisrinfo/caract-2025.csv`, year **2025**, and regional IDs **30, 34, 76**. The
+object name is case-sensitive. Other uploaded CSVs are not selected, and request
+payloads cannot override the filename or year. ONISR is not added to `dsconfig.json`.
+
+An empty request, `{}` or `{"action":"import"}` imports the fixed 2025 input and
+rebuilds the combined regional output. `{"action":"refresh"}` only rebuilds
+output using stored regional records and current OSM mappings, without reading
+the raw CSV. The handler returns `OK` and logs regional statistics on success;
+parsing, storage and publication failures fail the invocation. Both storage
+clients are closed after each invocation.
+
+After the shared environment has been initialized with `source ./scripts/setup.sh`:
+
+```sh
+./scripts/deploy-functions.sh accidents
+./scripts/invoke.sh accidents
+
+# After the hourly OSM function resolves pending locations or mappings are reviewed:
+./scripts/invoke.sh accidents refresh
+```
+
+Deployment registers the manual handler with a 300-second runtime timeout and no
+scheduling tags. Invocation uses a 360-second client timeout. Runtime configuration
+contains `NAMESPACE` and `BUCKETNAME_OSM` (default `osminfo`); resource-principal
+authentication defaults to true. The accident bucket is fixed to `onisrinfo`.
+The function's resource principal needs object access to both buckets, as described
+in the [bucket permissions specification](../specs/setup.md#bucket-permissions).
+Preparing these scripts does not deploy or invoke the function.
+
 ## Deployment and invocation
 
 After `source ./scripts/setup.sh`, use the scripts from the repository root:
@@ -736,7 +769,7 @@ After `source ./scripts/setup.sh`, use the scripts from the repository root:
 
 Retrieval, preprocessing and GeoJSON deploy once as `DataSourceFunction`,
 `PreprocessingFunction` and `GeoJsonFunction`. No-argument deployment includes
-these three functions and `OSMInfoFunction`. Adding a retrieval source requires
+these three functions, `OSMInfoFunction` and `ONISRAccidentFunction`. Adding a retrieval source requires
 configuration, redeployment and schedule setup. New GeoJSON sources require parser
 and `GeoJsonDataSource` registration, followed by redeployment; no per-source
 handler or deployment entry is needed.
@@ -749,7 +782,7 @@ come from the shared setup exports; `OCI_FN_APPLICATION_ID` can bypass the
 application-name lookup. The application remains `3MOpenDataProcessor`.
 
 Retrieval and preprocessing bundle `dsconfig.json` and receive `NAMESPACE`.
-All stages use the input bucket selected by `dsconfig.json`. GeoJSON deployment
+The count stages use the input bucket selected by `dsconfig.json`. GeoJSON deployment
 also accepts `BUCKETNAME_OUT` and `BUCKETNAME_OSM`. OSM cache object names derive
 from the datasource ID. OSM refresh receives
 `NAMESPACE`, `BUCKETNAME_OSM`, `MAX_LOOP_DURATION_SECONDS` and
@@ -758,8 +791,10 @@ from the datasource ID. OSM refresh receives
 Invocation resolves the deployed function and calls it synchronously. Retrieval
 and GeoJSON send only `datasourceId`; normal preprocessing does the same and
 also accepts an inactive `datasetId` for archive imports. OSM uses an empty body.
+Accident invocation sends `{}` for the fixed 2025 import or `{"action":"refresh"}`
+for rebuilding stored output.
 Retrieval's client timeout is the maximum configured source runtime plus 60
-seconds; preprocessing, GeoJSON and OSM use 360 seconds. Missing functions and OCI errors
+seconds; preprocessing, GeoJSON, OSM and accidents use 360 seconds. Missing functions and OCI errors
 produce a failing exit status.
 
 The function resource principals need Object read/write access to the configured

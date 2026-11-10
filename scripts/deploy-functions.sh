@@ -17,10 +17,11 @@ functions=(
   'DataSourceFunction|ds|org.traficinfo.dsfunctions.DataSourceFunction::handleRequest'
   'PreprocessingFunction|preprocess|org.traficinfo.dsfunctions.PreprocessingFunction::handleRequest'
   'GeoJsonFunction|geojson|org.traficinfo.dsfunctions.GeoJsonFunction::handleRequest'
+  'ONISRAccidentFunction|accidents|org.traficinfo.dsfunctions.ONISRAccidentFunction::handleRequest'
 )
 
 usage() {
-  printf 'Usage: %s [ds | preprocess | geojson | osm]\n' "$0" >&2
+  printf 'Usage: %s [ds | preprocess | geojson | osm | accidents]\n' "$0" >&2
 }
 
 select_functions() {
@@ -39,6 +40,10 @@ select_functions() {
     geojson)
       if [ "$#" -ne 1 ]; then usage; return 1; fi
       functions=('GeoJsonFunction|geojson|org.traficinfo.dsfunctions.GeoJsonFunction::handleRequest')
+      ;;
+    accidents)
+      if [ "$#" -ne 1 ]; then usage; return 1; fi
+      functions=('ONISRAccidentFunction|accidents|org.traficinfo.dsfunctions.ONISRAccidentFunction::handleRequest')
       ;;
     osm)
       if [ "$#" -ne 1 ]; then usage; return 1; fi
@@ -97,6 +102,12 @@ build_function_config() {
   fi
   if [ "$type" = ds ] || [ "$type" = preprocess ]; then
     jq -cn --arg namespace "$namespace" '{NAMESPACE: $namespace}'
+    return
+  fi
+  if [ "$type" = accidents ]; then
+    validate_bucket_name "$osm_bucket" BUCKETNAME_OSM || return
+    jq -cn --arg namespace "$namespace" --arg osm "$osm_bucket" \
+      '{NAMESPACE: $namespace, BUCKETNAME_OSM: $osm}'
     return
   fi
   validate_bucket_name "$output_bucket" BUCKETNAME_OUT || return
@@ -242,7 +253,7 @@ main() {
     defined_tags+=("$tags")
     timeout=''
     if [ "$type" = ds ]; then timeout="$(jq -r '[.[] | .datasets[.activeDatasetId].timeoutSeconds // 30] | max' <<< "$sources")"; fi
-    if [ "$type" = preprocess ] || [ "$type" = geojson ]; then timeout=300; fi
+    if [ "$type" = preprocess ] || [ "$type" = geojson ] || [ "$type" = accidents ]; then timeout=300; fi
     timeouts+=("$timeout")
   done
   application_id="$(resolve_application_id)"
