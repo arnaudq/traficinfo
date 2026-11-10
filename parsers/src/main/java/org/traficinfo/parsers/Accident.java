@@ -24,4 +24,6 @@ public interface Accident extends GeographicRecord {
   String getAddress();
 
   List<? extends AccidentParticipant> getParticipants();
+
+  List<? extends AccidentVehicle> getVehicles();
 }

@@ -5,8 +5,8 @@ published by the Ministry of the Interior and administered by ONISR. The
 [BAAC data dictionary](https://www.data.gouv.fr/api/1/datasets/r/21e46f4e-fa29-40bb-9ec8-905e41e041aa)
 describes characteristics, locations, vehicles and users, joined by `Num_Acc`.
 The characteristics parser reads accident records. The participant parser joins
-the 2025 usagers file for involved people and their injury severity. Vehicle types
-still require the separate vehicles file and are not inferred.
+the 2025 usagers file for involved people and their injury severity. The vehicle
+parser joins the 2025 vehicles file for vehicle categories and motorization.
 
 ## API and model
 
@@ -95,6 +95,47 @@ Participants are sorted by ID for deterministic storage. Importing characteristi
 without a usagers companion yields empty participant lists, as does reading older
 stored JSON without a `participants` property. Refresh reads the stored lists and
 does not require the raw usagers file.
+
+## Vehicles from the 2025 vehicles file
+
+`AccidentVehicle` has an immutable `ONISRAccidentVehicle` implementation. Vehicles
+are stored in an accident's `vehicles` array, alongside `participants`. Retained
+source columns are:
+
+| Source column | Model field | Representation |
+| --- | --- | --- |
+| `id_vehicule` | `vehicleId` | Required normalized string, using the same normalization as participants |
+| `catv` | `categoryCode` | Nullable exact BAAC numeric category |
+| `motor` | `motorization` | `COMBUSTION`, `HYBRID`, `ELECTRIC`, `HYDROGEN`, `HUMAN`, `OTHER`, `UNKNOWN` |
+
+`type` is derived from the category for convenient filtering. For example, `1`
+means `BICYCLE`, `80` `ELECTRIC_BICYCLE`, `7` `CAR`, `31`/`33` `MOTORCYCLE`, and
+`30`/`32`/`34` `SCOOTER`. Codes `50` and `60` distinguish motorized and nonmotorized
+personal mobility. Remaining documented categories cover light commercial and
+heavy goods vehicles, buses, coaches, trains, trams, quadricycles, three-wheelers,
+agricultural and special vehicles, and other vehicles. Unknown positive category
+codes are retained with type `UNKNOWN`; missing, zero and `-1` categories become
+null with type `UNKNOWN`. Motorization codes `1` through `6` map in the listed
+order, with missing or unrecognized numeric values represented as `UNKNOWN`.
+
+`Num_Acc` is used only as the join key. `num_veh`, `senc`, `obs`, `obsm`, `choc`,
+`manv` and `occutc` are discarded. There is no vehicle `sourceFields` map. No
+vehicle information is duplicated into each participant.
+
+`ONISRAccidentVehicleParser.parseVehicles(reader, accidentIds, year)` filters
+rows by the same retained accident-ID set before parsing or validating vehicle
+fields. It handles the published quoted `id_vehicule` header with an embedded
+newline, optional UTF-8 BOM and Unicode whitespace in IDs. Duplicate selected
+vehicle IDs and malformed retained numeric fields fail parsing. Unselected row
+fields are not processed or retained. The caller owns the reader.
+
+When a vehicle companion is imported, every nonnull participant vehicle reference
+must resolve to a vehicle in the same accident, including pedestrian references
+to the vehicle that struck them. Parsing and join validation finish before any
+yearly record is replaced. Reading older JSON without `vehicles` yields an empty
+list; older characteristics/participant-only import overloads remain available.
+Reimport replaces vehicle lists, and refresh retains stored vehicles without the
+raw file.
 
 ## Source formats
 

@@ -55,9 +55,9 @@ public final class ONISRAccidentParticipantParser {
         try {
           if (values.length != headers.length) throw new IllegalArgumentException("Wrong column count");
           if (!accidentId.matches(year + "[0-9]{8}")) throw new IllegalArgumentException("Accident year mismatch");
-          String participantId = identifier(value(values, columns, "id_usager"));
+          String participantId = ONISRIdentifiers.normalize(value(values, columns, "id_usager"));
           String vehicle = value(values, columns, "id_vehicule");
-          String vehicleId = ONISRAccidentParser.isMissing(vehicle) || vehicle.equals("-1") ? null : identifier(vehicle);
+          String vehicleId = ONISRAccidentParser.isMissing(vehicle) || vehicle.equals("-1") ? null : ONISRIdentifiers.normalize(vehicle);
           String birth = value(values, columns, "an_nais");
           Integer birthYear = ONISRAccidentParser.isMissing(birth) || birth.equals("-1") || birth.equals("0")
               ? null : Integer.valueOf(birth);
@@ -103,11 +103,4 @@ public final class ONISRAccidentParticipantParser {
     return ONISRAccidentParser.isMissing(value) ? -1 : Integer.parseInt(value);
   }
 
-  private static String identifier(String value) {
-    StringBuilder normalized = new StringBuilder();
-    value.codePoints().filter(c -> !Character.isWhitespace(c) && !Character.isSpaceChar(c)).forEach(normalized::appendCodePoint);
-    String id = normalized.toString();
-    if (!id.matches("[0-9]+")) throw new IllegalArgumentException("Invalid ID: " + value);
-    return id;
-  }
 }

@@ -5,6 +5,7 @@ import org.traficinfo.parsers.onisr.ONISRAccident;
 import org.traficinfo.parsers.onisr.ONISRAccidentJson;
 import org.traficinfo.parsers.onisr.ONISRAccidentParser;
 import org.traficinfo.parsers.onisr.ONISRAccidentParticipantParser;
+import org.traficinfo.parsers.onisr.ONISRAccidentVehicleParser;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -63,6 +64,12 @@ public final class ONISRAccidentProcessor {
 
     /** Import characteristics and only participants belonging to the filtered accidents. */
     public Map<String, Statistics> importCsv(String objectName, String participantsObject, int year) throws IOException {
+        return importCsv(objectName, participantsObject, null, year);
+    }
+
+    /** Import selected accidents with their participants and vehicles before replacing any regional year. */
+    public Map<String, Statistics> importCsv(String objectName, String participantsObject, String vehiclesObject, int year)
+            throws IOException {
         if (objectName == null || !objectName.endsWith(".csv") || year < 2005 || year > 9999) {
             throw new IllegalArgumentException("A CSV object name and a year from 2005 to 9999 are required");
         }
@@ -78,15 +85,24 @@ public final class ONISRAccidentProcessor {
         }
         // Validate the complete import before replacing any stored regional year.
         for (ONISRAccident accident : parsed) validate(accident, accident.getRegionalId(), year);
+        Set<String> accidentIds = new HashSet<>();
+        parsed.forEach(accident -> accidentIds.add(accident.getAccidentId()));
         if (participantsObject != null) {
-            Set<String> accidentIds = new HashSet<>();
-            parsed.forEach(accident -> accidentIds.add(accident.getAccidentId()));
             try (InputStream input = accidentStore.getResource(participantsObject);
                  var reader = new InputStreamReader(input, StandardCharsets.UTF_8)) {
                 var participants = new ONISRAccidentParticipantParser().parseParticipants(reader, accidentIds, year);
                 parsed = parsed.stream().map(accident -> accident.withParticipants(
                         participants.getOrDefault(accident.getAccidentId(), List.of()))).toList();
             }
+        }
+        if (vehiclesObject != null) {
+            try (InputStream input = accidentStore.getResource(vehiclesObject);
+                 var reader = new InputStreamReader(input, StandardCharsets.UTF_8)) {
+                var vehicles = new ONISRAccidentVehicleParser().parseVehicles(reader, accidentIds, year);
+                parsed = parsed.stream().map(accident -> accident.withVehicles(
+                        vehicles.getOrDefault(accident.getAccidentId(), List.of()))).toList();
+            }
+            for (var accident : parsed) validateVehicleReferences(accident);
         }
         for (String region : new TreeSet<>(regionalIds)) {
             List<ONISRAccident> rows = parsed.stream().filter(row -> region.equals(row.getRegionalId()))
@@ -161,6 +177,22 @@ public final class ONISRAccidentProcessor {
             if (!participantIds.add(participant.getParticipantId())
                     || (participant.getBirthYear() != null && participant.getBirthYear() > year)) {
                 throw new IOException("Invalid stored participant for accident: " + accident.getAccidentId());
+            }
+        }
+        Set<String> vehicleIds = new HashSet<>();
+        for (var vehicle : accident.getVehicles()) {
+            if (!vehicleIds.add(vehicle.getVehicleId())) throw new IOException("Duplicate stored vehicle ID: " + vehicle.getVehicleId());
+        }
+        if (!accident.getVehicles().isEmpty()) validateVehicleReferences(accident);
+    }
+
+    private static void validateVehicleReferences(ONISRAccident accident) throws IOException {
+        Set<String> vehicleIds = new HashSet<>();
+        accident.getVehicles().forEach(vehicle -> vehicleIds.add(vehicle.getVehicleId()));
+        for (var participant : accident.getParticipants()) {
+            if (participant.getVehicleId() != null && !vehicleIds.contains(participant.getVehicleId())) {
+                throw new IOException("Participant vehicle not found in accident " + accident.getAccidentId()
+                        + ": " + participant.getVehicleId());
             }
         }
     }

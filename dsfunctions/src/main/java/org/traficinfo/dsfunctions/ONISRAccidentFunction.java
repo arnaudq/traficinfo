@@ -19,6 +19,7 @@ public class ONISRAccidentFunction {
     private static final String ACCIDENT_BUCKET = "onisrinfo";
     private static final String ACCIDENT_OBJECT = "caract-2025.csv";
     private static final String PARTICIPANTS_OBJECT = "usagers-2025.csv";
+    private static final String VEHICLES_OBJECT = "vehicules-2025.csv";
     private static final int YEAR = 2025;
     private String namespace;
     private String osmBucket;
@@ -46,7 +47,7 @@ public class ONISRAccidentFunction {
                  var osmStore = createObjectStoreClient(principal, namespace, osmBucket)) {
                 var processor = new ONISRAccidentProcessor(accidentStore, osmStore);
                 Map<String, ONISRAccidentProcessor.Statistics> result = action.equals("refresh")
-                        ? processor.refresh() : processor.importCsv(ACCIDENT_OBJECT, PARTICIPANTS_OBJECT, YEAR);
+                        ? processor.refresh() : processor.importCsv(ACCIDENT_OBJECT, PARTICIPANTS_OBJECT, VEHICLES_OBJECT, YEAR);
                 result.forEach((region, statistics) -> LOG.info("ONISR regional ID {}: {}", region, statistics));
                 return "OK";
             } catch (IOException failure) {

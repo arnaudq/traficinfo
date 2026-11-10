@@ -326,6 +326,76 @@ public class ONISRAccidentProcessorTest {
         assertTrue(osm.writes.isEmpty());
     }
 
+    @Test
+    public void joinsSelectedVehiclesAndParticipantReferencesAndRefreshesWithoutRawFiles() throws Exception {
+        Store data = new Store();
+        Store osm = new Store();
+        var processor = processor(data, osm, "30");
+        data.text("2025.csv", HEADER + row(2025, 1, "30", "43", "3") + row(2025, 2, "75", "48", "2"));
+        data.text("users.csv", "Num_Acc;id_usager;id_vehicule;catu;grav;an_nais;sexe\n"
+                + "202500000001;123;456\u00a0789;3;3;1990;2\n");
+        String vehicleHeader = "Num_Acc;id_vehicule;catv;motor;manv\n";
+        String car = "202500000001;456 789;7;1;discarded\n";
+        String bicycle = "202500000001;456790;1;5;discarded\n";
+        data.text("vehicles.csv", vehicleHeader + bicycle + car + "202500000002;invalid\n");
+        known(osm, "30", "202500000001", 77);
+        processor.importCsv("2025.csv", "users.csv", "vehicles.csv", 2025);
+        String output = ONISRAccidentProcessor.outputObject("30");
+        String year = ONISRAccidentProcessor.yearObject("30", 2025);
+        JsonNode stored = data.json(year).get(0);
+        assertEquals(2, stored.get("vehicles").size());
+        assertEquals("CAR", stored.get("vehicles").get(0).get("type").asText());
+        assertEquals(stored.get("vehicles").get(0).get("vehicleId"), stored.get("participants").get(0).get("vehicleId"));
+        assertFalse(stored.get("vehicles").get(0).has("manv"));
+        assertFalse(stored.get("vehicles").get(0).has("sourceFields"));
+        assertEquals(stored.get("vehicles"), data.json(output).get("77").get(0).get("vehicles"));
+        data.writes.clear();
+        data.text("vehicles.csv", vehicleHeader + car + bicycle);
+        processor.importCsv("2025.csv", "users.csv", "vehicles.csv", 2025);
+        assertTrue(data.writes.isEmpty());
+        data.text("vehicles.csv", vehicleHeader + car.replace(";7;1;", ";80;3;"));
+        processor.importCsv("2025.csv", "users.csv", "vehicles.csv", 2025);
+        assertEquals(1, data.json(year).get(0).get("vehicles").size());
+        data.objects.remove("2025.csv");
+        data.objects.remove("users.csv");
+        data.objects.remove("vehicles.csv");
+        processor.refresh();
+        assertEquals("ELECTRIC_BICYCLE", data.json(output).get("77").get(0).get("vehicles").get(0).get("type").asText());
+    }
+
+    @Test
+    public void missingMalformedOrCrossAccidentVehicleReferencesDoNotReplacePreviousRecords() throws Exception {
+        Store data = new Store();
+        Store osm = new Store();
+        var processor = processor(data, osm, "30");
+        data.text("2025.csv", HEADER + row(2025, 1, "30", "43", "3"));
+        data.text("users.csv", "Num_Acc;id_usager;id_vehicule;catu;grav;an_nais;sexe\n"
+                + "202500000001;123;456;1;3;1990;1\n");
+        processor.importCsv("2025.csv", "users.csv", 2025);
+        String year = ONISRAccidentProcessor.yearObject("30", 2025);
+        byte[] original = data.objects.get(year);
+        data.writes.clear();
+        osm.writes.clear();
+        try {
+            processor.importCsv("2025.csv", "users.csv", "vehicles.csv", 2025);
+            fail("Missing vehicles CSV must fail");
+        } catch (BmcException expected) {
+            assertEquals(404, expected.getStatusCode());
+        }
+        for (String invalid : List.of("bad CSV", "Num_Acc;id_vehicule;catv;motor\n202500000001;999;7;1\n",
+                "Num_Acc;id_vehicule;catv;motor\n202500000002;456;7;1\n")) {
+            data.text("vehicles.csv", invalid);
+            try {
+                processor.importCsv("2025.csv", "users.csv", "vehicles.csv", 2025);
+                fail("Invalid selected vehicles or dangling references must fail");
+            } catch (IOException expected) {
+                assertArrayEquals(original, data.objects.get(year));
+                assertTrue(data.writes.isEmpty());
+                assertTrue(osm.writes.isEmpty());
+            }
+        }
+    }
+
     private static class Store extends ObjectStoreClient {
         final Map<String, byte[]> objects = new LinkedHashMap<>();
         final List<String> writes = new ArrayList<>();

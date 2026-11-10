@@ -15,6 +15,11 @@ participant ID, associated vehicle ID, role, injury severity, birth year and sex
 The ONISR implementation retains only these selected fields from usagers and
 does not keep a raw participant metadata map.
 
+`Accident.getVehicles()` exposes involved vehicles through `AccidentVehicle`:
+vehicle ID, readable type and motorization. ONISR also retains the exact BAAC
+category code. Vehicles and participants are separate lists on the accident,
+joined by vehicle ID, including pedestrians linked to the striking vehicle.
+
 `ONISRAccidentParser` reads the BAAC characteristics CSV into `ONISRAccident`
 objects. It accepts a caller-owned `Reader` or a `File`. For example:
 

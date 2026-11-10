@@ -22,6 +22,7 @@ public final class ONISRAccident implements Accident {
   private final Double longitude;
   private final Map<String, String> sourceFields;
   private final List<ONISRAccidentParticipant> participants;
+  private final List<ONISRAccidentVehicle> vehicles;
   private Long osmWayId;
 
   ONISRAccident(String accidentId, LocalDate date, LocalTime time, String regionalId,
@@ -33,6 +34,12 @@ public final class ONISRAccident implements Accident {
   ONISRAccident(String accidentId, LocalDate date, LocalTime time, String regionalId,
       String municipalityId, String address, Double latitude, Double longitude,
       Map<String, String> sourceFields, List<ONISRAccidentParticipant> participants) {
+    this(accidentId, date, time, regionalId, municipalityId, address, latitude, longitude, sourceFields, participants, List.of());
+  }
+
+  ONISRAccident(String accidentId, LocalDate date, LocalTime time, String regionalId,
+      String municipalityId, String address, Double latitude, Double longitude,
+      Map<String, String> sourceFields, List<ONISRAccidentParticipant> participants, List<ONISRAccidentVehicle> vehicles) {
     this.accidentId = accidentId;
     this.date = date;
     this.time = time;
@@ -43,6 +50,7 @@ public final class ONISRAccident implements Accident {
     this.longitude = longitude;
     this.sourceFields = Collections.unmodifiableMap(new LinkedHashMap<>(sourceFields));
     this.participants = participants == null ? List.of() : List.copyOf(participants);
+    this.vehicles = vehicles == null ? List.of() : List.copyOf(vehicles);
   }
 
   @Override public String getAccidentId() { return accidentId; }
@@ -56,10 +64,18 @@ public final class ONISRAccident implements Accident {
   @Override public Long getOsmWayId() { return osmWayId; }
   @Override public void setOsmWayId(Long osmWayId) { this.osmWayId = osmWayId; }
   @Override public List<ONISRAccidentParticipant> getParticipants() { return participants; }
+  @Override public List<ONISRAccidentVehicle> getVehicles() { return vehicles; }
 
   public ONISRAccident withParticipants(List<ONISRAccidentParticipant> participants) {
     ONISRAccident enriched = new ONISRAccident(accidentId, date, time, regionalId, municipalityId,
-        address, latitude, longitude, sourceFields, participants);
+        address, latitude, longitude, sourceFields, participants, vehicles);
+    enriched.setOsmWayId(osmWayId);
+    return enriched;
+  }
+
+  public ONISRAccident withVehicles(List<ONISRAccidentVehicle> vehicles) {
+    ONISRAccident enriched = new ONISRAccident(accidentId, date, time, regionalId, municipalityId,
+        address, latitude, longitude, sourceFields, participants, vehicles);
     enriched.setOsmWayId(osmWayId);
     return enriched;
   }

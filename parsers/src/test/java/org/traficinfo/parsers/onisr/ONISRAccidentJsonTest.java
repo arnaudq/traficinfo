@@ -77,4 +77,30 @@ public class ONISRAccidentJsonTest {
         ((com.fasterxml.jackson.databind.node.ObjectNode) tree.get(0)).remove("participants");
         assertTrue(codec.read(new ByteArrayInputStream(new ObjectMapper().writeValueAsBytes(tree))).get(0).getParticipants().isEmpty());
     }
+
+    @Test
+    public void roundTripsSelectedVehicleFieldsAndSupportsOlderRecords() throws Exception {
+        var accident = new ONISRAccidentParser().parseAccidents(new StringReader(CSV)).get(0);
+        var vehicle = new ONISRAccidentVehicle("123", 80, org.traficinfo.parsers.AccidentVehicle.Motorization.ELECTRIC);
+        var participant = new ONISRAccidentParticipant("456", "123", org.traficinfo.parsers.AccidentParticipant.Role.DRIVER,
+                org.traficinfo.parsers.AccidentParticipant.InjurySeverity.LIGHTLY_INJURED, 1990,
+                org.traficinfo.parsers.AccidentParticipant.Sex.FEMALE);
+        var enriched = accident.withVehicles(List.of(vehicle)).withParticipants(List.of(participant));
+        enriched.setOsmWayId(77L);
+        assertEquals(1, enriched.withVehicles(enriched.getVehicles()).getParticipants().size());
+        var codec = new ONISRAccidentJson();
+        byte[] bytes = codec.write(List.of(enriched));
+        var tree = new ObjectMapper().readTree(bytes);
+        var storedVehicle = tree.get(0).get("vehicles").get(0);
+        assertEquals(4, storedVehicle.size());
+        assertEquals("ELECTRIC_BICYCLE", storedVehicle.get("type").asText());
+        assertFalse(storedVehicle.has("sourceFields"));
+        assertFalse(storedVehicle.has("accidentId"));
+        var read = codec.read(new ByteArrayInputStream(bytes)).get(0);
+        assertEquals(org.traficinfo.parsers.AccidentVehicle.Type.ELECTRIC_BICYCLE, read.getVehicles().get(0).getType());
+        assertEquals("123", read.getParticipants().get(0).getVehicleId());
+        assertArrayEquals(bytes, codec.write(List.of(read)));
+        ((com.fasterxml.jackson.databind.node.ObjectNode) tree.get(0)).remove("vehicles");
+        assertTrue(codec.read(new ByteArrayInputStream(new ObjectMapper().writeValueAsBytes(tree))).get(0).getVehicles().isEmpty());
+    }
 }

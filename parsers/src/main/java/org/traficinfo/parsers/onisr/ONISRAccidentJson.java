@@ -99,6 +99,7 @@ public final class ONISRAccidentJson {
                      @JsonProperty("latitude") Double latitude,
                      @JsonProperty("longitude") Double longitude,
                      @JsonProperty("sourceFields") Map<String, String> sourceFields,
-                     @JsonProperty("participants") List<ONISRAccidentParticipant> participants) {}
+                     @JsonProperty("participants") List<ONISRAccidentParticipant> participants,
+                     @JsonProperty("vehicles") List<ONISRAccidentVehicle> vehicles) {}
     }
 }
