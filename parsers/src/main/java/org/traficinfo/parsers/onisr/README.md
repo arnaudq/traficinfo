@@ -43,6 +43,16 @@ The accident model is separate from count registries and count manifest storage.
 No cloud access or reverse geocoding happens during parsing. Future departmental
 caches use `ONISR_DPT30`, `ONISR_DPT34` and `ONISR_DPT76` prefixes in `osminfo`.
 
+`ONISRAccidentJson` round-trips lists of these source records for local processing
+and writes OSM-way-to-accident maps. It stores model fields and original source
+columns, with ISO local date/time strings, nullable values and no derived getter
+aliases such as `geometry` or `collisionType`. Object properties and source-field
+keys have deterministic ordering. Reading rejects malformed/trailing JSON; the
+processing layer additionally validates stored region/year scope and identities.
+The reader retains ownership of its input stream. See the
+[local processor usage](../../../../../../../../dsfunctions/README.md#local-onisr-accident-processing)
+for year replacement, output naming and OSM cache handling.
+
 ## Source formats
 
 The parser accepts comma- and semicolon-separated headers, quoted fields, an

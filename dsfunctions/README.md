@@ -642,6 +642,78 @@ timeout above the configured loop budget plus time for the last bounded batch.
 The scheduling tag namespace/key and scheduler invoke permissions must already
 be configured as described in the [setup specification](../specs/setup.md#retrieval-schedules).
 
+## Local ONISR accident processing
+
+`ONISRAccidentProcessor` imports one manually selected characteristics CSV and
+publishes regional accident JSON using supplied storage clients. It is processing
+logic only: there is no accident Fn handler, deployment registration, event rule
+or retrieval schedule yet. Tests use in-memory storage and fake OSM responses;
+the processor itself makes no OSM HTTP requests.
+
+The first client targets `onisrinfo`; the second targets the existing `osminfo`.
+The caller owns both clients. For example, once clients have been supplied:
+
+```java
+var processor = new ONISRAccidentProcessor(accidentStore, osmStore);
+Map<String, ONISRAccidentProcessor.Statistics> imported =
+        processor.importCsv("Caract_2025.csv", 2025);
+
+// Later, after the hourly OSM refresh or a mapping review:
+Map<String, ONISRAccidentProcessor.Statistics> refreshed = processor.refresh();
+```
+
+The default regional IDs are `30`, `34` and `76`. For ONISR these map to French
+department codes. A third constructor argument can select another nonempty set
+of normalized IDs. The CSV object name is explicit and may include a prefix;
+raw inputs are never changed by the processor. The shared storage client decodes
+gzip, and staging the downloaded CSV lets the parser select the original file's
+encoding. Dates and regional IDs come from the rows, not the filename.
+
+An explicit year defines the replacement scope, including when filtering selects
+no accidents. All selected records must belong to that year. Import parses and
+validates before replacing any selected region's yearly object, then refreshes
+the combined output. Reimporting a revised year replaces its previous records;
+it does not append accidents or remove other years. Even an empty region is
+stored as `[]` for the imported year to clear previously imported records.
+
+Storage names are:
+
+| Bucket | Object | Contents |
+| --- | --- | --- |
+| `onisrinfo` | Uploaded CSV, e.g. `Caract_2025.csv` | Unmodified raw source |
+| `onisrinfo` | `data/ONISR_DPT30/2025.json` | Regional source records for one year, including unmatched/unlocated accidents |
+| `onisrinfo` | `ONISR_DPT30_Accidents.json` | All imported years, grouped by usable OSM way ID |
+| `osminfo` | `ONISR_DPT30_OSMWayMapping.json` | Accident-ID-to-way assignments and pending/review records |
+| `osminfo` | `ONISR_DPT30_OSMInfo.json` | Way tags maintained by the shared OSM refresh |
+
+The same pattern applies to each selected regional ID. Count caches such as
+`DPT30_OSMWayMapping.json` are separate. Cache prefixes use `ONISR_DPTxx`, as
+documented in the [OSM specification](../specs/osm-data.md#accident-caches).
+
+`refresh()` reads the selected regions' stored years, validates their regional
+IDs, years and identities, and applies current cached way assignments. Pending
+locations are registered via the existing OSM provider. `saveWayMappings()`
+persists these registrations without reverse lookup or way-tag requests; it does
+not replace the way-tag cache. Existing positive assignments follow the shared
+provider's reuse behavior and review annotations remain intact. Mapping caches
+may retain entries for accidents removed from a revised year, but those entries
+cannot add removed accidents to the output.
+
+Published output is a JSON object whose keys are OSM way IDs and whose values are
+accident arrays ordered by date then accident ID. Empty output is `{}`. Review
+candidates, missing assignments and records without geometry are excluded from
+this grouped output and retained in the yearly records. Source snapshots keep
+`osmWayId` null; grouped records receive the current cache assignment. Other
+fields retain ISO local dates/times, coordinates, metadata and raw source columns.
+See the [ONISR parser README](../parsers/src/main/java/org/traficinfo/parsers/onisr/README.md).
+
+Unchanged yearly and grouped JSON is not replaced. Processing and publication
+errors propagate; a region's grouped output is not replaced if its stored years
+or caches cannot be read or validated. Writes across years, regions and caches
+are not a transaction. A later manual import or refresh can finish a failed run;
+there are no immediate retries or added locks. The returned statistics report
+total, matched and unmatched accidents and distinct ways per regional ID.
+
 ## Deployment and invocation
 
 After `source ./scripts/setup.sh`, use the scripts from the repository root:

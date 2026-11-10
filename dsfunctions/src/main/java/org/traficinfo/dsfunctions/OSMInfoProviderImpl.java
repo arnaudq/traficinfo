@@ -380,6 +380,14 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
                 .replaceAll("([A-Z])0+(?=[0-9])", "$1");
     }
 
+    /**
+     * Persist seeded mappings without performing reverse lookups or way-tag HTTP requests.
+     * Use {@link #refreshCache()} instead to also process queued way-tag HTTP requests.
+     */
+    public void saveWayMappings() throws IOException {
+        saveMappings();
+    }
+
     private void saveMappings() throws IOException {
         if (mappingObject == null) {
             return;
