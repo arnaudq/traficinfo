@@ -100,12 +100,12 @@ objects per data source are stored in the `osminfo` bucket:
 ### Accident caches
 
 The planned accident processor uses separate departmental cache prefixes
-`ONSIR_DPT30`, `ONSIR_DPT34` and `ONSIR_DPT76` in `osminfo`, distinct from the
+`ONISR_DPT30`, `ONISR_DPT34` and `ONISR_DPT76` in `osminfo`, distinct from the
 traffic-count prefixes `DPT30`, `DPT34` and `DPT76`. Each prefix has the same
-pair of objects, for example `ONSIR_DPT30_OSMWayMapping.json` and
-`ONSIR_DPT30_OSMInfo.json`. Accident mapping keys identify accidents rather
+pair of objects, for example `ONISR_DPT30_OSMWayMapping.json` and
+`ONISR_DPT30_OSMInfo.json`. Accident mapping keys identify accidents rather
 than traffic counters. Raw accident CSVs and processed accident output belong
-in `onsirinfo`.
+in `onisrinfo`.
 
 The existing hourly OSM function discovers these caches by the
 `_OSMWayMapping.json` suffix, without a `dsconfig.json` registration. This naming

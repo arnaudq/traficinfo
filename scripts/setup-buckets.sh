@@ -11,7 +11,7 @@ bucket_definitions() {
     [ .[] | {name: .inputBucket, objectEventsEnabled: true} ]
     + [{name: "traficinfo", publicAccessType: "ObjectReadWithoutList"},
        {name: "osminfo", publicAccessType: "NoPublicAccess"},
-       {name: "onsirinfo", publicAccessType: "NoPublicAccess"}]
+       {name: "onisrinfo", publicAccessType: "NoPublicAccess"}]
     | unique | group_by(.name)
     | if any(.[]; length > 1) then error("Conflicting settings for the same bucket")
       else map(.[0]) end

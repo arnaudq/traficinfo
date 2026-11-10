@@ -64,13 +64,13 @@ The script can be extended to manage application creation in a future change.
 ## Object Storage buckets
 
 Run `./scripts/setup-buckets.sh` to create or update the configured input buckets and
-the shared `traficinfo`, `osminfo` and `onsirinfo` buckets in
+the shared `traficinfo`, `osminfo` and `onisrinfo` buckets in
 the compartment selected by `source ./scripts/setup.sh`. It uses the exported
 `OCI_COMPARTMENT_ID`, `OCI_OBJECT_STORAGE_NAMESPACE`, and OCI credentials.
 
 Input buckets are read from `dsconfig.json`, using the shared naming defaults
 and overrides. Currently these are `ds3mbucket`, `dsdpt30`, `dsdpt34`, `dsmrn` and `dsnim`. All have object
-events enabled and are private on creation. `osminfo` and `onsirinfo` are private. `traficinfo`
+events enabled and are private on creation. `osminfo` and `onisrinfo` are private. `traficinfo`
 uses `ObjectReadWithoutList`: anyone can download an object using its URL,
 while listing objects requires authentication. All buckets use Standard
 storage on creation. Existing objects, metadata, and unrelated bucket settings
@@ -81,7 +81,7 @@ Use `./scripts/setup-buckets.sh --dry-run` to preview changes without submitting
 Enabling bucket events prepares each input bucket for an OCI Events rule; this script
 does not create the rule that invokes the GeoJSON function.
 
-`onsirinfo` is reserved for accident data, initially with manual CSV uploads and
+`onisrinfo` is reserved for accident data, initially with manual CSV uploads and
 manual processing invocation. Its definition does not enable object events or
 add a datasource to `dsconfig.json`. Accident OSM caches remain in `osminfo`;
 see the [accident cache naming convention](osm-data.md#accident-caches).
@@ -91,11 +91,11 @@ see the [accident cache naming convention](osm-data.md#accident-caches).
 `setup-buckets.sh` manages bucket settings only; it does not create IAM policies
 or dynamic groups. Private bucket access by functions uses resource principals.
 The processing function must belong to a dynamic group whose policies permit
-the required object access in both `onsirinfo` and `osminfo`.
+the required object access in both `onisrinfo` and `osminfo`.
 
 An existing compartment-wide object-access policy covers the new bucket without
 an additional bucket grant. If policies restrict access by `target.bucket.name`,
-add `onsirinfo` to the allowed buckets. Also check dynamic-group membership when
+add `onisrinfo` to the allowed buckets. Also check dynamic-group membership when
 deploying the processing function: a compartment-wide function matching rule can
 include it automatically, while a rule listing individual function IDs needs an
 update. The repository does not establish which policies are deployed.
@@ -104,7 +104,7 @@ For example, a bucket-scoped object-access policy using the existing functions
 dynamic group and selected compartment can grant access with:
 
 ```text
-Allow dynamic-group <functions-group> to manage objects in compartment id <compartment-ocid> where target.bucket.name='onsirinfo'
+Allow dynamic-group <functions-group> to manage objects in compartment id <compartment-ocid> where target.bucket.name='onisrinfo'
 ```
 
 Retain the existing grants for `osminfo`. Manual uploads use the uploader's user
