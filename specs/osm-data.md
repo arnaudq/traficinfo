@@ -97,6 +97,22 @@ objects per data source are stored in the `osminfo` bucket:
 - `<sourceId>_OSMInfo.json`: way IDs, their OSM tags, and the timestamp of the last
   successful tag refresh.
 
+### Accident caches
+
+The planned accident processor uses separate departmental cache prefixes
+`ONSIR_DPT30`, `ONSIR_DPT34` and `ONSIR_DPT76` in `osminfo`, distinct from the
+traffic-count prefixes `DPT30`, `DPT34` and `DPT76`. Each prefix has the same
+pair of objects, for example `ONSIR_DPT30_OSMWayMapping.json` and
+`ONSIR_DPT30_OSMInfo.json`. Accident mapping keys identify accidents rather
+than traffic counters. Raw accident CSVs and processed accident output belong
+in `onsirinfo`.
+
+The existing hourly OSM function discovers these caches by the
+`_OSMWayMapping.json` suffix, without a `dsconfig.json` registration. This naming
+convention reserves the caches; the accident processor is not yet implemented.
+
+### Traffic-count cache usage
+
 GeoJSON generation loads these caches, then filters records before OSM enrichment.
 Records excluded by count, year, population, or other output filters do not create
 mapping entries or queue tag requests. Missing way-tag entries and entries
