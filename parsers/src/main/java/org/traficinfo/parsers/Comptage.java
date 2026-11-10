@@ -1,28 +1,6 @@
 package org.traficinfo.parsers;
 
-import org.geojson.GeoJsonObject;
-
-public interface Comptage {
-  /**
-   * Geometry supplied by the source, such as a point, line or polygon.
-   * @return geometry, or null when the source does not supply a location.
-   */
-  default GeoJsonObject getGeometry() {
-    return null;
-  }
-
-  Long getOsmWayId();
-
-  void setOsmWayId(Long osmWayId);
-
-  /**
-   * Official road reference retained for later comparison with an OSM ref tag.
-   * For example, DPT34 route_id 34D0011 yields D0011 (typically D 11 in OSM).
-   * @return the road reference, or null when the source does not provide one.
-   */
-  default String getRoadReference() {
-    return null;
-  }
+public interface Comptage extends GeographicRecord {
 
   /**
    * Street + City name.

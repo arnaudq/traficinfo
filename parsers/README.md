@@ -1,5 +1,30 @@
 # Parsers
 
+## Accident records
+
+`Accident` and `Comptage` extend `GeographicRecord`, which exposes WGS84 geometry,
+nullable OSM way assignment and an optional official road reference. Count
+measurements and counter IDs stay on `Comptage`; accident ID, date, local time,
+regional ID, municipality ID and address belong to `Accident`. For France,
+`regionalId` maps to the department code and `municipalityId` to the INSEE commune
+code. A municipality identifier is neither a city name nor a postal code, and a
+source address is not automatically an official road reference.
+
+`ONISRAccidentParser` reads the BAAC characteristics CSV into `ONISRAccident`
+objects. It accepts a caller-owned `Reader` or a `File`. For example:
+
+```java
+var parser = new ONISRAccidentParser(Set.of("30", "34", "76"));
+List<ONISRAccident> accidents = parser.parseAccidents(new File("caract-2025.csv"));
+```
+
+The no-argument constructor reads all departments. An empty filter also means
+all departments. Filtering happens before parsing the other record fields.
+Use normalized department codes, including leading zeroes and Corsican letters.
+See the [ONISR parser README](src/main/java/org/traficinfo/parsers/onisr/README.md)
+for historical formats, metadata and validation. This is a local parser; bucket
+processing, OSM lookup and JSON publication are separate stages.
+
 ## GeoJSON counter types
 
 Each exported feature includes `type` (`VEHICULES` or `BICYCLES`), taken from
