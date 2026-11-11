@@ -46,6 +46,8 @@ the counters.
 
 ## Development and operations
 
+- [Website](webapp/README.md): local development, dependencies, build and
+  GitHub Pages deployment of the Leaflet prototype.
 - [Setup and operations](specs/setup.md): environment, OCI resources, deployment,
   event rules, schedules, alerts and script checks.
 - [Adding a datasource](specs/add-datasource.md): source inspection, parsers,

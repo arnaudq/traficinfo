@@ -1,2 +1,7 @@
 /.idea
 target
+
+# Webapp dependencies, build output and local configuration
+/webapp/node_modules/
+/webapp/dist/
+/webapp/**/*.local

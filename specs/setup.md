@@ -6,7 +6,9 @@ and maps, see the [README](../README.md).
 
 ## Environment
 
-Install JDK 25, the Fn Project CLI, OCI CLI, and `jq`, and place your OCI configuration at `~/.oci/config.arnaudq`. Then, from the project root, run:
+Install JDK 25, Node.js 24 (version recorded in `webapp/.nvmrc`), the Fn Project
+CLI, OCI CLI, and `jq`, and place your OCI configuration at
+`~/.oci/config.arnaudq`. Then, from the project root, run:
 
 ```sh
 source ./scripts/setup.sh
