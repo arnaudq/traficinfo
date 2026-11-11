@@ -5,6 +5,12 @@
 - Keep project specifications and design documents in `specs/`; do not create a
   parallel `docs/` directory. Keep module usage documentation in its README.
 
+## Migration handling
+
+- Do not proactively implement migration or backward-compatibility handling for
+  incompatible changes, such as schema changes. Always ask whether migration
+  handling should be taken into account before implementing it.
+
 ## OCI scripts
 
 - Assume `source ./scripts/setup.sh` has been run before any other script. Use the
