@@ -49,6 +49,12 @@ development/build tools; the published site runs entirely in the browser.
 - `src/main.js`: imports styles and starts the application.
 - `src/map.js`: creates the Leaflet map and base layer.
 - `src/styles.css`: application styling.
+- `licences.html`: licences, third-party attribution and access to source code.
+- `build/legal-notices.js`: source revision links and licence publication.
+- The footers in `index.html` and `licences.html` embed the GitHub Octicons SVG
+  directly. Its licence is included in `public/licenses/Octicons.txt`, which
+  Vite copies into the built site. GitHub logo usage also follows its
+  [brand guidelines](https://brand.github.com/foundations/logo).
 - `vite.config.js`: build settings, including relative asset URLs for Pages.
 - `eslint.config.js` and `.prettierrc.json`: code checking and formatting.
 
@@ -93,14 +99,32 @@ also be run manually on `main` from the Actions tab.
 Enable it in the repository's **Settings → Pages → Build and deployment →
 Source → GitHub Actions**. The workflow does not change this repository setting.
 
-Only changes under `webapp/` or to the workflow itself trigger it. Java-only
-changes do not redeploy the website. When configuration files such as
+Only changes under `webapp/`, to the root `LICENSE`, or to the workflow itself
+trigger it. Java-only changes do not redeploy the website. When configuration files such as
 `mapconfig.json` become build inputs, add their paths to both workflow filters.
 The current prototype does not consume them.
 
 Vite generates relative asset URLs so the same output works under a project
 path such as `/traficinfo/` or at the root of a custom domain. The application
-currently has a single page and requires no client-side routing rules.
+has a map page and a static licences page; neither needs client-side routing rules.
+
+## Licences and source access
+
+The map footer links to `licences.html` and to the Git revision used to build
+the website. The licences page also links to a source archive at that revision,
+the source of the installed Leaflet version, and the complete licence texts.
+
+The Vite plugin in `build/legal-notices.js` reads the root `LICENSE` and the
+installed Leaflet package's `LICENSE`. It publishes them as
+`licenses/AGPL-3.0.txt` and `licenses/Leaflet.txt` during development and copies
+them into `dist/` on each build. Do not maintain separate handwritten copies.
+Git must be available when starting the development server or building the site.
+
+In GitHub Actions, the source link identifies the checked-out deployment commit.
+For local development or builds, it identifies the latest local commit;
+uncommitted edits are not included in the linked source. Commit and push the
+changes before publishing a build. Restart the development server after changing
+the licence texts or checking out another commit.
 
 The prototype displays only the base map; it does not yet load traffic layers,
 `mapconfig.json` or `dsconfig.json`.
