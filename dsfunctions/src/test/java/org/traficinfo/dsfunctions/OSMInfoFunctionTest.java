@@ -204,7 +204,7 @@ public class OSMInfoFunctionTest {
             OpenStreetMapClient client = new OpenStreetMapClient() {
                 @Override public JsonNode reverseLookup(double latitude, double longitude) throws IOException {
                     lookups.incrementAndGet();
-                    elapsed.set(TimeUnit.SECONDS.toNanos(limits.isEmpty() ? 200 : 2));
+                    elapsed.set(TimeUnit.SECONDS.toNanos(limits.isEmpty() ? 300 : 2));
                     return new ObjectMapper().readTree("{\"error\":\"Unable to geocode\"}");
                 }
             };
@@ -212,7 +212,7 @@ public class OSMInfoFunctionTest {
             OSMInfoFunction function = new OSMInfoFunction(store, client, elapsed::get, metrics::addAll);
             function.configureLimits(context(limits));
             assertEquals("OK", function.handleRequest(""));
-            assertEquals(limits.isEmpty() ? 6 : 1, lookups.get());
+            assertEquals(limits.isEmpty() ? 8 : 1, lookups.get());
             assertEquals(6, store.read.size()); // Both caches plus both global review documents.
             assertEquals(3, store.writes);
             JsonNode review = new ObjectMapper().readTree(store.objects.get(OSMWayMappingReviewStore.OBJECT_NAME));
@@ -544,8 +544,8 @@ public class OSMInfoFunctionTest {
                 }
             };
             assertEquals("OK", new OSMInfoFunction(store, client, () -> 0L).handleRequest(""));
-            assertEquals(12, requests.values().stream().mapToInt(Integer::intValue).sum());
-            assertEquals(singleSource ? Map.of(2, 12) : Map.of(1, 2, 2, 10), requests);
+            assertEquals(16, requests.values().stream().mapToInt(Integer::intValue).sum());
+            assertEquals(singleSource ? Map.of(2, 16) : Map.of(1, 2, 2, 14), requests);
         }
     }
 

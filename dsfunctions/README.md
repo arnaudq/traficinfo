@@ -557,16 +557,16 @@ These counts determine each source’s share of the run-wide lookup budget.
 Two optional positive integer configuration values bound the work. Private static
 integer constants in `OSMInfoFunction` provide defaults when the keys are absent:
 
-- `MAX_LOOP_DURATION_SECONDS` (default `180` seconds): elapsed time is checked before **every listed
+- `MAX_LOOP_DURATION_SECONDS` (default `240` seconds): elapsed time is checked before **every listed
   resource**, including non-mapping objects. No further resource starts after the
   budget is reached. There is deliberately no duration check between lookups;
   the active resource's bounded batch finishes and saves, so total loop duration
   can exceed the budget by that batch's remaining work and storage operations.
-- `MAX_WAY_MAPPINGS_PER_RUN` (default `12` mappings across all sources): the
+- `MAX_WAY_MAPPINGS_PER_RUN` (default `16` mappings across all sources): the
   budget is shared evenly among sources with eligible records. Shares are capped
   by demand and any unused capacity is redistributed. Remainders follow the
-  shuffled resource order. For example, two busy sources receive six each; one
-  busy source can receive all twelve. HTTP errors also consume the allocated
+  shuffled resource order. For example, two busy sources receive eight each; one
+  busy source can receive all sixteen. HTTP errors also consume the allocated
   budget. Entries never attempted precede older failed attempts. Known positive
   IDs are preserved. The time budget can prevent later allocated batches from
   starting; unused allocations are left for another run.

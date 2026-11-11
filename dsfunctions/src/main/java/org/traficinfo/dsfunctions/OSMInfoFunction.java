@@ -20,10 +20,10 @@ import java.util.Objects;
 public class OSMInfoFunction {
     private static final Logger LOG = LoggerFactory.getLogger(OSMInfoFunction.class);
     private static final String MAPPING_SUFFIX = "_OSMWayMapping.json";
-    private static final int MAX_LOOP_DURATION_SECONDS = 180;
+    private static final int MAX_LOOP_DURATION_SECONDS = 240;
     // At four reverse requests per minute (15-second spacing in OpenStreetMapClient),
-    // 12 lookups use about the default 180-second loop budget across all data sources.
-    private static final int MAX_WAY_MAPPINGS_PER_RUN = 12;
+    // 16 lookups use about the default 240-second loop budget across all data sources.
+    private static final int MAX_WAY_MAPPINGS_PER_RUN = 16;
     private int maxLoopSeconds = MAX_LOOP_DURATION_SECONDS;
     private int maxWayMappings = MAX_WAY_MAPPINGS_PER_RUN;
     private ObjectStoreClient osmCacheOSClient;

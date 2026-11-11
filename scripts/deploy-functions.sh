@@ -91,7 +91,7 @@ build_function_config() {
     validate_bucket_name "$osm_bucket" BUCKETNAME_OSM || return
     jq -cne --arg namespace "$namespace" --arg bucket "$osm_bucket" \
       --arg compartment "${OCI_COMPARTMENT_ID:?Run source ./scripts/setup.sh first}" \
-      --arg max_loop "${MAX_LOOP_DURATION_SECONDS-180}" --arg max_way "${MAX_WAY_MAPPINGS_PER_RUN-12}" '
+      --arg max_loop "${MAX_LOOP_DURATION_SECONDS-240}" --arg max_way "${MAX_WAY_MAPPINGS_PER_RUN-16}" '
       def positive_integer:
         test("^[1-9][0-9]*$") and (tonumber <= 2147483647);
       if ($max_loop | positive_integer) and ($max_way | positive_integer) then
