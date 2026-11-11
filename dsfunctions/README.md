@@ -578,7 +578,7 @@ road highway classifications are accepted, using either `category=highway` with
 an accepted `type`, or an accepted `extratags.highway` value. This permits road
 ways classified by Nominatim as administrative boundaries. Nodes, relations,
 and ways without a supported road classification (such as steps or buildings)
-are rejected. `footway`, `cycleway`, `path`, and `pedestrian` are accepted for every counter
+are rejected. `footway`, `cycleway`, `path`, `pedestrian`, and `track` are accepted for every counter
 regardless of transport type or bicycle-access tags; reference checks still apply. When a source road reference exists, the OSM `namedetails.ref` must
 match after removing spacing, punctuation, and leading zeroes from each number
 following a letter (`D0011` matches `D 11`; `D0111E01` matches `D 111E1`).

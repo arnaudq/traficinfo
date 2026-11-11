@@ -35,7 +35,7 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
     private static final int MAX_OSM_REQUESTS = 100;
     private static final Set<String> ROAD_HIGHWAY_TYPES = Set.of("motorway", "trunk", "primary", "secondary",
             "tertiary", "unclassified", "residential", "living_street", "service", "road", "motorway_link",
-            "trunk_link", "primary_link", "secondary_link", "tertiary_link", "footway", "cycleway", "path", "pedestrian");
+            "trunk_link", "primary_link", "secondary_link", "tertiary_link", "footway", "cycleway", "path", "pedestrian", "track");
 
     private final ObjectStoreClient osmCacheOSClient;
     private final OpenStreetMapClient osmClient;
