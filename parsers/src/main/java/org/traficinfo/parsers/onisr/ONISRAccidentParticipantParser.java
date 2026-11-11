@@ -20,7 +20,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-/** Reads 2025 usagers, filtering by selected accident IDs before parsing participant fields. */
+/** Reads modern usagers files, filtering by selected accident IDs before parsing participant fields. */
 public final class ONISRAccidentParticipantParser {
   private static final List<String> REQUIRED = List.of("num_acc", "id_usager", "id_vehicule", "catu", "grav", "an_nais", "sexe");
 

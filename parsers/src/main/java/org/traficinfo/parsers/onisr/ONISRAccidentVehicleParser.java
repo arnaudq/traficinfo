@@ -18,7 +18,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-/** Reads 2025 vehicles, filtering by retained accident IDs before parsing vehicle fields. */
+/** Reads modern vehicle files, filtering by retained accident IDs before parsing vehicle fields. */
 public final class ONISRAccidentVehicleParser {
   private static final List<String> REQUIRED = List.of("num_acc", "id_vehicule", "catv", "motor");
 

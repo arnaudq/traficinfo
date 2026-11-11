@@ -29,13 +29,12 @@ public class ONISRAccidentFunctionTest {
     private static final String VEHICLES = "Num_Acc;id_vehicule;catv;motor\n202500000001;2;7;1\n";
 
     @Test
-    public void fnImportsFixed2025ObjectAndClosesBothStores() throws Exception {
+    public void fnImportsConfiguredYearsAndRefreshesOnceAndClosesBothStores() throws Exception {
         Probe probe = configured(Map.of("NAMESPACE", "namespace"));
         assertTrue(probe.connections.isEmpty());
-        probe.accidentStore.text("caract-2025.csv", CSV);
-        probe.accidentStore.text("usagers-2025.csv", USERS);
-        probe.accidentStore.text("vehicules-2025.csv", VEHICLES);
-        probe.accidentStore.text("caract-2024.csv", "must not be read");
+        source(probe, 2024);
+        source(probe, 2025);
+        probe.accidentStore.text("caract-2023.csv", "must not be read");
         assertEquals("OK", probe.handleRequest("{}"));
         assertEquals(List.of("true/namespace/onisrinfo", "true/namespace/osminfo"), probe.connections);
         assertTrue(probe.accidentStore.closed);
@@ -45,7 +44,13 @@ public class ONISRAccidentFunctionTest {
         assertEquals("2025-01-02", records.get(0).get("date").asText());
         assertEquals("FEMALE", records.get(0).get("participants").get(0).get("sex").asText());
         assertEquals("CAR", records.get(0).get("vehicles").get(0).get("type").asText());
-        assertFalse(probe.accidentStore.objects.containsKey("data/ONISR_DPT34/2024.json"));
+        JsonNode previous = JSON.readTree(probe.accidentStore.objects.get("data/ONISR_DPT34/2024.json"));
+        assertEquals("2024-01-02", previous.get(0).get("date").asText());
+        assertEquals("CAR", previous.get(0).get("vehicles").get(0).get("type").asText());
+        assertEquals("FEMALE", previous.get(0).get("participants").get(0).get("sex").asText());
+        assertFalse(probe.accidentStore.objects.containsKey("data/ONISR_DPT34/2023.json"));
+        assertEquals(3, probe.accidentStore.writes.stream().filter(name -> name.endsWith("_Accidents.json")).count());
+        assertEquals(List.of(2024, 2025), ONISRYearInputs.configured().stream().map(ONISRYearInputs::year).toList());
         assertTrue(probe.osmStore.objects.containsKey("ONISR_DPT34_OSMWayMapping.json"));
     }
 
@@ -53,18 +58,22 @@ public class ONISRAccidentFunctionTest {
     public void emptyInputImportsAndRefreshDoesNotRequireRawCsv() throws Exception {
         Probe probe = configured(Map.of("NAMESPACE", "namespace", "USE_RESOURCE_PRINCIPAL", "false",
                 "BUCKETNAME_OSM", "custom-osm"));
-        probe.accidentStore.text("caract-2025.csv", CSV);
-        probe.accidentStore.text("usagers-2025.csv", USERS);
-        probe.accidentStore.text("vehicules-2025.csv", VEHICLES);
+        source(probe, 2024);
+        source(probe, 2025);
         assertEquals("OK", probe.handleRequest(""));
         assertEquals(List.of("false/namespace/onisrinfo", "false/namespace/custom-osm"), probe.connections);
-        probe.accidentStore.objects.remove("caract-2025.csv");
-        probe.accidentStore.objects.remove("usagers-2025.csv");
-        probe.accidentStore.objects.remove("vehicules-2025.csv");
-        probe.osmStore.text("ONISR_DPT34_OSMWayMapping.json", "{\"202500000001\":{\"osmWayId\":123,\"status\":\"MATCHED\"}}");
+        for (ONISRYearInputs year : ONISRYearInputs.configured()) {
+            probe.accidentStore.objects.remove(year.accidentObject());
+            probe.accidentStore.objects.remove(year.participantsObject());
+            probe.accidentStore.objects.remove(year.vehiclesObject());
+        }
+        probe.osmStore.text("ONISR_DPT34_OSMWayMapping.json", "{\"202400000001\":{\"osmWayId\":123,\"status\":\"MATCHED\"},"
+                + "\"202500000001\":{\"osmWayId\":123,\"status\":\"MATCHED\"}}");
         assertEquals("OK", probe.handleRequest("{\"action\":\"refresh\"}"));
         JsonNode output = JSON.readTree(probe.accidentStore.objects.get("ONISR_DPT34_Accidents.json"));
-        assertEquals(1, output.get("123").size());
+        assertEquals(2, output.get("123").size());
+        assertEquals("2024-01-02", output.get("123").get(0).get("date").asText());
+        assertEquals("2025-01-02", output.get("123").get(1).get("date").asText());
         assertEquals("FEMALE", output.get("123").get(0).get("participants").get(0).get("sex").asText());
         assertEquals("CAR", output.get("123").get(0).get("vehicles").get(0).get("type").asText());
     }
@@ -94,7 +103,7 @@ public class ONISRAccidentFunctionTest {
             assertTrue(probe.accidentStore.closed);
             assertTrue(probe.osmStore.closed);
         }
-        probe.accidentStore.text("caract-2025.csv", CSV.replace("2025", "2024"));
+        probe.accidentStore.text("caract-2024.csv", CSV);
         try {
             probe.handleRequest("{}");
             fail("Wrong source year must fail the function");
@@ -102,6 +111,49 @@ public class ONISRAccidentFunctionTest {
             assertFalse(probe.accidentStore.objects.containsKey("data/ONISR_DPT34/2025.json"));
             assertTrue(probe.osmStore.objects.isEmpty());
         }
+    }
+
+    @Test
+    public void reimportReplaces2024WithoutDuplicatingOrReplacingUnchanged2025() throws Exception {
+        Probe probe = configured(Map.of("NAMESPACE", "namespace"));
+        source(probe, 2024);
+        source(probe, 2025);
+        probe.handleRequest("{}");
+        byte[] original2025 = probe.accidentStore.objects.get("data/ONISR_DPT34/2025.json");
+        probe.accidentStore.writes.clear();
+        probe.accidentStore.text("caract-2024.csv", CSV.substring(0, CSV.indexOf('\n') + 1));
+        probe.handleRequest("{}");
+        assertEquals(0, JSON.readTree(probe.accidentStore.objects.get("data/ONISR_DPT34/2024.json")).size());
+        assertArrayEquals(original2025, probe.accidentStore.objects.get("data/ONISR_DPT34/2025.json"));
+        assertFalse(probe.accidentStore.writes.contains("data/ONISR_DPT34/2025.json"));
+    }
+
+    @Test
+    public void missingLaterYearFailsBeforeCombinedPublicationAndRetryCompletesImport() throws Exception {
+        Probe probe = configured(Map.of("NAMESPACE", "namespace"));
+        source(probe, 2024);
+        String previous = "{\"previous\":[]}";
+        probe.accidentStore.text("ONISR_DPT34_Accidents.json", previous);
+        try {
+            probe.handleRequest("{}");
+            fail("Missing 2025 must fail the invocation");
+        } catch (BmcException expected) {
+            assertEquals(404, expected.getStatusCode());
+            assertTrue(probe.accidentStore.objects.containsKey("data/ONISR_DPT34/2024.json"));
+            assertEquals(previous, new String(probe.accidentStore.objects.get("ONISR_DPT34_Accidents.json"), StandardCharsets.UTF_8));
+            assertTrue(probe.osmStore.objects.isEmpty());
+        }
+        source(probe, 2025);
+        assertEquals("OK", probe.handleRequest("{}"));
+        assertEquals(1, JSON.readTree(probe.accidentStore.objects.get("data/ONISR_DPT34/2024.json")).size());
+        assertEquals(1, JSON.readTree(probe.accidentStore.objects.get("data/ONISR_DPT34/2025.json")).size());
+    }
+
+    private static void source(Probe probe, int year) {
+        String value = Integer.toString(year);
+        probe.accidentStore.text("caract-" + year + ".csv", CSV.replace("2025", value));
+        probe.accidentStore.text("usagers-" + year + ".csv", USERS.replace("2025", value));
+        probe.accidentStore.text("vehicules-" + year + ".csv", VEHICLES.replace("2025", value));
     }
 
     private static Probe configured(Map<String, String> config) {
@@ -124,6 +176,7 @@ public class ONISRAccidentFunctionTest {
     private static class Store extends ObjectStoreClient {
         final Map<String, byte[]> objects = new LinkedHashMap<>();
         boolean closed;
+        final List<String> writes = new ArrayList<>();
         Store() { super(null, "test", "fake"); }
         void text(String name, String value) { objects.put(name, value.getBytes(StandardCharsets.UTF_8)); }
         @Override public List<String> listResources() { return new ArrayList<>(objects.keySet()); }
@@ -133,6 +186,7 @@ public class ONISRAccidentFunctionTest {
         }
         @Override public void putResource(String name, String type, OOSResourceMetadata metadata, InputStream input) throws IOException {
             objects.put(name, input.readAllBytes());
+            writes.add(name);
         }
         @Override public void close() { closed = true; }
     }

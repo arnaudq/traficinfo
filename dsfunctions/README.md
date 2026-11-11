@@ -664,6 +664,12 @@ Map<String, ONISRAccidentProcessor.Statistics> imported =
 Map<String, ONISRAccidentProcessor.Statistics> refreshed = processor.refresh();
 ```
 
+`processor.importYears(ONISRYearInputs.configured())` imports all configured annual
+publications and refreshes the combined output once after the last year. Each
+`ONISRYearInputs` record holds the year and the characteristics, usagers and
+vehicles object names. The immutable configured list currently contains 2024
+and 2025; extend that list to add another annual publication.
+
 The default regional IDs are `30`, `34` and `76`. For ONISR these map to French
 department codes. A third constructor argument can select another nonempty set
 of normalized IDs. The CSV object name is explicit and may include a prefix;
@@ -737,19 +743,28 @@ total, matched and unmatched accidents and distinct ways per regional ID.
 
 ## Manual ONISR accident function
 
-`ONISRAccidentFunction` wraps the local processor. For now it hardcodes
-`onisrinfo/caract-2025.csv`, `onisrinfo/usagers-2025.csv` and
-`onisrinfo/vehicules-2025.csv`, year **2025**, and regional
-IDs **30, 34, 76**. Object names are case-sensitive. Other uploaded CSVs are not
-selected, and request payloads cannot override filenames or year. ONISR is not
-added to `dsconfig.json`.
+`ONISRAccidentFunction` wraps the local processor. `ONISRYearInputs.configured()`
+selects these annual publications in `onisrinfo`:
 
-An empty request, `{}` or `{"action":"import"}` imports the fixed 2025 input and
-rebuilds the combined regional output. `{"action":"refresh"}` only rebuilds
+| Year | Characteristics | Participants | Vehicles |
+| --- | --- | --- | --- |
+| 2024 | `caract-2024.csv` | `usagers-2024.csv` | `vehicules-2024.csv` |
+| 2025 | `caract-2025.csv` | `usagers-2025.csv` | `vehicules-2025.csv` |
+
+Regional IDs remain **30, 34, 76**. Object names are case-sensitive. Other uploaded
+CSVs are not selected, and request payloads cannot override filenames or years.
+ONISR is not added to `dsconfig.json`.
+
+An empty request, `{}` or `{"action":"import"}` imports **2024 and 2025**, then
+rebuilds the combined regional output once. `{"action":"refresh"}` only rebuilds
 output using stored regional records and current OSM mappings, without reading
-any of the three raw CSVs. The handler returns `OK` and logs regional statistics on success;
+any raw CSVs. The handler returns `OK` and logs regional statistics on success;
 parsing, storage and publication failures fail the invocation. Both storage
 clients are closed after each invocation.
+
+Years are imported sequentially and are not a transaction. If a later year fails,
+earlier yearly records can already be stored, but the final combined output is
+not rebuilt. Correct the input and rerun the import to complete both years.
 
 After the shared environment has been initialized with `source ./scripts/setup.sh`:
 
@@ -813,7 +828,7 @@ from the datasource ID. OSM refresh receives
 Invocation resolves the deployed function and calls it synchronously. Retrieval
 and GeoJSON send only `datasourceId`; normal preprocessing does the same and
 also accepts an inactive `datasetId` for archive imports. OSM uses an empty body.
-Accident invocation sends `{}` for the fixed 2025 import or `{"action":"refresh"}`
+Accident invocation sends `{}` for the configured 2024/2025 imports or `{"action":"refresh"}`
 for rebuilding stored output.
 Retrieval's client timeout is the maximum configured source runtime plus 60
 seconds; preprocessing, GeoJSON, OSM and accidents use 360 seconds. Missing functions and OCI errors

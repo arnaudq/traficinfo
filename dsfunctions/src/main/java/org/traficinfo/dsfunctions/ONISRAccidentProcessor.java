@@ -70,6 +70,22 @@ public final class ONISRAccidentProcessor {
     /** Import selected accidents with their participants and vehicles before replacing any regional year. */
     public Map<String, Statistics> importCsv(String objectName, String participantsObject, String vehiclesObject, int year)
             throws IOException {
+        storeYear(objectName, participantsObject, vehiclesObject, year);
+        return refresh();
+    }
+
+    /** Import each selected publication, then rebuild combined outputs once. Years are not a transaction. */
+    public Map<String, Statistics> importYears(List<ONISRYearInputs> inputs) throws IOException {
+        List<ONISRYearInputs> selected = List.copyOf(inputs);
+        if (selected.isEmpty()) throw new IllegalArgumentException("At least one ONISR year is required");
+        for (ONISRYearInputs year : selected) {
+            storeYear(year.accidentObject(), year.participantsObject(), year.vehiclesObject(), year.year());
+        }
+        return refresh();
+    }
+
+    private void storeYear(String objectName, String participantsObject, String vehiclesObject, int year)
+            throws IOException {
         if (objectName == null || !objectName.endsWith(".csv") || year < 2005 || year > 9999) {
             throw new IllegalArgumentException("A CSV object name and a year from 2005 to 9999 are required");
         }
@@ -109,7 +125,6 @@ public final class ONISRAccidentProcessor {
                     .sorted(Comparator.comparing(ONISRAccident::getAccidentId)).toList();
             putIfChanged(yearObject(region, year), json.write(rows));
         }
-        return refresh();
     }
 
     /** Rebuild all selected regions from stored years and current cached OSM assignments. No HTTP lookups. */

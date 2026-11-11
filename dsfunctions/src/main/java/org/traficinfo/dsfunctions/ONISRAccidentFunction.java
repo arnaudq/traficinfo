@@ -11,16 +11,12 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Map;
 
-/** Manual ONISR entry point, initially importing only the fixed 2025 characteristics CSV. */
+/** Manual ONISR entry point importing the explicitly configured yearly publications. */
 public class ONISRAccidentFunction {
     private static final Logger LOG = LoggerFactory.getLogger(ONISRAccidentFunction.class);
     private static final ObjectMapper JSON = new ObjectMapper()
             .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
     private static final String ACCIDENT_BUCKET = "onisrinfo";
-    private static final String ACCIDENT_OBJECT = "caract-2025.csv";
-    private static final String PARTICIPANTS_OBJECT = "usagers-2025.csv";
-    private static final String VEHICLES_OBJECT = "vehicules-2025.csv";
-    private static final int YEAR = 2025;
     private String namespace;
     private String osmBucket;
     private boolean principal;
@@ -38,7 +34,7 @@ public class ONISRAccidentFunction {
         configured = true;
     }
 
-    /** Empty input or {} imports 2025; {"action":"refresh"} rebuilds stored accident output only. */
+    /** Empty input or {} imports configured years; {"action":"refresh"} rebuilds stored accident output only. */
     public String handleRequest(String input) {
         if (!configured) throw new IllegalStateException("Accident function has not been configured");
         String action = action(input);
@@ -47,7 +43,7 @@ public class ONISRAccidentFunction {
                  var osmStore = createObjectStoreClient(principal, namespace, osmBucket)) {
                 var processor = new ONISRAccidentProcessor(accidentStore, osmStore);
                 Map<String, ONISRAccidentProcessor.Statistics> result = action.equals("refresh")
-                        ? processor.refresh() : processor.importCsv(ACCIDENT_OBJECT, PARTICIPANTS_OBJECT, VEHICLES_OBJECT, YEAR);
+                        ? processor.refresh() : processor.importYears(ONISRYearInputs.configured());
                 result.forEach((region, statistics) -> LOG.info("ONISR regional ID {}: {}", region, statistics));
                 return "OK";
             } catch (IOException failure) {

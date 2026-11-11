@@ -5,8 +5,10 @@ published by the Ministry of the Interior and administered by ONISR. The
 [BAAC data dictionary](https://www.data.gouv.fr/api/1/datasets/r/21e46f4e-fa29-40bb-9ec8-905e41e041aa)
 describes characteristics, locations, vehicles and users, joined by `Num_Acc`.
 The characteristics parser reads accident records. The participant parser joins
-the 2025 usagers file for involved people and their injury severity. The vehicle
-parser joins the 2025 vehicles file for vehicle categories and motorization.
+the modern usagers files for involved people and their injury severity. The vehicle
+parser joins the modern vehicles files for vehicle categories and motorization.
+The manual function currently selects the 2024 and 2025 publications through
+`ONISRYearInputs.configured()`.
 
 ## API and model
 
@@ -54,7 +56,7 @@ The reader retains ownership of its input stream. See the
 [local processor usage](../../../../../../../../dsfunctions/README.md#local-onisr-accident-processing)
 for year replacement, output naming and OSM cache handling.
 
-## Participants from the 2025 usagers file
+## Participants from modern usagers files
 
 `AccidentParticipant` has an immutable `ONISRAccidentParticipant` implementation.
 Each accident exposes a `participants` list; an uninjured involved person is also
@@ -96,7 +98,7 @@ without a usagers companion yields empty participant lists, as does reading olde
 stored JSON without a `participants` property. Refresh reads the stored lists and
 does not require the raw usagers file.
 
-## Vehicles from the 2025 vehicles file
+## Vehicles from modern vehicles files
 
 `AccidentVehicle` has an immutable `ONISRAccidentVehicle` implementation. Vehicles
 are stored in an accident's `vehicles` array, alongside `participants`. Retained
