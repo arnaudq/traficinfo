@@ -45,8 +45,8 @@ public class GeoJsonFunctionTest {
         assertEquals(List.of("ns/ds3mbucket", "ns/traficinfo", "ns/osminfo",
                 "ns/dsdpt76", "ns/traficinfo", "ns/osminfo"), probe.clients);
         assertEquals(List.of("MMM:MMM_TraficInfo.geojson", "MMM:MMM_TraficInfo_BICYCLES.geojson",
-                "MMM:MMM_OSMWayMapping.json", "DPT76:DPT76_TraficInfo.geojson",
-                "DPT76:DPT76_TraficInfo_BICYCLES.geojson", "DPT76:DPT76_OSMWayMapping.json"), probe.writes);
+                "MMM:MMM_OSMRequests.json", "DPT76:DPT76_TraficInfo.geojson",
+                "DPT76:DPT76_TraficInfo_BICYCLES.geojson", "DPT76:DPT76_OSMRequests.json"), probe.writes);
         assertEquals(6, probe.closed);
         assertEquals(2, probe.httpClosed);
         assertEquals(List.of("MMM", "MMM", "DPT76", "DPT76"), probe.metrics.stream()

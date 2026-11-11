@@ -67,13 +67,14 @@ public final class GeoJsonPublisher {
             try {
                 var comptages = new ManifestComptageReader(inputClient).read(source.getDataSourceId());
                 osmInfoProvider.loadCache();
+                OSMRequestCollector osmRequests = new OSMRequestCollector(osmInfoProvider);
                 Map<Comptage.Type, GeoJsonParser.RenderingStatistics> statistics = new EnumMap<>(Comptage.Type.class);
                 for (Comptage.Type type : List.of(Comptage.Type.VEHICULES, Comptage.Type.BICYCLES)) {
                     Path mergedFile = Files.createTempFile(source.getDataSourceId() + "-geojson-", ".geojson");
                     try {
                         try (Writer geojsonMergedWriter = Files.newBufferedWriter(mergedFile, StandardCharsets.UTF_8)) {
                             statistics.put(type, GeoJsonParser.writeGeoJsonWithStatistics(source.getParserDataSource(), comptages,
-                                    new FeatureCollection(), geojsonMergedWriter, osmInfoProvider, type));
+                                    new FeatureCollection(), geojsonMergedWriter, osmRequests, type));
                         }
                         try (InputStream mergedInput = Files.newInputStream(mergedFile)) {
                             outputClient.putResource(source.getGeoJsonObjectName(type), "application/geo+json",
@@ -83,7 +84,7 @@ public final class GeoJsonPublisher {
                         Files.deleteIfExists(mergedFile);
                     }
                 }
-                osmInfoProvider.refreshCache();
+                osmRequests.publish(source.getDataSourceId());
                 publishMetrics(statistics);
                 return "OK";
             } catch (Exception failure) {

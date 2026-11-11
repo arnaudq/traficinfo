@@ -142,8 +142,9 @@ Each invocation publishes two gzip FeatureCollections to the output bucket:
 `<id>_TraficInfo_BICYCLES.geojson` for `BICYCLES`. Empty populations are published
 as empty collections to clear removed counters. Features retain their `type`.
 Uploads are sequential: failure of the second output can leave the first updated.
-OSM cache refresh runs after both uploads. Manifest, output and cache-write
-failures fail the invocation; temporary output files are always removed.
+The source's OSM request snapshot is published after both uploads. Manifest,
+output and request-write failures fail the invocation; temporary output files
+are always removed. GeoJSON never writes OSM mapping/tag caches or calls OSM APIs.
 
 | Runtime setting | Default |
 | --- | --- |
@@ -407,10 +408,13 @@ or invalid JSON throw an invocation error without overwriting the cache.
 
 `org.traficinfo.dsfunctions.OSMInfoProviderImpl` handles cache loading, refreshing,
 and persistence using `org.traficinfo.dsfunctions.OpenStreetMapClient` for OSM
-requests. GeoJSON publication calls `loadCache()` before parsing and
-`refreshCache()` after publishing the GeoJSON. The cache map remains
-private to the implementation. Calls to `getWayInfo(wayId)` queue missing or stale ways
-internally for the deferred refresh. Parsers use the
+requests. GeoJSON publication calls `loadCache()` before rendering, then uses
+`OSMRequestCollector` for cache-only lookups. After both populations are uploaded,
+the collector publishes `<sourceId>_OSMRequests.json` with `reverseLookups` keyed
+by counter ID (latitude, longitude, optional source road reference) and a
+`wayTagRefreshes` array of positive IDs. Both sections are always written, even
+when empty, so a later run clears satisfied or removed requests. The cache maps
+remain private; only the OSM function changes and persists them. Parsers use the
 `org.traficinfo.parsers.OSMInfoProvider` interface, which exposes `OSMWayInfo getWayInfo(long wayId)` and the cache-only
 `getWayId(centraleId, point, roadReference)` lookup.
 
@@ -427,23 +431,23 @@ returned by OSM. For example:
 }
 ```
 
-`GeoJsonParser.parseAndMerge` accepts the provider and a `Set<Long>` of ways to
-refresh. It populates `Comptage.maximumSpeed` from the cached `maxspeed` tag and
+`GeoJsonParser` reads cached information through the provider. It populates `Comptage.maximumSpeed` from the cached `maxspeed` tag and
 outputs it as the GeoJSON property `maximum_speed`, formatted like
 `v85_speed`: positive values as text and values ≤ 0 as `"-"`. Numeric values
 (including an explicit `km/h` suffix) are used as km/h. Missing, nonnumeric,
 or unsupported values such as `none`, `walk`, and `50 mph` produce `-1`;
 their original tags remain in the cache.
 
-Missing entries and entries older than three calendar months are queued once
-per way. Stale speeds remain available for the current output. After generating
-and uploading the GeoJSON, the function makes at most 100 sequential requests
-to `https://api.openstreetmap.org/api/0.6/way/{id}.json`, then uploads the updated
-cache as gzip JSON. Newly fetched tags affect the next invocation. Failed
-requests count toward the limit, leave existing entries unchanged, and do not
-fail the invocation. A cache upload failure throws an invocation error even though the
-GeoJSON has already been published. Unprocessed ways are queued again on the
-next run; the cache is written only when at least one fetch succeeds.
+Missing entries and entries older than three calendar months are requested once
+per way. Stale speeds remain available for the current output. The hourly OSM
+function consumes the latest request snapshot and checks freshness again before
+making up to 100 sequential way-tag requests per source. It saves successful
+fetches to the tag cache; HTTP failures preserve old entries and pending requests
+remain available for the next hourly run. Newly fetched data affects subsequent
+GeoJSON publication. OSM never overwrites or deletes producer request snapshots.
+A request upload failure fails GeoJSON publication after the outputs were saved,
+leaving any prior request snapshot in place. See the
+[OSM lifecycle scenarios](../specs/osm-data.md#lifecycle-scenarios).
 
 Each OSM request has a five-second timeout. Allow sufficient function runtime
 for 100 requests plus Object Storage downloads and uploads when configuring
@@ -461,10 +465,11 @@ supports the seed file in `data/osm/DPT34_OSMWayMapping.json`.
 
 For records without a source-provided OSM ID, the parser asks the provider for
 the counter's cached positive `osmWayId`. If no valid ID exists, the provider
-records the counter in memory once per run. New entries have `osmWayId: null`,
-`status: "MISSING"`, coordinates (null if unavailable), `firstSeen` and `lastSeen`.
-Historical rows are processed oldest first so unresolved counters retain their
-latest available coordinates and road reference. Missing entries also store
+collects a reverse request once per run. The hourly OSM function merges those
+requests, creating new mapping entries with `osmWayId: null`, `status: "MISSING"`,
+coordinates (null if unavailable), `firstSeen` and `lastSeen`. Historical rows
+are processed oldest first so the request snapshot retains the latest available
+coordinates and road reference. Missing entries also store
 `sourceRoadReference` (null when unavailable), for future comparison with OSM.
 DPT34 derives it from `route_id` by removing the department prefix:
 `34D0011` becomes `D0011`. DPT30 retains `numero_route`, for example `D6086`.
@@ -474,18 +479,11 @@ its way IDs, coordinates, timestamps, status, road references, and review fields
 Extra seed annotations are retained as additional properties during JSON
 round trips. Existing fields, including seed review metadata, are preserved. Neither source-provided IDs nor positive cached IDs are replaced.
 
-After GeoJSON publication, `refreshCache()` saves the entire mapping cache,
-including unresolved counters, before performing the existing way-tag refresh.
-INFO logs show entries loaded, unique counters missing a usable ID, and entries
-saved. Missing objects start empty; other storage errors or invalid JSON fail
-without overwriting that cache. A failed mapping upload throws an invocation error after the
-GeoJSON has been published.
-
-GeoJSON functions perform no reverse HTTP calls. The hourly `OSMInfoFunction`
-can resolve incomplete mappings as described below. Alternatively, populate
-`osmWayId` manually in Object Storage and it is used on the next run;
-positive IDs are used regardless of any older descriptive `status` field.
-Unresolved entries do not consume the existing 100-request way-tag budget.
+GeoJSON only publishes its source's request file. The OSM function alone saves
+the mapping cache, performs reverse lookups, fetches way tags and saves the tag
+cache. Cache-only producers and the OSM function therefore never write the same
+object, even if they overlap. Supply manual assignments through the `_MERGED`
+submission described below rather than editing generated cache/review files.
 
 ## Hourly OSM mapping refresh
 
@@ -495,9 +493,11 @@ for empty categories. See the [monitoring specification](../specs/monitoring.md#
 for metric definitions, configuration and publication behavior.
 
 `org.traficinfo.dsfunctions.OSMInfoFunction::handleRequest` lists the objects in
-`osminfo`, shuffles the list, and processes objects ending in `_OSMWayMapping.json`.
-For each cache it loads that mapping and the matching `<prefix>_OSMInfo.json`
-through `OSMInfoProviderImpl.loadCache()`. INFO logs report unknown/total mappings,
+`osminfo`, shuffles the list, and discovers sources from `_OSMRequests.json` and
+`_OSMWayMapping.json` suffixes. A source with only requests starts with empty
+caches. For each source it loads the mapping and matching `<prefix>_OSMInfo.json`
+through `OSMInfoProviderImpl.loadCache()`, merges the current request snapshot,
+and applies submitted approvals before allocating reverse requests. INFO logs report unknown/total mappings,
 way-info entries, attempted reverse lookups, resolved entries, and HTTP failures.
 Each reverse result logs its counter ID, status, assigned/candidate way ID,
 source and OSM references, and review reason. `OSMWayMappingStatus` defines the
@@ -521,15 +521,24 @@ data source prefix → counter ID → mapping record:
 - `OSMWayMapping_NOT_FOUND.json` contains `NOT_FOUND` records.
 
 Every loaded source has an object in each document, empty when it has no records
-in that status. At startup, the function reads both files (a missing object
-starts empty). A reviewer can set a record to `MATCHED` and supply or correct a
-positive `candidateOsmWayId`, then reupload its file. For a current `NEEDS_REVIEW`
-or `NOT_FOUND` record, the function assigns that positive
-candidate ID to `osmWayId`, clears the candidate/review reason, updates
-`lastUpdated`, saves the source mapping cache, and queues tag refresh. Existing
-positive assignments are preserved. Invalid approvals fail without replacing
-the review files. Processed counts include manual approvals. The original
-`reverseLookupResult` is retained even when a different way is manually assigned.
+in that status. These generated files are read only for change detection, never
+as approval inputs. To submit decisions, upload
+`OSMWayMapping_NEEDS_REVIEW_MERGED.json` to the same bucket. Its structure is data
+source prefix → counter ID → `{"status":"MATCHED","candidateOsmWayId":789}`;
+include only the decisions being submitted, from either review export.
+
+At startup OSM reads the submission if present, validates all decision fields,
+assigns each approved positive candidate ID to `osmWayId`, clears the candidate
+and review reason, updates `lastUpdated`, and persists the source mapping.
+Missing/stale tags are queued for refresh. Existing positive assignments are
+preserved, including on a retry after partial persistence; their missing/stale
+tags are checked again. The original `reverseLookupResult` is retained.
+
+After all processing and review exports have been saved successfully, OSM deletes
+the submission it read. On failure it retains the input for a later run. A run
+that found no submission does not delete one uploaded later. Do not replace an
+outstanding submission while OSM may be processing/deleting it: wait for deletion
+before uploading another batch. Processed status counts include manual approvals.
 
 At the end, each document is rebuilt from all source caches, including sources
 whose API batches were skipped by the time budget. Applied approvals disappear
@@ -595,8 +604,9 @@ query coordinates are saved in `reverseLookupResult`, `lastLookupLatitude`, and
 `lastLookupLongitude`, with attempt time in `lastLookupAt`. Successful negative
 and review responses are cached, so unchanged coordinates are not repeatedly
 queried on subsequent hourly runs. Changed coordinates become eligible again.
-Setting a source-cache record to `MISSING` explicitly requests another lookup,
-even when `reverseLookupResult` exists for unchanged coordinates. The successful
+`MISSING` explicitly requests another lookup, even when `reverseLookupResult`
+exists for unchanged coordinates. The current manual submission format accepts
+only `MATCHED` approvals; an additional manual reset action is not defined. The successful
 response replaces the old result and determines the new status; an HTTP failure
 preserves the old result and leaves the record `MISSING` for a later retry.
 Demand counting uses the same rule. A valid location and no assigned positive
@@ -710,6 +720,7 @@ Storage names are:
 | `onisrinfo` | `vehicules-2025.csv` | Unmodified vehicle source |
 | `onisrinfo` | `data/ONISR_DPT30/2025.json` | Regional source records for one year, including unmatched/unlocated accidents |
 | `onisrinfo` | `ONISR_DPT30_Accidents.json` | All imported years, grouped by usable OSM way ID |
+| `osminfo` | `ONISR_DPT30_OSMRequests.json` | Producer-owned unresolved accident locations |
 | `osminfo` | `ONISR_DPT30_OSMWayMapping.json` | Accident-ID-to-way assignments and pending/review records |
 | `osminfo` | `ONISR_DPT30_OSMInfo.json` | Way tags maintained by the shared OSM refresh |
 
@@ -719,9 +730,10 @@ documented in the [OSM specification](../specs/osm-data.md#accident-caches).
 
 `refresh()` reads the selected regions' stored years, validates their regional
 IDs, years and identities, and applies current cached way assignments. Pending
-locations are registered via the existing OSM provider. `saveWayMappings()`
-persists these registrations without reverse lookup or way-tag requests; it does
-not replace the way-tag cache. Existing positive assignments follow the shared
+locations are collected through the same `OSMRequestCollector` used by GeoJSON.
+After publishing each region's grouped output, it replaces that prefix's
+`_OSMRequests.json` snapshot without modifying either OSM cache or calling the
+APIs. The hourly OSM function merges and processes these requests. Existing positive assignments follow the shared
 provider's reuse behavior and review annotations remain intact. Mapping caches
 may retain entries for accidents removed from a revised year, but those entries
 cannot add removed accidents to the output.

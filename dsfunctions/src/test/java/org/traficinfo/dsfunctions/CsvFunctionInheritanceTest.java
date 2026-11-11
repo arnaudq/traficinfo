@@ -106,14 +106,14 @@ public class CsvFunctionInheritanceTest {
                     "MRN_OSMInfo.json",
                     "MRN_OSMWayMapping.json"), function.reads);
             assertEquals(List.of("MRN_TraficInfo.geojson", "MRN_TraficInfo_BICYCLES.geojson",
-                    "MRN_OSMWayMapping.json"), function.writes);
+                    "MRN_OSMRequests.json"), function.writes);
             JsonNode output = new ObjectMapper().readTree(function.output);
             JsonNode feature = output.get("features").get(0);
             assertEquals("MRN_A_3", feature.get("properties").get("code_centrale").asText());
             assertEquals(120, feature.get("properties").get("moyenne_jour_annuelle").asInt());
             assertEquals("15 (08h-09h)", feature.get("properties").get("moyenne_pointe_matin").asText());
             assertEquals(1.1, feature.get("geometry").get("coordinates").get(0).asDouble(), 0);
-            JsonNode mapping = new ObjectMapper().readTree(function.mapping).get("MRN_A_3");
+            JsonNode mapping = new ObjectMapper().readTree(function.mapping).get("reverseLookups").get("MRN_A_3");
             assertTrue(mapping.get("sourceRoadReference").isNull());
             assertEquals(49.2, mapping.get("latitude").asDouble(), 0);
             byte[] previousOutput = function.output;
@@ -143,7 +143,7 @@ public class CsvFunctionInheritanceTest {
                     function.clients);
             assertEquals(List.of("MMM_Manifest.json", "MMM_OSMInfo.json",
                     "MMM_OSMWayMapping.json"), function.reads);
-            assertEquals(List.of("MMM_TraficInfo.geojson", "MMM_TraficInfo_BICYCLES.geojson", "MMM_OSMWayMapping.json"),
+            assertEquals(List.of("MMM_TraficInfo.geojson", "MMM_TraficInfo_BICYCLES.geojson", "MMM_OSMRequests.json"),
                     function.writes);
         }
     }

@@ -139,23 +139,23 @@ public class GeoJsonPublisherTest {
     }
 
     @Test
-    public void savesUnmappedCounterOnceWithLatestCoordinates() throws Exception {
+    public void requestsUnmappedCounterOnceWithLatestCoordinates() throws Exception {
         StorageStub stub = new StorageStub(false);
         // Newest row deliberately comes before the old row.
         stub.counts.add(record(2, YEAR, 500, 44.01, 4.01));
         stub.counts.add(record(2, YEAR - 1, 400, 44.0, 4.0));
         assertEquals("OK", stub.function().publish());
-        JsonNode saved = new ObjectMapper().readTree(stub.mappings);
-        assertEquals(3, saved.size());
+        JsonNode saved = new ObjectMapper().readTree(stub.requests).get("reverseLookups");
+        assertEquals(2, saved.size());
         JsonNode missing = saved.get("DPT76_2");
-        assertEquals("MISSING", missing.get("status").asText());
-        assertTrue(missing.get("osmWayId").isNull());
+        assertFalse(missing.has("status"));
+        assertFalse(missing.has("osmWayId"));
         assertEquals(44.01, missing.get("latitude").asDouble(), 0);
         assertEquals(4.01, missing.get("longitude").asDouble(), 0);
     }
 
     @Test
-    public void reportsMappingWriteFailureAfterPublishingGeoJson() throws Exception {
+    public void reportsRequestWriteFailureAfterPublishingGeoJson() throws Exception {
         StorageStub stub = new StorageStub(false);
         stub.failMappingUpload = true;
         assertFunctionFailure(() -> stub.function().publish());
@@ -196,6 +196,7 @@ public class GeoJsonPublisherTest {
         boolean failMappingUpload;
         int mappingUploads;
         byte[] mappings;
+        byte[] requests;
         int uploads;
         byte[] output;
         byte[] bicycleOutput;
@@ -273,10 +274,10 @@ public class GeoJsonPublisherTest {
                 public void putResource(String name, String type, org.traficinfo.dsfunctions.OOSResourceMetadata metadata,
                                         InputStream body) throws IOException {
                     assertNotNull("Cache must be saved after GeoJSON publication", output);
-                    assertEquals("mappings.json", name);
+                    assertEquals("DPT76_OSMRequests.json", name);
                     mappingUploads++;
                     if (failMappingUpload) throw new IOException("Mapping upload failed");
-                    mappings = body.readAllBytes();
+                    requests = body.readAllBytes();
                 }
             };
             OSMInfoProviderImpl provider = new OSMInfoProviderImpl(cacheStore, new OpenStreetMapClient() {

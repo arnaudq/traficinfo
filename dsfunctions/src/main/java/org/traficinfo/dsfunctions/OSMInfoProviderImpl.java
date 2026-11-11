@@ -125,6 +125,55 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
         }
     }
 
+    /** Missing request objects start empty; only the producer writes them. */
+    public OSMRequests loadRequests(String sourceId) throws IOException {
+        try (InputStream input = osmCacheOSClient.getResource(sourceId + OSMRequests.SUFFIX)) {
+            OSMRequests requests = mapper.readValue(input, OSMRequests.class);
+            if (requests == null) throw new IOException("OSM requests must be a JSON object");
+            return requests;
+        } catch (BmcException failure) {
+            if (failure.getStatusCode() == 404) return OSMRequests.empty();
+            throw failure;
+        }
+    }
+
+    /** Publish a complete source-owned snapshot, including empty sections to clear old requests. */
+    void saveRequests(String sourceId, OSMRequests requests) throws IOException {
+        try (InputStream input = new ByteArrayInputStream(mapper.writeValueAsBytes(requests))) {
+            osmCacheOSClient.putResource(sourceId + OSMRequests.SUFFIX, "application/json", new OOSResourceMetadata(), input);
+        }
+        LOG.info("Published OSM requests for {}: {} reverse lookups, {} way-tag refreshes",
+                sourceId, requests.reverseLookups().size(), requests.wayTagRefreshes().size());
+    }
+
+    /** The OSM function alone merges producer requests into persistent caches. */
+    public void mergeRequests(OSMRequests requests) throws IOException {
+        boolean mappingsChanged = false;
+        for (var entry : requests.reverseLookups().entrySet()) {
+            var location = entry.getValue();
+            if (getCachedWayId(entry.getKey()) == null) mappingsChanged = true;
+            Point point = location.latitude() == null || location.longitude() == null
+                    ? null : new Point(location.longitude(), location.latitude());
+            Long wayId = getWayId(entry.getKey(), point, location.sourceRoadReference());
+            if (wayId != null) getWayInfo(wayId);
+        }
+        requests.wayTagRefreshes().forEach(this::getWayInfo);
+        if (mappingsChanged) saveMappings();
+    }
+
+    Long getCachedWayId(String counterId) {
+        return mappedWayId(mappings.get(counterId));
+    }
+
+    OSMWayInfo getCachedWayInfo(long wayId) {
+        return cache.get(wayId);
+    }
+
+    boolean needsWayTagRefresh(long wayId) {
+        OSMWayInfo info = cache.get(wayId);
+        return info == null || info.needsRefresh(clock.instant());
+    }
+
     /** Number of cached OSM ways, including entries without a maximum speed tag. */
     public int getWayInfoCount() {
         return cache.size();
@@ -193,14 +242,26 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
                     && (decision.getCandidateOsmWayId() == null || decision.getCandidateOsmWayId() <= 0)) {
                 throw new IOException("Manual MATCHED record requires a positive candidateOsmWayId: " + entry.getKey());
             }
-            if (decision.getStatus() == OSMWayMappingStatus.MATCHED && mappings.get(entry.getKey()) == null) {
-                throw new IOException("Manual MATCHED record has no corresponding cached counter: " + entry.getKey());
+            if (decision.getStatus() == OSMWayMappingStatus.MATCHED) {
+                OSMWayMapping current = mappings.get(entry.getKey());
+                if (current == null) {
+                    throw new IOException("Manual MATCHED record has no corresponding cached counter: " + entry.getKey());
+                }
+                if (mappedWayId(current) == null && current.getStatus() != OSMWayMappingStatus.NEEDS_REVIEW
+                        && current.getStatus() != OSMWayMappingStatus.NOT_FOUND) {
+                    throw new IOException("Manual approval requires an existing review outcome: " + entry.getKey());
+                }
             }
         }
         int approved = 0;
         for (Map.Entry<String, OSMWayMapping> entry : reviewed.entrySet()) {
             OSMWayMapping decision = entry.getValue();
             OSMWayMapping current = mappings.get(entry.getKey());
+            // On retry, keep an assigned way and recover any tag fetch that was interrupted.
+            if (decision.getStatus() == OSMWayMappingStatus.MATCHED && mappedWayId(current) != null) {
+                getWayInfo(current.getOsmWayId());
+                continue;
+            }
             // A stale review must not replace a way that has already been assigned.
             if (decision.getStatus() != OSMWayMappingStatus.MATCHED || current == null
                     || (current.getStatus() != OSMWayMappingStatus.NEEDS_REVIEW
@@ -212,7 +273,7 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
             current.setCandidateOsmWayId(null);
             current.setReviewReason(null);
             current.setLastUpdated(clock.instant().toString());
-            waysToRefresh.add(current.getOsmWayId());
+            getWayInfo(current.getOsmWayId());
             processedMappings.add(entry.getKey());
             approved++;
         }
@@ -300,7 +361,7 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
                             mapping.getSourceRoadReference(), mapping.getOsmRoadReference(), mapping.getReviewReason());
                     Long wayId = mappedWayId(mapping);
                     if (wayId != null) {
-                        waysToRefresh.add(wayId);
+                        getWayInfo(wayId);
                         resolved++;
                     }
                 } catch (IOException failure) {

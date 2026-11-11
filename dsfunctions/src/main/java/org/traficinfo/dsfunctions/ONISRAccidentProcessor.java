@@ -155,19 +155,20 @@ public final class ONISRAccidentProcessor {
             String prefix = cachePrefix(region);
             OSMInfoProviderImpl provider = providers.apply(prefix);
             provider.loadCache();
+            OSMRequestCollector osmRequests = new OSMRequestCollector(provider);
             Map<Long, List<ONISRAccident>> byWay = new TreeMap<>();
             int matched = 0;
             for (ONISRAccident accident : records) {
                 // Stored source records never take precedence over the current mapping cache.
-                Long way = provider.getWayId(accident.getAccidentId(), accident.getGeometry(), accident.getRoadReference());
+                Long way = osmRequests.getWayId(accident.getAccidentId(), accident.getGeometry(), accident.getRoadReference());
                 accident.setOsmWayId(way);
                 if (way != null && way > 0 && accident.getGeometry() != null) {
                     byWay.computeIfAbsent(way, ignored -> new ArrayList<>()).add(accident);
                     matched++;
                 }
             }
-            provider.saveWayMappings();
             putIfChanged(outputObject(region), json.writeByWay(byWay));
+            osmRequests.publish(prefix);
             result.put(region, new Statistics(records.size(), matched, records.size() - matched, byWay.size()));
         }
         return Map.copyOf(result);

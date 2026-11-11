@@ -93,11 +93,11 @@ public class ONISRAccidentProcessorTest {
         assertTrue(data.json(ONISRAccidentProcessor.outputObject("34")).isObject());
         assertEquals(0, data.json(ONISRAccidentProcessor.outputObject("34")).size());
         assertFalse(data.objects.containsKey(ONISRAccidentProcessor.yearObject("75", 2025)));
-        JsonNode mappings = osm.json("ONISR_DPT30_OSMWayMapping.json");
-        assertEquals("MISSING", mappings.get("202500000003").get("status").asText());
+        JsonNode mappings = osm.json("ONISR_DPT30_OSMRequests.json").get("reverseLookups");
+        assertFalse(mappings.get("202500000003").has("status"));
         assertEquals(44, mappings.get("202500000003").get("latitude").asDouble(), 0);
         assertTrue(mappings.get("202500000003").get("sourceRoadReference").isNull());
-        assertTrue(osm.json("ONISR_DPT34_OSMWayMapping.json").get("202500000004").get("latitude").isNull());
+        assertTrue(osm.json("ONISR_DPT34_OSMRequests.json").get("reverseLookups").get("202500000004").get("latitude").isNull());
         assertEquals(99, osm.json("DPT30_OSMWayMapping.json").get("trafficCounter").get("osmWayId").asInt());
         assertArrayEquals(originalTags, osm.objects.get("ONISR_DPT30_OSMInfo.json"));
         assertFalse(osm.writes.contains("DPT30_OSMWayMapping.json"));
@@ -151,6 +151,7 @@ public class ONISRAccidentProcessorTest {
             }
         });
         resolver.loadCache();
+        resolver.mergeRequests(resolver.loadRequests("ONISR_DPT30"));
         resolver.refreshWayMappings(1);
         data.objects.remove("2025.csv");
         var result = processor.refresh();

@@ -89,8 +89,8 @@ is sufficient. Fields such as `name`, `address`, `maxspeed`, `lanes`, and
 
 ## Object ownership and formats
 
-The following specifies the target single-writer design. The separate request
-objects and `_MERGED.json` approval input are not yet implemented.
+Request producers and the OSM function use separate output objects so their
+cache reads and writes can overlap without replacing each other's updates.
 
 OSM objects live in the `osminfo` bucket. `<sourceId>` is the data source prefix,
 for example `MRN`, `MMM`, or `DPT34`.
@@ -321,15 +321,14 @@ or remove an existing review outcome.
 
 ### Accident caches
 
-The planned accident processor uses separate departmental prefixes
+The accident processor uses separate departmental prefixes
 `ONISR_DPT30`, `ONISR_DPT34`, and `ONISR_DPT76`, distinct from traffic-count
-prefixes. The same object ownership applies to any future request producer;
+prefixes. The same object ownership applies to this request producer;
 for example, `ONISR_DPT30_OSMRequests.json`, `ONISR_DPT30_OSMWayMapping.json`,
 and `ONISR_DPT30_OSMInfo.json`. Mapping keys identify accidents rather than
 traffic counters. Raw accident CSVs and processed accident output belong in
 `onisrinfo`. OSM discovers sources through request/cache object suffixes,
-without requiring `dsconfig.json` registration. The accident processor is not
-yet implemented.
+without requiring `dsconfig.json` registration.
 
 OSM data is attributed to OpenStreetMap contributors under the ODbL.
 

@@ -70,7 +70,7 @@ public class ONISRAccidentFunctionTest {
         assertFalse(probe.accidentStore.objects.containsKey("data/ONISR_DPT34/2023.json"));
         assertEquals(3, probe.accidentStore.writes.stream().filter(name -> name.endsWith("_Accidents.json")).count());
         assertEquals(List.of(2024, 2025), ONISRYearInputs.configured().stream().map(ONISRYearInputs::year).toList());
-        assertTrue(probe.osmStore.objects.containsKey("ONISR_DPT34_OSMWayMapping.json"));
+        assertTrue(probe.osmStore.objects.containsKey("ONISR_DPT34_OSMRequests.json"));
     }
 
     @Test

@@ -33,6 +33,7 @@ import java.util.TreeMap;
 /** The global manual-review document, grouped by data source prefix and then counter ID. */
 class OSMWayMappingReviewStore {
     static final String OBJECT_NAME = "OSMWayMapping_NEEDS_REVIEW.json";
+    static final String MERGED_OBJECT_NAME = "OSMWayMapping_NEEDS_REVIEW_MERGED.json";
     static final String NOT_FOUND_OBJECT_NAME = "OSMWayMapping_NOT_FOUND.json";
     private final String objectName;
     private final ObjectStoreClient client;
@@ -47,8 +48,16 @@ class OSMWayMappingReviewStore {
     }
 
     OSMWayMappingReviewStore(ObjectStoreClient client, OSMWayMappingStatus status) {
+        this(client, "OSMWayMapping_" + status.name() + ".json");
+    }
+
+    OSMWayMappingReviewStore(ObjectStoreClient client, String objectName) {
         this.client = client;
-        this.objectName = "OSMWayMapping_" + status.name() + ".json";
+        this.objectName = objectName;
+    }
+
+    boolean wasLoaded() {
+        return previousReview != null;
     }
 
     String getObjectName() {

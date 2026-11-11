@@ -137,17 +137,31 @@ public class OSMInfoFunction {
         int caches = 0;
         int failures = 0;
         boolean completeReview = false;
+        OSMWayMappingReviewStore submissions = new OSMWayMappingReviewStore(osmCacheOSClient,
+                OSMWayMappingReviewStore.MERGED_OBJECT_NAME);
         Map<OSMWayMappingStatus, OSMWayMappingReviewStore> reviewStores = new LinkedHashMap<>();
         for (OSMWayMappingStatus status : List.of(OSMWayMappingStatus.NEEDS_REVIEW, OSMWayMappingStatus.NOT_FOUND)) {
             reviewStores.put(status, new OSMWayMappingReviewStore(osmCacheOSClient, status));
         }
         Map<String, OSMInfoProviderImpl> osmProvidersMap = new TreeMap<>();
         try {
-            List<Map<String, Map<String, OSMWayMapping>>> reviewedDocuments = new ArrayList<>();
+            Map<String, Map<String, OSMWayMapping>> reviewed = submissions.load();
+            validateApprovals(reviewed);
             for (OSMWayMappingReviewStore reviewStore : reviewStores.values()) {
-                reviewedDocuments.add(reviewStore.load());
+                reviewStore.load(); // Generated outputs are read only for change detection, never as decisions.
             }
             List<String> resources = new ArrayList<>(osmCacheOSClient.listResources());
+            // New sources may have only requests, without a mapping cache yet.
+            for (String name : List.copyOf(resources)) {
+                if (name.endsWith(OSMRequests.SUFFIX)) {
+                    String cacheName = name.substring(0, name.length() - OSMRequests.SUFFIX.length()) + MAPPING_SUFFIX;
+                    if (!resources.contains(cacheName)) resources.add(cacheName);
+                }
+            }
+            reviewed.forEach((source, records) -> {
+                String cacheName = source + MAPPING_SUFFIX;
+                if (!records.isEmpty() && !resources.contains(cacheName)) resources.add(cacheName);
+            });
             // Vary processing order so the same caches are not always handled first.
             Collections.shuffle(resources);
             // Load every source and save approvals before the bounded API loop. This also makes
@@ -162,9 +176,8 @@ public class OSMInfoFunction {
                             osmClient, datasourceName + "_OSMInfo.json", osResourceName);
                     try {
                         osmProvider.loadCache();
-                        for (Map<String, Map<String, OSMWayMapping>> reviewed : reviewedDocuments) {
-                            osmProvider.applyReviewedWayMappings(reviewed.getOrDefault(datasourceName, Map.of()));
-                        }
+                        osmProvider.mergeRequests(osmProvider.loadRequests(datasourceName));
+                        osmProvider.applyReviewedWayMappings(reviewed.getOrDefault(datasourceName, Map.of()));
                         osmProvidersMap.put(datasourceName, osmProvider);
                         LOG.info("OSM way mapping cache {}: {} unknown entries out of {} entries",
                                 osResourceName, osmProvider.getUnknownWayMappingCount(), osmProvider.getWayMappingCount());
@@ -263,12 +276,34 @@ public class OSMInfoFunction {
         } else {
             LOG.warn("Preserving existing OSM review documents because not all mapping caches were loaded and saved successfully");
         }
+        if (failures == 0 && completeReview && submissions.wasLoaded()) {
+            try {
+                osmCacheOSClient.deleteResource(OSMWayMappingReviewStore.MERGED_OBJECT_NAME);
+                LOG.info("Deleted processed OSM approval submission {}", OSMWayMappingReviewStore.MERGED_OBJECT_NAME);
+            } catch (Exception failure) {
+                failures++;
+                LOG.warn("Could not delete processed OSM approval submission", failure);
+            }
+        }
         LOG.info("OSM mapping report: {} caches processed, {} failures", caches, failures);
         if (failures > 0) {
             throw new IllegalStateException("OSM mapping refresh failed with " + failures + " failure(s); see invocation logs");
         }
         publishMappingMetrics(osmProvidersMap);
         return "OK";
+    }
+
+    private static void validateApprovals(Map<String, Map<String, OSMWayMapping>> reviewed) {
+        reviewed.forEach((source, records) -> {
+            if (source == null || source.isBlank()) throw new IllegalArgumentException("Approval source is required");
+            records.forEach((counterId, decision) -> {
+                if (counterId == null || counterId.isBlank() || decision.getStatus() != OSMWayMappingStatus.MATCHED
+                        || decision.getCandidateOsmWayId() == null || decision.getCandidateOsmWayId() <= 0) {
+                    throw new IllegalArgumentException("Approval requires counter ID, MATCHED status, and positive candidateOsmWayId: "
+                            + source + "/" + counterId);
+                }
+            });
+        });
     }
 
     private void publishMappingMetrics(Map<String, OSMInfoProviderImpl> providers) {

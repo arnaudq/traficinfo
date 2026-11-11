@@ -91,13 +91,14 @@ public class GeoJsonPublisherTest {
     }
 
     @Test
-    public void reportsBicycleUploadFailureBeforeRefreshingCache() throws Exception {
+    public void reportsBicycleUploadFailureBeforePublishingRequests() throws Exception {
         StorageStub stub = new StorageStub(false);
         stub.failBicycleUpload = true;
         assertFunctionFailure(() -> stub.function().publish());
         assertEquals(2, stub.uploads);
         assertNotNull(stub.output);
         assertNull(stub.bicycleOutput);
+        assertEquals(0, stub.requestUploads);
         assertEquals(0, stub.cacheUploads);
         stub.assertStreamsClosed();
     }
@@ -158,8 +159,10 @@ public class GeoJsonPublisherTest {
         stub.cacheObject = "custom-cache.json";
         stub.csv = csvWithWays(1, 1);
         assertEquals("OK", stub.function().publish());
-        assertEquals(Arrays.asList(1L), stub.osmRequests);
+        assertTrue(stub.osmRequests.isEmpty());
         assertNull(maximumSpeed(stub.output));
+        assertEquals(0, stub.cacheUploads);
+        stub.refreshOsm();
         assertEquals(1, stub.cacheUploads);
         JsonNode cache = new ObjectMapper().readTree(stub.cache);
         assertEquals(stub.now.toString(), cache.get("1").get("lastUpdated").asText());
@@ -185,6 +188,8 @@ public class GeoJsonPublisherTest {
         stub.cache = new ObjectMapper().writeValueAsBytes(cache);
         assertEquals("OK", stub.function().publish());
         assertEquals("30", maximumSpeed(stub.output));
+        assertTrue(stub.osmRequests.isEmpty());
+        stub.refreshOsm();
         assertEquals(Arrays.asList(1L), stub.osmRequests);
         JsonNode updated = new ObjectMapper().readTree(stub.cache);
         assertEquals("50", updated.get("1").get("tags").get("maxspeed").asText());
@@ -199,9 +204,12 @@ public class GeoJsonPublisherTest {
         idsWithDuplicate[ids.length] = 1;
         stub.csv = csvWithWays(idsWithDuplicate);
         assertEquals("OK", stub.function().publish());
+        assertTrue(stub.osmRequests.isEmpty());
+        stub.refreshOsm();
         assertEquals(100, stub.osmRequests.size());
         assertEquals(100, new ObjectMapper().readTree(stub.cache).size());
         assertEquals("OK", stub.function().publish());
+        stub.refreshOsm();
         assertEquals(LongStream.of(ids).boxed()
                 .collect(Collectors.toList()), stub.osmRequests);
     }
@@ -216,6 +224,8 @@ public class GeoJsonPublisherTest {
         byte[] original = stub.cache.clone();
         stub.failOsm = true;
         assertEquals("OK", stub.function().publish());
+        assertTrue(stub.osmRequests.isEmpty());
+        stub.refreshOsm();
         assertEquals(100, stub.osmRequests.size());
         assertEquals(0, stub.cacheUploads);
         assertArrayEquals(original, stub.cache);
@@ -236,13 +246,14 @@ public class GeoJsonPublisherTest {
     }
 
     @Test
-    public void reportsCacheUploadFailure() throws Exception {
+    public void reportsRequestUploadFailure() throws Exception {
         StorageStub stub = new StorageStub(false);
         stub.csv = csvWithWays(1);
-        stub.failCacheUpload = true;
+        stub.failRequestUpload = true;
         assertFunctionFailure(() -> stub.function().publish());
         assertEquals(2, stub.uploads);
-        assertEquals(1, stub.cacheUploads);
+        assertEquals(1, stub.requestUploads);
+        assertEquals(0, stub.cacheUploads);
     }
 
     @Test
@@ -354,6 +365,10 @@ public class GeoJsonPublisherTest {
         String csv = CSV;
         String cacheObject = GeoJsonDataSource.MMM.getOsmCacheObjectName();
         byte[] cache;
+        byte[] requests;
+        ObjectStorage storage;
+        boolean failRequestUpload;
+        int requestUploads;
         int cacheUploads;
         final Instant now = Instant.now();
         final List<Long> osmRequests = new ArrayList<>();
@@ -381,7 +396,7 @@ public class GeoJsonPublisherTest {
             String latestYear = ManifestTestPublication.yearObjectName(GeoJsonDataSource.MMM, Year.now().getValue());
             if (missingYear) objects.remove(latestYear);
             if (corruptYear) objects.put(latestYear, "[]".getBytes(StandardCharsets.UTF_8));
-            ObjectStorage storage = (ObjectStorage) Proxy.newProxyInstance(
+            storage = (ObjectStorage) Proxy.newProxyInstance(
                     ObjectStorage.class.getClassLoader(), new Class<?>[]{ObjectStorage.class},
                     (proxy, method, args) -> {
                         if ("getObject".equals(method.getName())) {
@@ -423,6 +438,17 @@ public class GeoJsonPublisherTest {
                         assertEquals("putObject", method.getName());
                         PutObjectRequest request = (PutObjectRequest) args[0];
                         assertEquals("namespace", request.getNamespaceName());
+                        if (request.getObjectName().equals("MMM_OSMRequests.json")) {
+                            assertEquals("osminfo", request.getBucketName());
+                            assertNotNull(output);
+                            assertNotNull(bicycleOutput);
+                            requestUploads++;
+                            if (failRequestUpload) throw new IOException("Request upload failed");
+                            try (GZIPInputStream decoded = new GZIPInputStream(request.getPutObjectBody())) {
+                                requests = decoded.readAllBytes();
+                            }
+                            return PutObjectResponse.builder().build();
+                        }
                         if (request.getObjectName().equals(cacheObject)) {
                             assertEquals("osminfo", request.getBucketName());
                             assertEquals("application/json", request.getContentType());
@@ -460,14 +486,23 @@ public class GeoJsonPublisherTest {
                     new OSMInfoProviderImpl(new ObjectStoreClient(storage, "namespace", "osminfo"), new OpenStreetMapClient() {
                         @Override
                         public Map<String, String> getWayTags(long wayId) throws IOException {
-                            assertNotNull("GeoJSON must be uploaded before OSM requests", output);
-                            osmRequests.add(wayId);
-                            if (failOsm) {
-                                throw new IOException("OSM unavailable");
-                            }
-                            return Map.of("maxspeed", "50", "highway", "residential");
+                            throw new AssertionError("GeoJSON must only publish requests, never call OSM");
                         }
                     }, cacheObject, Clock.fixed(now, ZoneOffset.UTC)));
+        }
+
+        void refreshOsm() throws Exception {
+            var provider = new OSMInfoProviderImpl(new ObjectStoreClient(storage, "namespace", "osminfo"),
+                    new OpenStreetMapClient() {
+                        @Override public Map<String, String> getWayTags(long wayId) throws IOException {
+                            osmRequests.add(wayId);
+                            if (failOsm) throw new IOException("OSM unavailable");
+                            return Map.of("maxspeed", "50", "highway", "residential");
+                        }
+                    }, cacheObject, Clock.fixed(now, ZoneOffset.UTC));
+            provider.loadCache();
+            provider.mergeRequests(new ObjectMapper().readValue(requests, org.traficinfo.dsfunctions.OSMRequests.class));
+            provider.refreshWayInfo();
         }
 
         void assertStreamsClosed() {
