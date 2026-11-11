@@ -63,3 +63,13 @@ the counters.
   [OpenStreetMap data](specs/osm-data.md): data formats and enrichment.
 - [Monitoring and alerts](specs/monitoring.md): processing metrics, failure
   notifications and OSM review reminders.
+
+## License
+
+TraficInfo's original code is licensed under the GNU Affero General Public License,
+version 3 only (`AGPL-3.0-only`). You may redistribute and modify it under those
+terms. It is provided without warranty; see [LICENSE](LICENSE) for the full
+license text.
+
+Third-party code, datasets, map tiles and logos retain their respective licenses
+and attribution requirements.
