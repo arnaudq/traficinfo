@@ -6,6 +6,51 @@ import static org.junit.Assert.*;
 
 public class StreetNameNormalizerTest {
     @Test
+    public void movesParenthesizedStreetTypeTogetherWithItsPreposition() {
+        assertEquals("QUAI DU CARENAGE", StreetNameNormalizer.normalize("CARENAGE (QUAI DU)"));
+        assertTrue(StreetNameNormalizer.sameName("CARENAGE (QUAI DU)", "Quai du Carénage"));
+        assertEquals("AVENUE DU SEIZIEME PORT", StreetNameNormalizer.normalize("SEIZIEME PORT (AVENUE DU)"));
+        assertTrue(StreetNameNormalizer.sameName("SEIZIEME PORT (AVENUE DU)", "Avenue du Seizième Port"));
+        assertTrue(StreetNameNormalizer.sameName("CARENAGE (QU. DU)", "Quai du Carénage"));
+        assertTrue(StreetNameNormalizer.sameName("PAIX (RUE DE LA)", "Rue de la Paix"));
+        assertTrue(StreetNameNormalizer.sameName("ECOLE (RUE DE L')", "Rue de l’École"));
+        assertTrue(StreetNameNormalizer.sameName("ITALIE (AV. D')", "Avenue d’Italie"));
+        assertTrue(StreetNameNormalizer.sameName("FLEURS (ROND POINT DES)", "Rond-point des Fleurs"));
+        assertFalse(StreetNameNormalizer.sameName("CARENAGE (QUAI DU)", "Quai Carénage"));
+        assertFalse(StreetNameNormalizer.sameName("CARENAGE (QUAI DU)", "Quai du Port"));
+        assertEquals("JEAN JAURES AVENUE PROLONGEE", StreetNameNormalizer.normalize("JEAN JAURES (AVENUE PROLONGEE)"));
+    }
+
+    @Test
+    public void normalizesNumberedRoadsUsedAsStreetNames() {
+        for (String name : List.of("D210a", "D 210 A", "d 0210 a", "D-210-A")) {
+            assertEquals(name, "D210A", StreetNameNormalizer.normalize(name));
+            assertTrue(StreetNameNormalizer.sameName(name, "D 210 A"));
+        }
+        assertTrue(StreetNameNormalizer.sameName("D0908E02", "D 908 E2"));
+        assertTrue(StreetNameNormalizer.sameName("D8", "D 8"));
+        assertEquals("D111", StreetNameNormalizer.normalize("départementale 111"));
+        assertTrue(StreetNameNormalizer.sameName("départementale 111", "D 111"));
+        assertTrue(StreetNameNormalizer.sameName("Route départementale 00111", "D 111"));
+        assertTrue(StreetNameNormalizer.sameName("départementale 0210a", "D 210 A"));
+        assertTrue(StreetNameNormalizer.isRoadReference("départementale 111"));
+        assertFalse(StreetNameNormalizer.sameName("départementale 111", "D 112"));
+        assertFalse(StreetNameNormalizer.sameName("départementale 111", "N 111"));
+        assertTrue(StreetNameNormalizer.isRoadReference("D8"));
+        assertTrue(StreetNameNormalizer.isRoadReference("D210a"));
+        assertFalse(StreetNameNormalizer.isRoadReference("Rue D8"));
+        assertFalse(StreetNameNormalizer.isRoadReference("Jean Jaurès"));
+        assertFalse(StreetNameNormalizer.isRoadReference(null));
+        assertTrue(StreetNameNormalizer.sameName("N0010", "N 10"));
+        assertTrue(StreetNameNormalizer.sameName("A0009", "A 9"));
+        assertTrue(StreetNameNormalizer.sameName("M0210a", "M 210 A"));
+        assertFalse(StreetNameNormalizer.sameName("D210a", "D 210 B"));
+        assertFalse(StreetNameNormalizer.sameName("D210a", "D 210"));
+        assertFalse(StreetNameNormalizer.sameName("D210a", "D 211 A"));
+        assertFalse(StreetNameNormalizer.sameName("D210a", "M 210 A"));
+    }
+
+    @Test
     public void normalizesFrenchStreetFormattingWithoutChangingTheNameWords() {
         for (String name : List.of("JEAN JAURES (AVENUE)", "Jean Jaurès (av.)", "AV JEAN-JAURES",
                 "Avenue Jean Jaurès", "12 bis av. Jean Jaurès")) {

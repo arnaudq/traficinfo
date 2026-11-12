@@ -417,7 +417,10 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
                 .filter(name -> StreetNameNormalizer.sameName(sourceStreet, name)).findFirst().orElse(null) : null;
         mapping.setOsmStreetName(matchedName != null ? matchedName : names.isEmpty() ? null : names.get(0));
         boolean referenceMatches = hasReference && reference != null && sameRoadReference(source, reference);
-        if ((hasReference || hasStreet) && !referenceMatches && matchedName == null) {
+        // Some sources put numbered roads in the street-name column; OSM may expose only ref.
+        boolean streetReferenceMatches = hasStreet && StreetNameNormalizer.isRoadReference(sourceStreet)
+                && reference != null && sameRoadReference(StreetNameNormalizer.normalize(sourceStreet), reference);
+        if ((hasReference || hasStreet) && !referenceMatches && matchedName == null && !streetReferenceMatches) {
             mapping.setStatus(OSMWayMappingStatus.NEEDS_REVIEW);
             mapping.setReviewReason(hasReference && hasStreet ? "no_matching_road_reference_or_street_name"
                     : hasReference ? reference == null ? "missing_osm_ref" : "different_ref"
@@ -446,8 +449,14 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
     }
 
     private static boolean sameRoadReference(String source, String osmReference) {
+        String normalizedSource = normalizeRoadReference(source);
+        // A metropolitan source may use M54 while OSM still carries the former D 54 reference.
+        String formerDepartmentalReference = normalizedSource.matches("M[0-9]+(?:[A-Z][0-9]*)?")
+                ? "D" + normalizedSource.substring(1) : null;
         for (String reference : osmReference.split(";")) {
-            if (normalizeRoadReference(source).equals(normalizeRoadReference(reference))) {
+            String normalizedReference = normalizeRoadReference(reference);
+            if (normalizedSource.equals(normalizedReference)
+                    || normalizedReference.equals(formerDepartmentalReference)) {
                 return true;
             }
         }

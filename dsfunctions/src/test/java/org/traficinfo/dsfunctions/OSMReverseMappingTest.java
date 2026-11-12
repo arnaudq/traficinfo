@@ -481,6 +481,124 @@ public class OSMReverseMappingTest {
     }
 
     @Test
+    public void matchesStreetTypeAndPrepositionInParentheses() throws Exception {
+        Store store = new Store();
+        OSMWayMapping mapping = new OSMWayMapping();
+        mapping.setLatitude(49.9);
+        mapping.setLongitude(1.0);
+        mapping.setSourceStreetName("CARENAGE (QUAI DU)");
+        store.objects.put("mappings.json", JSON.writeValueAsBytes(Map.of("counter", mapping)));
+        var provider = provider(store, new OpenStreetMapClient() {
+            @Override public JsonNode reverseLookup(double latitude, double longitude) throws IOException {
+                return JSON.readTree("""
+                        {"osm_type":"way","osm_id":123,"category":"highway","type":"secondary",
+                         "namedetails":{"ref":"D 925","name":"Quai du Carénage"}}
+                        """);
+            }
+        });
+        provider.loadCache();
+        provider.refreshWayMappings(1);
+        JsonNode saved = JSON.readTree(store.objects.get("mappings.json")).get("counter");
+        assertEquals("MATCHED", saved.get("status").asText());
+        assertEquals(123L, saved.get("osmWayId").asLong());
+        assertEquals("STREET_NAME", saved.get("sourceMatchCriteria").asText());
+        assertEquals("CARENAGE (QUAI DU)", saved.get("sourceStreetName").asText());
+        assertEquals("Quai du Carénage", saved.get("osmStreetName").asText());
+    }
+
+    @Test
+    public void matchesNumberedRoadInSourceStreetName() throws Exception {
+        Store store = new Store();
+        OSMWayMapping mapping = new OSMWayMapping();
+        mapping.setLatitude(43.5);
+        mapping.setLongitude(3.2);
+        mapping.setSourceStreetName("D210a");
+        store.objects.put("mappings.json", JSON.writeValueAsBytes(Map.of("counter", mapping)));
+        var provider = provider(store, new OpenStreetMapClient() {
+            @Override public JsonNode reverseLookup(double latitude, double longitude) throws IOException {
+                return JSON.readTree("""
+                        {"osm_type":"way","osm_id":123,"category":"highway","type":"secondary",
+                         "namedetails":{"ref":"D 210 A","name":"D 210 A"}}
+                        """);
+            }
+        });
+        provider.loadCache();
+        provider.refreshWayMappings(1);
+        JsonNode saved = JSON.readTree(store.objects.get("mappings.json")).get("counter");
+        assertEquals("MATCHED", saved.get("status").asText());
+        assertEquals(123L, saved.get("osmWayId").asLong());
+        assertEquals("STREET_NAME", saved.get("sourceMatchCriteria").asText());
+        assertEquals("D210a", saved.get("sourceStreetName").asText());
+        assertEquals("D 210 A", saved.get("osmStreetName").asText());
+    }
+
+    @Test
+    public void comparesNumberedStreetNameWithOsmRefWhenNoOsmNameIsAvailable() throws Exception {
+        for (String sourceStreet : List.of("D8", "D210a", "départementale 8", "Route départementale 0008",
+                "D9", "départementale 9", "M8", "Rue D8")) {
+            Store store = new Store();
+            OSMWayMapping mapping = new OSMWayMapping();
+            mapping.setLatitude(43.5);
+            mapping.setLongitude(3.2);
+            mapping.setSourceStreetName(sourceStreet);
+            store.objects.put("mappings.json", JSON.writeValueAsBytes(Map.of("counter", mapping)));
+            var provider = provider(store, new OpenStreetMapClient() {
+                @Override public JsonNode reverseLookup(double latitude, double longitude) throws IOException {
+                    // No name fields: the road reference is the only available identifier.
+                    return JSON.readTree("""
+                            {"osm_type":"way","osm_id":123,"category":"highway","type":"secondary",
+                             "namedetails":{"ref":"D 8;D 210 A"}}
+                            """);
+                }
+            });
+            provider.loadCache();
+            provider.refreshWayMappings(1);
+            JsonNode saved = JSON.readTree(store.objects.get("mappings.json")).get("counter");
+            boolean matched = List.of("D8", "D210a", "départementale 8", "Route départementale 0008", "M8")
+                    .contains(sourceStreet);
+            assertEquals(sourceStreet, matched ? "MATCHED" : "NEEDS_REVIEW", saved.get("status").asText());
+            assertEquals("STREET_NAME", saved.get("sourceMatchCriteria").asText());
+            if (matched) assertEquals(123L, saved.get("osmWayId").asLong());
+        }
+    }
+
+    @Test
+    public void acceptsMetropolitanSourceAgainstFormerDepartmentalReference() throws Exception {
+        for (boolean streetName : List.of(true, false)) {
+            for (var example : List.of(
+                    List.of("M54", "D 54", "MATCHED"),
+                    List.of("m0054", "D 54", "MATCHED"),
+                    List.of("M0054a", "D 99;D 54 A", "MATCHED"),
+                    List.of("M54", "D 55", "NEEDS_REVIEW"),
+                    List.of("M54A", "D 54 B", "NEEDS_REVIEW"),
+                    List.of("M54", "N 54", "NEEDS_REVIEW"),
+                    List.of("D54", "M 54", "NEEDS_REVIEW"))) {
+                Store store = new Store();
+                OSMWayMapping mapping = new OSMWayMapping();
+                mapping.setLatitude(43.5);
+                mapping.setLongitude(3.2);
+                if (streetName) mapping.setSourceStreetName(example.get(0));
+                else mapping.setSourceRoadReference(example.get(0));
+                store.objects.put("mappings.json", JSON.writeValueAsBytes(Map.of("counter", mapping)));
+                var provider = provider(store, new OpenStreetMapClient() {
+                    @Override public JsonNode reverseLookup(double latitude, double longitude) {
+                        var result = JSON.createObjectNode();
+                        result.put("osm_type", "way").put("osm_id", 123)
+                                .put("category", "highway").put("type", "secondary");
+                        result.putObject("namedetails").put("ref", example.get(1)).put("name", "Route de Lunel");
+                        return result;
+                    }
+                });
+                provider.loadCache();
+                provider.refreshWayMappings(1);
+                JsonNode saved = JSON.readTree(store.objects.get("mappings.json")).get("counter");
+                assertEquals(example.toString(), example.get(2), saved.get("status").asText());
+                if (example.get(2).equals("MATCHED")) assertEquals(123L, saved.get("osmWayId").asLong());
+            }
+        }
+    }
+
+    @Test
     public void normalizesLeadingZeroesInRoadAndExtensionNumbers() throws Exception {
         String[] sourceReferences = {"D0111E01", "D0111E01", "D0111E01", "D0051E05",
                 "D0002E02", "D0908E02", "D0111E01", "D0111E01"};

@@ -88,6 +88,13 @@ OSM references separated by `;` are compared individually; any normalized match
 is sufficient. `maxspeed`, `lanes`, and `admin_level` do not determine candidate
 acceptance.
 
+A source metropolitan reference (`M`) also matches the former departmental
+reference (`D`) in OSM when the normalized number and suffix are identical:
+`M54` matches `D 54`, and `M0054a` matches `D 54 A`. This applies to both
+`sourceRoadReference` and numbered-road values in `sourceStreetName`. The reverse
+(`D` in the source versus `M` in OSM), other prefixes, and differing numbers or
+suffixes still require review.
+
 ### Street name comparison and combined criteria
 
 `sourceRoadReference` remains an official identifier such as `D925`.
@@ -99,11 +106,19 @@ value. The original source and selected OSM names are retained as
 
 Name normalization uppercases, removes accents, expands common French street-type
 abbreviations, turns punctuation into spaces, and collapses whitespace. A
-recognized trailing street type in parentheses is moved to the beginning.
+recognized trailing street type in parentheses is moved to the beginning,
+together with any preposition/article (`DU`, `DE LA`, `DE L'`, `DES`, etc.).
 A leading house number is removed only when immediately followed by a recognized
 street type; numbers within a street name are preserved. `ST`/`STE` become
 `SAINT`/`SAINTE`, and ligatures such as `Œ` become `OE`. Comparison is exact after
 normalization, without fuzzy matching or reordering the name's words.
+When the entire street-name value is a numbered road (`A`, `D`, `M`, or `N`
+followed by a number and an optional letter/number suffix), spaces and leading
+zeroes in its numeric parts are ignored, as for road references.
+`départementale` and `route départementale` followed by a road number are
+canonicalized to the `D` prefix.
+Such values are also compared against `namedetails.ref`, even when OSM supplies
+no street name. Ordinary street names are compared only against the name alternatives.
 
 | Source value | OSM name | Normalized comparison | Result |
 | --- | --- | --- | --- |
@@ -111,6 +126,10 @@ normalization, without fuzzy matching or reordering the name's words.
 | `12 bis av. Jean-Jaurès` | `Avenue Jean Jaurès` | `AVENUE JEAN JAURES` | Same name |
 | `Général de Gaulle (BD)` | `Boulevard Général de Gaulle` | `BOULEVARD GENERAL DE GAULLE` | Same name |
 | `R. ST PIERRE` | `Rue Saint-Pierre` | `RUE SAINT PIERRE` | Same name |
+| `CARENAGE (QUAI DU)` | `Quai du Carénage` | `QUAI DU CARENAGE` | Same name |
+| `D210a` | `D 210 A` | `D210A` | Same name |
+| `départementale 111` | `D 111` | `D111` | Same name |
+| `D8` | `D 8` (OSM `namedetails.ref` only) | `D8` | Same numbered road |
 | `JEAN JAURES (RUE)` | `Avenue Jean Jaurès` | `RUE JEAN JAURES` versus `AVENUE JEAN JAURES` | Different name |
 
 Nominatim returns one candidate. Its name alternatives are checked in order:
@@ -122,17 +141,19 @@ This does not search additional nearby OSM objects or make additional API calls.
 `sourceMatchCriteria` is a derived indicator of which source identifiers are
 available, not which identifiers matched. Blank values count as absent. After
 the candidate has passed the way-ID/highway checks, acceptance uses **OR**:
+For numbered-road street-name values, the street-name criterion also includes
+matching `namedetails.ref` as described above.
 
-| Source identifiers | `sourceMatchCriteria` | Road reference matches | Street name matches | Result |
+| Source identifiers | `sourceMatchCriteria` | Road reference matches | Street-name criterion matches | Result |
 | --- | --- | --- | --- | --- |
 | Neither | `NONE` | Not supplied | Not supplied | `MATCHED` |
 | Road reference only | `ROAD_REFERENCE` | Yes | Not supplied | `MATCHED` |
 | Road reference only | `ROAD_REFERENCE` | No or OSM ref missing | Not supplied | `NEEDS_REVIEW` |
 | Street name only | `STREET_NAME` | Not supplied | Yes | `MATCHED` |
-| Street name only | `STREET_NAME` | Not supplied | No or OSM name missing | `NEEDS_REVIEW` |
+| Street name only | `STREET_NAME` | Not supplied | No | `NEEDS_REVIEW` |
 | Both | `BOTH` | Yes | Any | `MATCHED` |
 | Both | `BOTH` | No or OSM ref missing | Yes | `MATCHED` |
-| Both | `BOTH` | No or OSM ref missing | No or OSM name missing | `NEEDS_REVIEW` |
+| Both | `BOTH` | No or OSM ref missing | No | `NEEDS_REVIEW` |
 
 For street-name-only failures the reason is `missing_osm_street_name` or
 `different_street_name`. If both source identifiers are available and neither
