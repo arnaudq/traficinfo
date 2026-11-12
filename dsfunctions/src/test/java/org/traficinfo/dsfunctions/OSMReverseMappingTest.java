@@ -482,28 +482,32 @@ public class OSMReverseMappingTest {
 
     @Test
     public void matchesStreetTypeAndPrepositionInParentheses() throws Exception {
-        Store store = new Store();
-        OSMWayMapping mapping = new OSMWayMapping();
-        mapping.setLatitude(49.9);
-        mapping.setLongitude(1.0);
-        mapping.setSourceStreetName("CARENAGE (QUAI DU)");
-        store.objects.put("mappings.json", JSON.writeValueAsBytes(Map.of("counter", mapping)));
-        var provider = provider(store, new OpenStreetMapClient() {
-            @Override public JsonNode reverseLookup(double latitude, double longitude) throws IOException {
-                return JSON.readTree("""
-                        {"osm_type":"way","osm_id":123,"category":"highway","type":"secondary",
-                         "namedetails":{"ref":"D 925","name":"Quai du Carénage"}}
-                        """);
-            }
-        });
-        provider.loadCache();
-        provider.refreshWayMappings(1);
-        JsonNode saved = JSON.readTree(store.objects.get("mappings.json")).get("counter");
-        assertEquals("MATCHED", saved.get("status").asText());
-        assertEquals(123L, saved.get("osmWayId").asLong());
-        assertEquals("STREET_NAME", saved.get("sourceMatchCriteria").asText());
-        assertEquals("CARENAGE (QUAI DU)", saved.get("sourceStreetName").asText());
-        assertEquals("Quai du Carénage", saved.get("osmStreetName").asText());
+        for (var example : List.of(
+                List.of("CARENAGE (QUAI DU)", "Quai du Carénage"),
+                List.of("CYPRES (MONTEE DES)", "Montée des Cyprès"))) {
+            Store store = new Store();
+            OSMWayMapping mapping = new OSMWayMapping();
+            mapping.setLatitude(49.9);
+            mapping.setLongitude(1.0);
+            mapping.setSourceStreetName(example.get(0));
+            store.objects.put("mappings.json", JSON.writeValueAsBytes(Map.of("counter", mapping)));
+            var provider = provider(store, new OpenStreetMapClient() {
+                @Override public JsonNode reverseLookup(double latitude, double longitude) {
+                    var result = JSON.createObjectNode().put("osm_type", "way").put("osm_id", 123)
+                            .put("category", "highway").put("type", "secondary");
+                    result.putObject("namedetails").put("ref", "D 6110").put("name", example.get(1));
+                    return result;
+                }
+            });
+            provider.loadCache();
+            provider.refreshWayMappings(1);
+            JsonNode saved = JSON.readTree(store.objects.get("mappings.json")).get("counter");
+            assertEquals("MATCHED", saved.get("status").asText());
+            assertEquals(123L, saved.get("osmWayId").asLong());
+            assertEquals("STREET_NAME", saved.get("sourceMatchCriteria").asText());
+            assertEquals(example.get(0), saved.get("sourceStreetName").asText());
+            assertEquals(example.get(1), saved.get("osmStreetName").asText());
+        }
     }
 
     @Test
@@ -635,8 +639,43 @@ public class OSMReverseMappingTest {
         }
     }
 
+    @Test
+    public void matchesRdAndDReferencesInEitherDirectionAndStreetNameFields() throws Exception {
+        for (boolean streetName : List.of(false, true)) {
+            for (var example : List.of(
+                    List.of("RD135", "D 135", "MATCHED"),
+                    List.of("D 135", "RD135", "MATCHED"),
+                    List.of("rd 00135a", "D 135 A", "MATCHED"),
+                    List.of("RD135", "D999; D 135", "MATCHED"),
+                    List.of("RD135", "D 136", "NEEDS_REVIEW"),
+                    List.of("RD135", "N 135", "NEEDS_REVIEW"),
+                    List.of("RD135A", "D 135 B", "NEEDS_REVIEW"))) {
+                Store store = new Store();
+                OSMWayMapping mapping = new OSMWayMapping();
+                mapping.setLatitude(43.0);
+                mapping.setLongitude(3.0);
+                if (streetName) mapping.setSourceStreetName(example.get(0));
+                else mapping.setSourceRoadReference(example.get(0));
+                store.objects.put("mappings.json", JSON.writeValueAsBytes(Map.of("counter", mapping)));
+                OSMInfoProviderImpl provider = provider(store, new OpenStreetMapClient() {
+                    @Override public JsonNode reverseLookup(double latitude, double longitude) {
+                        var result = JSON.createObjectNode().put("osm_type", "way").put("osm_id", 123)
+                                .put("category", "highway").put("type", "secondary");
+                        result.putObject("namedetails").put("ref", example.get(1));
+                        return result;
+                    }
+                });
+                provider.loadCache();
+                provider.refreshWayMappings(1);
+                JsonNode saved = JSON.readTree(store.objects.get("mappings.json")).get("counter");
+                assertEquals(example.toString(), example.get(2), saved.get("status").asText());
+                assertEquals(example.get(0), saved.get(streetName ? "sourceStreetName" : "sourceRoadReference").asText());
+            }
+        }
+    }
+
     private static OSMInfoProviderImpl provider(Store store, OpenStreetMapClient client) {
-        return new OSMInfoProviderImpl(store, client, "tags.json", "mappings.json", Clock.fixed(NOW, ZoneOffset.UTC));
+        return new OSMInfoProviderImpl(store, client, "tags.json", "mappings.json", Clock.fixed(NOW, ZoneOffset.UTC), true);
     }
 
     private static class Store extends ObjectStoreClient {

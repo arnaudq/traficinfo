@@ -3,11 +3,13 @@ package org.traficinfo.dsfunctions;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oracle.bmc.model.BmcException;
+import com.fnproject.fn.api.RuntimeContext;
 import org.geojson.Point;
 import org.junit.Test;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Proxy;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -15,6 +17,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import static org.junit.Assert.*;
 import static org.traficinfo.dsfunctions.FunctionFailureAssertions.assertFunctionFailure;
 
@@ -110,6 +113,8 @@ public class OSMRequestWorkflowTest {
             @Override public Map<String, String> getWayTags(long id) { throw new AssertionError("No approved way"); }
         };
         var function = new OSMInfoFunction(store, client, () -> 0L);
+        function.configureRoadComparison((RuntimeContext) Proxy.newProxyInstance(RuntimeContext.class.getClassLoader(),
+                new Class<?>[]{RuntimeContext.class}, (proxy, method, args) -> Optional.of("true")));
         assertEquals("OK", function.handleRequest(""));
         assertEquals(2, requested.size());
         assertEquals("NEEDS_REVIEW", store.json("MRN_OSMWayMapping.json").get("review").get("status").asText());

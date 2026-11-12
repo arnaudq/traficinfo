@@ -578,6 +578,14 @@ The hourly schedule supplies no body; an empty body, `{}`, or
 `{"mode":"manual"}` to select manual limits. Limits are selected per invocation,
 including when OCI reuses the same function instance.
 
+- `REVIEW_ROAD_MISMATCHES` (default `false`): controls whether source road-reference
+  and street-name comparisons can mark a suitable candidate `NEEDS_REVIEW`.
+  With `false`, suitable road ways are accepted even when the identifiers differ;
+  `sourceRoadReference`, `sourceStreetName`, `sourceMatchCriteria`, and available
+  OSM reference/name details are still retained. Set `REVIEW_ROAD_MISMATCHES=true`
+  when deploying the OSM function to enable comparison-based review. Only the
+  literal values `true` and `false` are accepted. This affects new/reset lookups;
+  existing assignments and cached review/negative outcomes are not re-evaluated.
 - `MAX_LOOP_DURATION_SECONDS` (manual default `240` seconds) and
   `MAX_SCHEDULED_LOOP_DURATION_SECONDS` (scheduled default `2700` seconds, 45 minutes): elapsed time is checked before **every listed
   resource**, including non-mapping objects. No further resource starts after the
@@ -603,9 +611,12 @@ an accepted `type`, or an accepted `extratags.highway` value. This permits road
 ways classified by Nominatim as administrative boundaries. Nodes, relations,
 and ways without a supported road classification (such as steps or buildings)
 are rejected. `footway`, `cycleway`, `path`, `pedestrian`, and `track` are accepted for every counter
-regardless of transport type or bicycle-access tags; reference checks still apply. A supplied source road reference is compared with OSM `namedetails.ref`
+regardless of transport type or bicycle-access tags. When `REVIEW_ROAD_MISMATCHES=true`,
+a supplied source road reference is compared with OSM `namedetails.ref`
 after removing spacing, punctuation, and leading zeroes from each number
 following a letter (`D0011` matches `D 11`; `D0111E01` matches `D 111E1`).
+`RD` and `D` are equivalent departmental prefixes (`RD135` matches `D 135`),
+including numbered-road values supplied as street names.
 A differing/missing reference alone requires review. Optional `sourceStreetName`
 is compared with `namedetails["name:fr"]`, `namedetails.name`, `name`, and
 `address.road`. It is populated from ONISR `adr`, separately from the numeric
@@ -631,7 +642,8 @@ Reverse geocoding can still select a nearby different street; see the
 [Nominatim reverse API](https://nominatim.org/release-docs/latest/api/Reverse/).
 
 Successful results populate `osmWayId` and set `status` to `MATCHED`.
-When no supplied identifier matches, the candidate is `NEEDS_REVIEW`, with
+When comparison-based review is enabled and no supplied identifier matches,
+the candidate is `NEEDS_REVIEW`, with
 `candidateOsmWayId`, `osmRoadReference`, and `reviewReason`; the usable ID remains
 unset. Responses without a suitable road way set `NOT_FOUND`. Responses and the
 query coordinates are saved in `reverseLookupResult`, `lastLookupLatitude`, and

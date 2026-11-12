@@ -41,6 +41,7 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
     private final OpenStreetMapClient osmClient;
     private final String osmCacheObject;
     private final Clock clock;
+    private final boolean reviewRoadMismatches;
     private Map<Long, OSMWayInfo> cache = new LinkedHashMap<>();
     private final Set<Long> waysToRefresh = new LinkedHashSet<>();
     private final String mappingObject;
@@ -67,6 +68,12 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
 
     public OSMInfoProviderImpl(ObjectStoreClient osmCacheOSClient, OpenStreetMapClient osmClient,
                                String osmCacheObject, String mappingObject, Clock clock) {
+        this(osmCacheOSClient, osmClient, osmCacheObject, mappingObject, clock, false);
+    }
+
+    public OSMInfoProviderImpl(ObjectStoreClient osmCacheOSClient, OpenStreetMapClient osmClient,
+                               String osmCacheObject, String mappingObject, Clock clock,
+                               boolean reviewRoadMismatches) {
         if (osmCacheObject.equals(mappingObject)) {
             throw new IllegalArgumentException("Way mappings and way tags require different object names");
         }
@@ -75,6 +82,7 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
         this.osmClient = osmClient;
         this.osmCacheObject = osmCacheObject;
         this.clock = clock;
+        this.reviewRoadMismatches = reviewRoadMismatches;
     }
 
     /** A missing cache object starts empty; other read errors propagate. */
@@ -384,7 +392,7 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
                 && Objects.equals(mapping.getLongitude(), mapping.getLastLookupLongitude());
     }
 
-    private static void applyReverseResult(OSMWayMapping mapping, JsonNode result) {
+    private void applyReverseResult(OSMWayMapping mapping, JsonNode result) {
         Long wayId = reverseWayId(result.path("osm_id"));
         // Nominatim can classify a road way as an administrative boundary while retaining its highway tag.
         boolean road = "way".equals(result.path("osm_type").asText())
@@ -420,7 +428,8 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
         // Some sources put numbered roads in the street-name column; OSM may expose only ref.
         boolean streetReferenceMatches = hasStreet && StreetNameNormalizer.isRoadReference(sourceStreet)
                 && reference != null && sameRoadReference(StreetNameNormalizer.normalize(sourceStreet), reference);
-        if ((hasReference || hasStreet) && !referenceMatches && matchedName == null && !streetReferenceMatches) {
+        if (reviewRoadMismatches && (hasReference || hasStreet)
+                && !referenceMatches && matchedName == null && !streetReferenceMatches) {
             mapping.setStatus(OSMWayMappingStatus.NEEDS_REVIEW);
             mapping.setReviewReason(hasReference && hasStreet ? "no_matching_road_reference_or_street_name"
                     : hasReference ? reference == null ? "missing_osm_ref" : "different_ref"
@@ -465,6 +474,7 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
 
     private static String normalizeRoadReference(String reference) {
         return reference.toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]", "")
+                .replaceFirst("^RD(?=[0-9])", "D")
                 .replaceAll("([A-Z])0+(?=[0-9])", "$1");
     }
 

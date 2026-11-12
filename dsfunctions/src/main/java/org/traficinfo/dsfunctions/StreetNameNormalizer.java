@@ -19,6 +19,7 @@ final class StreetNameNormalizer {
             Map.entry("SQ", "SQUARE"), Map.entry("SQUARE", "SQUARE"),
             Map.entry("CRS", "COURS"), Map.entry("COURS", "COURS"),
             Map.entry("PAS", "PASSAGE"), Map.entry("PASSAGE", "PASSAGE"),
+            Map.entry("MONTEE", "MONTEE"),
             Map.entry("QU", "QUAI"), Map.entry("QUAI", "QUAI"),
             Map.entry("RPT", "ROND POINT"), Map.entry("ROND POINT", "ROND POINT"),
             Map.entry("SENTE", "SENTE"), Map.entry("SENTIER", "SENTIER"));
@@ -57,6 +58,7 @@ final class StreetNameNormalizer {
         }
         String result = clean(folded);
         result = result.replaceFirst("^(?:ROUTE )?DEPARTEMENTALE (?=[0-9])", "D");
+        result = result.replaceFirst("^R\\s*D\\s*(?=[0-9])", "D");
         // A street-name column can contain a numbered road, e.g. D210a versus D 210 A.
         if (ROAD_REFERENCE.matcher(result).matches()) {
             return result.replace(" ", "").replaceAll("([A-Z])0+(?=[0-9])", "$1");

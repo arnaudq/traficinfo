@@ -16,6 +16,8 @@ public class StreetNameNormalizerTest {
         assertTrue(StreetNameNormalizer.sameName("ECOLE (RUE DE L')", "Rue de l’École"));
         assertTrue(StreetNameNormalizer.sameName("ITALIE (AV. D')", "Avenue d’Italie"));
         assertTrue(StreetNameNormalizer.sameName("FLEURS (ROND POINT DES)", "Rond-point des Fleurs"));
+        assertTrue(StreetNameNormalizer.sameName("CYPRES (MONTEE DES)", "Montée des Cyprès"));
+        assertFalse(StreetNameNormalizer.sameName("CYPRES (MONTEE DES)", "Montée du Cyprès"));
         assertFalse(StreetNameNormalizer.sameName("CARENAGE (QUAI DU)", "Quai Carénage"));
         assertFalse(StreetNameNormalizer.sameName("CARENAGE (QUAI DU)", "Quai du Port"));
         assertEquals("JEAN JAURES AVENUE PROLONGEE", StreetNameNormalizer.normalize("JEAN JAURES (AVENUE PROLONGEE)"));
@@ -29,6 +31,11 @@ public class StreetNameNormalizerTest {
         }
         assertTrue(StreetNameNormalizer.sameName("D0908E02", "D 908 E2"));
         assertTrue(StreetNameNormalizer.sameName("D8", "D 8"));
+        for (String name : List.of("RD135", "RD 135", "rd-00135")) {
+            assertTrue(StreetNameNormalizer.sameName(name, "D 135"));
+            assertTrue(StreetNameNormalizer.isRoadReference(name));
+        }
+        assertFalse(StreetNameNormalizer.sameName("RD135", "D 136"));
         assertEquals("D111", StreetNameNormalizer.normalize("départementale 111"));
         assertTrue(StreetNameNormalizer.sameName("départementale 111", "D 111"));
         assertTrue(StreetNameNormalizer.sameName("Route départementale 00111", "D 111"));

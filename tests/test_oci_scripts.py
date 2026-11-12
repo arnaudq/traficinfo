@@ -142,7 +142,8 @@ class OciScriptsTest(unittest.TestCase):
                         OCI_FN_APPLICATION_NAME='3MOpenDataProcessor')
         for key in ['OCI_FN_APPLICATION_ID', 'BUCKETNAME_IN', 'BUCKETNAME_DPT34', 'BUCKETNAME_MRN',
                     'BUCKETNAME_NIM', 'BUCKETNAME_DPT76', 'BUCKETNAME_OUT', 'BUCKETNAME_OSM', 'OSM_CACHE_OBJECT', 'OSM_WAY_MAPPING_OBJECT', 'MAX_LOOP_DURATION_SECONDS', 'MAX_WAY_MAPPINGS_PER_RUN',
-                    'MAX_SCHEDULED_LOOP_DURATION_SECONDS', 'MAX_SCHEDULED_WAY_MAPPINGS_PER_RUN']:
+                    'MAX_SCHEDULED_LOOP_DURATION_SECONDS', 'MAX_SCHEDULED_WAY_MAPPINGS_PER_RUN',
+                    'REVIEW_ROAD_MISMATCHES']:
             self.env.pop(key, None)
         self.state = {
             'applications': [{'id': 'ocid1.fnapp.test', 'display-name': '3MOpenDataProcessor',
@@ -597,6 +598,7 @@ class OciScriptsTest(unittest.TestCase):
                                   'MAX_LOOP_DURATION_SECONDS': '240', 'MAX_WAY_MAPPINGS_PER_RUN': '16',
                                   'MAX_SCHEDULED_LOOP_DURATION_SECONDS': '2700',
                                   'MAX_SCHEDULED_WAY_MAPPINGS_PER_RUN': '180',
+                                  'REVIEW_ROAD_MISMATCHES': 'false',
                                   'METRICS_COMPARTMENT_ID': 'ocid1.compartment.test'})
                 self.assertEqual(functions['OSMInfoFunction']['timeout-in-seconds'], 300)
                 self.assertEqual(functions['OSMInfoFunction']['detached-mode-timeout-in-seconds'], 3300)
@@ -637,6 +639,7 @@ class OciScriptsTest(unittest.TestCase):
         self.env['MAX_WAY_MAPPINGS_PER_RUN'] = '2'
         self.env['MAX_SCHEDULED_LOOP_DURATION_SECONDS'] = '1800'
         self.env['MAX_SCHEDULED_WAY_MAPPINGS_PER_RUN'] = '120'
+        self.env['REVIEW_ROAD_MISMATCHES'] = 'true'
         self.deploy()
         function = next(f for f in self.state['functions'] if f['display-name'] == 'OSMInfoFunction')
         self.assertEqual(function['config'],
@@ -644,11 +647,19 @@ class OciScriptsTest(unittest.TestCase):
                           'MAX_LOOP_DURATION_SECONDS': '60', 'MAX_WAY_MAPPINGS_PER_RUN': '2',
                           'MAX_SCHEDULED_LOOP_DURATION_SECONDS': '1800',
                           'MAX_SCHEDULED_WAY_MAPPINGS_PER_RUN': '120',
+                          'REVIEW_ROAD_MISMATCHES': 'true',
                           'METRICS_COMPARTMENT_ID': 'ocid1.compartment.test'})
         calls = [c for c in self.state['calls'] if '--handler' in c
                  and c[c.index('--handler') + 1] == 'org.traficinfo.dsfunctions.OSMInfoFunction::handleRequest']
         self.assertEqual(len(calls), 1)
         self.assertEqual(calls[0][calls[0].index('--function-id') + 1], function['id'])
+
+    def test_invalid_road_comparison_setting_fails_before_deployment(self):
+        for value in ['', 'yes', '1', 'TRUE']:
+            with self.subTest(value=value):
+                self.env['REVIEW_ROAD_MISMATCHES'] = value
+                self.deploy(success=False)
+                self.assertNotIn('writes', self.state)
 
     def test_invalid_osm_limits_fail_before_deployment(self):
         for key in ['MAX_LOOP_DURATION_SECONDS', 'MAX_WAY_MAPPINGS_PER_RUN',

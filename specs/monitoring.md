@@ -71,7 +71,7 @@ review candidates. They do not report only the processed-record subset.
 | --- | --- |
 | `MISSING` | No usable assignment yet: lookup pending, coordinates unavailable, or an HTTP attempt failed |
 | `MATCHED` | A road way is assigned from the seed/manual cache or an accepted reverse lookup |
-| `NEEDS_REVIEW` | A candidate requires review because its road reference is missing or differs from the source |
+| `NEEDS_REVIEW` | A cached candidate requires review because no supplied road reference or street name matched when comparison-based review was enabled (`REVIEW_ROAD_MISMATCHES=true`) |
 | `NOT_FOUND` | A successful reverse response contained no suitable road way |
 
 ### GeoJSON publication

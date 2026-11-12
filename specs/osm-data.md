@@ -27,7 +27,10 @@ We use two APIs:
   Where available, the source road reference is compared with OSM's `namedetails.ref` (using `namedetails=1`), allowing formatting differences
   such as `D0011` versus `D 11` or `D0111E01` versus `D 111E1`. Source street
   names are also compared with the candidate's names. If both identifiers are
-  supplied, either matching is sufficient; if none matches, the candidate needs review.
+  supplied, either matching is sufficient. Comparison marks a candidate for review
+  only when the OSM function's `REVIEW_ROAD_MISMATCHES` setting is `true` (default
+  `false`). The source reference, `sourceStreetName`, `sourceMatchCriteria`, and
+  available OSM reference/name details are retained in either mode.
 
 Reverse geocoding can return a nearby different road or another kind of object.
 The response is therefore a candidate to validate, not proof of the correct road.
@@ -70,6 +73,12 @@ matches source identifier `D0925`, producing `MATCHED`.
 
 ### Road reference comparison
 
+`REVIEW_ROAD_MISMATCHES=false` accepts any candidate that passes the way-ID and
+road-classification checks. Setting it to `true` enables the comparison-based
+decisions below. Invalid IDs and non-road objects still produce `NOT_FOUND` in
+either mode. The setting applies only to new/reset lookups, without re-evaluating
+existing cached outcomes.
+
 When no source street name is supplied, the following table determines whether
 a suitable road way's reference is accepted. Rows are the `Comptage` road identifier; columns are OSM's
 `namedetails.ref`. `null` means no reference, and `A` and `B` represent distinct
@@ -87,6 +96,11 @@ source identifier, a suitable road way is accepted regardless of its reference.
 OSM references separated by `;` are compared individually; any normalized match
 is sufficient. `maxspeed`, `lanes`, and `admin_level` do not determine candidate
 acceptance.
+
+Departmental prefixes `RD` and `D` are equivalent in both directions: `RD135`
+matches `D 135`, and `RD00135A` matches `D 135 A`. This also applies when a
+numbered road is supplied through `sourceStreetName`. Numbers and suffixes must
+still match; `RD135` does not match `D 136` or `N 135`.
 
 A source metropolitan reference (`M`) also matches the former departmental
 reference (`D`) in OSM when the normalized number and suffix are identical:
@@ -127,7 +141,9 @@ no street name. Ordinary street names are compared only against the name alterna
 | `Général de Gaulle (BD)` | `Boulevard Général de Gaulle` | `BOULEVARD GENERAL DE GAULLE` | Same name |
 | `R. ST PIERRE` | `Rue Saint-Pierre` | `RUE SAINT PIERRE` | Same name |
 | `CARENAGE (QUAI DU)` | `Quai du Carénage` | `QUAI DU CARENAGE` | Same name |
+| `CYPRES (MONTEE DES)` | `Montée des Cyprès` | `MONTEE DES CYPRES` | Same name |
 | `D210a` | `D 210 A` | `D210A` | Same name |
+| `RD135` | `D 135` | `D135` | Same numbered road |
 | `départementale 111` | `D 111` | `D111` | Same name |
 | `D8` | `D 8` (OSM `namedetails.ref` only) | `D8` | Same numbered road |
 | `JEAN JAURES (RUE)` | `Avenue Jean Jaurès` | `RUE JEAN JAURES` versus `AVENUE JEAN JAURES` | Different name |
@@ -139,8 +155,9 @@ contains the matched alternative, or the first available name when none matches.
 This does not search additional nearby OSM objects or make additional API calls.
 
 `sourceMatchCriteria` is a derived indicator of which source identifiers are
-available, not which identifiers matched. Blank values count as absent. After
-the candidate has passed the way-ID/highway checks, acceptance uses **OR**:
+available, not which identifiers matched. Blank values count as absent. When
+`REVIEW_ROAD_MISMATCHES=true` and the candidate has passed the way-ID/highway
+checks, acceptance uses **OR**:
 For numbered-road street-name values, the street-name criterion also includes
 matching `namedetails.ref` as described above.
 

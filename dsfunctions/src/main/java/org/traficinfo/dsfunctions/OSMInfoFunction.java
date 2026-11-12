@@ -18,6 +18,7 @@ import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 import java.time.Instant;
+import java.time.Clock;
 import java.util.Objects;
 
 /** Hourly bounded reverse lookup of unresolved counter-to-way mappings in Object Storage. */
@@ -41,6 +42,7 @@ public class OSMInfoFunction {
     private OpenStreetMapClient osmClient;
     private final LongSupplier nanoTime;
     private MetricsPublisher metrics;
+    private boolean reviewRoadMismatches;
 
     public OSMInfoFunction() {
         this(null);
@@ -65,12 +67,21 @@ public class OSMInfoFunction {
     @FnConfiguration
     public void config(RuntimeContext ctx) {
         configureLimits(ctx);
+        configureRoadComparison(ctx);
         metrics = FunctionMetrics.configured(ctx);
         String namespace = ctx.getConfigurationByKey("NAMESPACE").orElse("");
         String bucket = ctx.getConfigurationByKey("BUCKETNAME_OSM").orElse("osminfo");
         boolean useResourcePrincipal = Boolean.parseBoolean(
                 ctx.getConfigurationByKey("USE_RESOURCE_PRINCIPAL").orElse("true"));
         osmCacheOSClient = new ObjectStoreClient(useResourcePrincipal, namespace, bucket);
+    }
+
+    void configureRoadComparison(RuntimeContext ctx) {
+        String value = ctx.getConfigurationByKey("REVIEW_ROAD_MISMATCHES").orElse("false");
+        if (!"true".equals(value) && !"false".equals(value)) {
+            throw new IllegalArgumentException("REVIEW_ROAD_MISMATCHES must be true or false");
+        }
+        reviewRoadMismatches = Boolean.parseBoolean(value);
     }
 
     void configureLimits(RuntimeContext ctx) {
@@ -202,7 +213,8 @@ public class OSMInfoFunction {
                 String datasourceName = osResourceName.substring(0, osResourceName.length() - MAPPING_SUFFIX.length());
                 try (var sourceLogging = LoggingContext.forSource("osminfo", datasourceName)) {
                     OSMInfoProviderImpl osmProvider = new OSMInfoProviderImpl(osmCacheOSClient,
-                            osmClient, datasourceName + "_OSMInfo.json", osResourceName);
+                            osmClient, datasourceName + "_OSMInfo.json", osResourceName,
+                            Clock.systemUTC(), reviewRoadMismatches);
                     try {
                         osmProvider.loadCache();
                         osmProvider.mergeRequests(osmProvider.loadRequests(datasourceName));

@@ -96,14 +96,18 @@ build_function_config() {
       --arg compartment "${OCI_COMPARTMENT_ID:?Run source ./scripts/setup.sh first}" \
       --arg max_loop "${MAX_LOOP_DURATION_SECONDS-240}" --arg max_way "${MAX_WAY_MAPPINGS_PER_RUN-16}" \
       --arg scheduled_loop "${MAX_SCHEDULED_LOOP_DURATION_SECONDS-2700}" \
-      --arg scheduled_way "${MAX_SCHEDULED_WAY_MAPPINGS_PER_RUN-180}" '
+      --arg scheduled_way "${MAX_SCHEDULED_WAY_MAPPINGS_PER_RUN-180}" \
+      --arg review_mismatches "${REVIEW_ROAD_MISMATCHES-false}" '
       def positive_integer:
         test("^[1-9][0-9]*$") and (tonumber <= 2147483647);
-      if ([$max_loop, $max_way, $scheduled_loop, $scheduled_way] | all(positive_integer)) then
+      if ($review_mismatches != "true" and $review_mismatches != "false") then
+        error("REVIEW_ROAD_MISMATCHES must be true or false")
+      elif ([$max_loop, $max_way, $scheduled_loop, $scheduled_way] | all(positive_integer)) then
         {NAMESPACE: $namespace, BUCKETNAME_OSM: $bucket, MAX_LOOP_DURATION_SECONDS: $max_loop,
           MAX_WAY_MAPPINGS_PER_RUN: $max_way,
           MAX_SCHEDULED_LOOP_DURATION_SECONDS: $scheduled_loop,
-          MAX_SCHEDULED_WAY_MAPPINGS_PER_RUN: $scheduled_way, METRICS_COMPARTMENT_ID: $compartment}
+          MAX_SCHEDULED_WAY_MAPPINGS_PER_RUN: $scheduled_way, REVIEW_ROAD_MISMATCHES: $review_mismatches,
+          METRICS_COMPARTMENT_ID: $compartment}
       else error("MAX_LOOP_DURATION_SECONDS, MAX_WAY_MAPPINGS_PER_RUN, MAX_SCHEDULED_LOOP_DURATION_SECONDS and MAX_SCHEDULED_WAY_MAPPINGS_PER_RUN must be positive integers fitting in a Java int") end'
     return
   fi

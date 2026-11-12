@@ -264,7 +264,9 @@ public class OSMInfoFunctionTest {
             }
         };
         List<MetricSample> metrics = new ArrayList<>();
-        assertEquals("OK", new OSMInfoFunction(store, client, () -> 0L, metrics::addAll).handleRequest(""));
+        OSMInfoFunction function = new OSMInfoFunction(store, client, () -> 0L, metrics::addAll);
+        function.configureRoadComparison(context(Map.of("REVIEW_ROAD_MISMATCHES", "true")));
+        assertEquals("OK", function.handleRequest(""));
         assertEquals(4, metrics.size());
         assertStatusCount(metrics, "A", OSMWayMappingStatus.MATCHED, 2);
         assertStatusCount(metrics, "A", OSMWayMappingStatus.NEEDS_REVIEW, 1);
@@ -642,6 +644,70 @@ public class OSMInfoFunctionTest {
                 } catch (IllegalArgumentException expected) {
                     assertTrue(expected.getMessage().contains(key));
                 }
+            }
+        }
+    }
+
+    @Test
+    public void roadComparisonIsOptInAndPreservesSourceDetailsAndCachedReviews() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        for (String setting : List.of("default", "false", "true")) {
+            Store store = new Store();
+            store.objects.put("A_OSMWayMapping.json", """
+                    {"fresh":{"latitude":43,"longitude":3,"sourceRoadReference":"D135",
+                        "sourceStreetName":"Rue de la Paix"},
+                     "nonroad":{"latitude":44,"longitude":3,"sourceStreetName":"Rue de la Paix"},
+                     "cached":{"status":"NEEDS_REVIEW","candidateOsmWayId":456,
+                        "latitude":45,"longitude":3,"lastLookupLatitude":45,"lastLookupLongitude":3,
+                        "reverseLookupResult":{},"reviewReason":"different_ref"},
+                     "reset":{"status":"MISSING","latitude":46,"longitude":3,
+                        "sourceRoadReference":"D135","lastLookupLatitude":46,"lastLookupLongitude":3,
+                        "reverseLookupResult":{},"reviewReason":"different_ref"}}
+                    """);
+            List<Double> requests = new ArrayList<>();
+            OpenStreetMapClient client = new OpenStreetMapClient() {
+                @Override public JsonNode reverseLookup(double latitude, double longitude) throws IOException {
+                    requests.add(latitude);
+                    return json.readTree(latitude == 44 ? "{\"osm_type\":\"way\",\"osm_id\":123,\"category\":\"building\"}" : """
+                            {"osm_type":"way","osm_id":123,"category":"highway","type":"secondary",
+                             "namedetails":{"ref":"D999","name":"Rue du Port"}}
+                            """);
+                }
+                @Override public Map<String, String> getWayTags(long id) { return Map.of("maxspeed", "50"); }
+            };
+            OSMInfoFunction function = new OSMInfoFunction(store, client, () -> 0L);
+            if (!setting.equals("default")) {
+                function.configureRoadComparison(context(Map.of("REVIEW_ROAD_MISMATCHES", setting)));
+            }
+            assertEquals("OK", function.handleRequest(""));
+            JsonNode mappings = json.readTree(store.objects.get("A_OSMWayMapping.json"));
+            JsonNode fresh = mappings.get("fresh");
+            assertEquals(setting, setting.equals("true") ? "NEEDS_REVIEW" : "MATCHED", fresh.get("status").asText());
+            assertEquals("D135", fresh.get("sourceRoadReference").asText());
+            assertEquals("Rue de la Paix", fresh.get("sourceStreetName").asText());
+            assertEquals("BOTH", fresh.get("sourceMatchCriteria").asText());
+            assertEquals("Rue du Port", fresh.get("osmStreetName").asText());
+            assertEquals("D999", fresh.get("osmRoadReference").asText());
+            if (!setting.equals("true")) assertEquals(123, fresh.get("osmWayId").asLong());
+            assertEquals("NOT_FOUND", mappings.get("nonroad").get("status").asText());
+            assertEquals("NEEDS_REVIEW", mappings.get("cached").get("status").asText());
+            assertEquals(setting.equals("true") ? "NEEDS_REVIEW" : "MATCHED",
+                    mappings.get("reset").get("status").asText());
+            assertEquals(List.of(43.0, 44.0, 46.0), requests);
+            JsonNode review = json.readTree(store.objects.get(OSMWayMappingReviewStore.OBJECT_NAME)).get("A");
+            assertTrue(review.has("cached"));
+            assertEquals(setting.equals("true"), review.has("fresh"));
+        }
+    }
+
+    @Test
+    public void rejectsInvalidRoadComparisonConfiguration() {
+        for (String value : List.of("", "yes", "1", "TRUE")) {
+            try {
+                new OSMInfoFunction(new Store()).configureRoadComparison(context(Map.of("REVIEW_ROAD_MISMATCHES", value)));
+                fail("Expected invalid road comparison setting: " + value);
+            } catch (IllegalArgumentException expected) {
+                assertTrue(expected.getMessage().contains("REVIEW_ROAD_MISMATCHES"));
             }
         }
     }
