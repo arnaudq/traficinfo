@@ -571,19 +571,26 @@ result cached for those coordinates. Cached review/negative outcomes and records
 not inflate demand; HTTP failures and changed coordinates remain eligible.
 These counts determine each source’s share of the run-wide lookup budget.
 
-Two optional positive integer configuration values bound the work. Private static
-integer constants in `OSMInfoFunction` provide defaults when the keys are absent:
+Optional positive integer configuration values bound the work. Private static
+integer constants in `OSMInfoFunction` provide defaults when the keys are absent.
+The hourly schedule supplies no body; an empty body, `{}`, or
+`{"mode":"scheduled"}` selects scheduled limits. `invoke.sh osm` sends
+`{"mode":"manual"}` to select manual limits. Limits are selected per invocation,
+including when OCI reuses the same function instance.
 
-- `MAX_LOOP_DURATION_SECONDS` (default `240` seconds): elapsed time is checked before **every listed
+- `MAX_LOOP_DURATION_SECONDS` (manual default `240` seconds) and
+  `MAX_SCHEDULED_LOOP_DURATION_SECONDS` (scheduled default `2700` seconds, 45 minutes): elapsed time is checked before **every listed
   resource**, including non-mapping objects. No further resource starts after the
   budget is reached. There is deliberately no duration check between lookups;
   the active resource's bounded batch finishes and saves, so total loop duration
   can exceed the budget by that batch's remaining work and storage operations.
-- `MAX_WAY_MAPPINGS_PER_RUN` (default `16` mappings across all sources): the
+- `MAX_WAY_MAPPINGS_PER_RUN` (manual default `16`) and
+  `MAX_SCHEDULED_WAY_MAPPINGS_PER_RUN` (scheduled default `180` mappings across all sources): the
   budget is shared evenly among sources with eligible records. Shares are capped
   by demand and any unused capacity is redistributed. Remainders follow the
-  shuffled resource order. For example, two busy sources receive eight each; one
-  busy source can receive all sixteen. HTTP errors also consume the allocated
+  shuffled resource order. For example, two busy sources receive eight each in a
+  manual run or ninety each in a scheduled run; one busy source can receive the
+  whole budget. HTTP errors also consume the allocated
   budget. Entries never attempted precede older failed attempts. Known positive
   IDs are preserved. The time budget can prevent later allocated batches from
   starting; unused allocations are left for another run.
@@ -661,7 +668,8 @@ Reverse results contain data © [OpenStreetMap contributors](https://www.openstr
 available under ODbL.
 
 Configure `NAMESPACE`, optionally `BUCKETNAME_OSM` (default `osminfo`),
-`USE_RESOURCE_PRINCIPAL` (default `true`), `MAX_LOOP_DURATION_SECONDS`, and `MAX_WAY_MAPPINGS_PER_RUN`. Invalid,
+`USE_RESOURCE_PRINCIPAL` (default `true`), `MAX_LOOP_DURATION_SECONDS`, `MAX_WAY_MAPPINGS_PER_RUN`,
+`MAX_SCHEDULED_LOOP_DURATION_SECONDS`, and `MAX_SCHEDULED_WAY_MAPPINGS_PER_RUN`. Invalid,
 nonpositive, or out-of-range limits fail configuration. The reverse API endpoint
 is fixed to `https://nominatim.openstreetmap.org/`. The function needs permission
 to list/read bucket objects and write mapping and way-info objects, plus outbound
@@ -669,14 +677,19 @@ HTTPS access. Gzip cache objects and
 paginated listings are supported. Count getters `getWayInfoCount()`,
 `getWayMappingCount()`, and `getUnknownWayMappingCount()` remain implementation-only.
 
-`scripts/deploy-functions.sh` registers `OSMInfoFunction`, sets its runtime timeout to
-**300 seconds** on creation and updates, and applies
-`TraficInfo.DataSourceSchedule=Hourly`. The `Hourly` schedule invokes it at
-**the start of every hour (UTC)**. After `source ./scripts/setup.sh`, run `./scripts/deploy-functions.sh` and
-`./scripts/setup-schedules.sh` to deploy and reconcile the schedule. Set environment
-variables `MAX_LOOP_DURATION_SECONDS` and `MAX_WAY_MAPPINGS_PER_RUN` before deployment to override the defaults;
-the script applies these values on creation and updates. Keep the function runtime
-timeout above the configured loop budget plus time for the last bounded batch.
+`scripts/deploy-functions.sh` registers `OSMInfoFunction`, sets its synchronous timeout to
+**300 seconds** and detached timeout to **3300 seconds** (55 minutes) on creation and
+updates, and applies `TraficInfo.DataSourceSchedule=Hourly`. The generic `Hourly`
+schedule selects functions with that tag at **the start of every hour (UTC)**,
+supplying no body. [OCI Resource Scheduler invokes functions in detached mode](https://docs.oracle.com/en-us/iaas/Content/Functions/Tasks/functionsschedulingfunctions-about.htm).
+After `source ./scripts/setup.sh`, run `./scripts/deploy-functions.sh osm` and
+`./scripts/setup-schedules.sh` to deploy and reconcile the schedule. Set any of the
+four limit variables above in the environment before deployment to override their
+defaults; the script applies these values on creation and updates. Keep the applicable
+OCI timeout above the configured loop budget plus time for the last bounded batch.
+The scheduled defaults leave ten minutes for completion before the detached timeout,
+and five minutes before the next hourly invocation. `./scripts/invoke.sh osm` sends
+`{"mode":"manual"}` and retains its short manual limits and 360-second client timeout.
 The scheduling tag namespace/key and scheduler invoke permissions must already
 be configured as described in the [setup specification](../specs/setup.md#retrieval-schedules).
 
@@ -862,12 +875,13 @@ Retrieval and preprocessing bundle `dsconfig.json` and receive `NAMESPACE`.
 The count stages use the input bucket selected by `dsconfig.json`. GeoJSON deployment
 also accepts `BUCKETNAME_OUT` and `BUCKETNAME_OSM`. OSM cache object names derive
 from the datasource ID. OSM refresh receives
-`NAMESPACE`, `BUCKETNAME_OSM`, `MAX_LOOP_DURATION_SECONDS` and
-`MAX_WAY_MAPPINGS_PER_RUN`.
+`NAMESPACE`, `BUCKETNAME_OSM`, `MAX_LOOP_DURATION_SECONDS`,
+`MAX_WAY_MAPPINGS_PER_RUN`, `MAX_SCHEDULED_LOOP_DURATION_SECONDS` and
+`MAX_SCHEDULED_WAY_MAPPINGS_PER_RUN`.
 
 Invocation resolves the deployed function and calls it synchronously. Retrieval
 and GeoJSON send only `datasourceId`; normal preprocessing does the same and
-also accepts an inactive `datasetId` for archive imports. OSM uses an empty body.
+also accepts an inactive `datasetId` for archive imports. OSM sends `{"mode":"manual"}`.
 Accident invocation sends `{}` for the configured 2023–2025 imports or `{"action":"refresh"}`
 for rebuilding stored output.
 Retrieval's client timeout is the maximum configured source runtime plus 60

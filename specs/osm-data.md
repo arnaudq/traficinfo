@@ -349,11 +349,26 @@ snapshots, and merges eligible requests. Newly encountered unresolved counters
 start as `MISSING`. Only OSM writes that state to the mapping cache; if its batch
 is deferred, the published request remains available for a later run.
 
-A cache-only pass counts eligible reverse lookups per source and shares a
-default budget of **16** across sources with work, redistributing unused shares.
-The internal loop budget is **240 seconds**, checked between resources; the
-active batch may finish after that budget. The deployed OCI timeout remains
-**300 seconds**. Valid coordinates and no positive assigned way ID are required
+A cache-only pass counts eligible reverse lookups per source and shares the
+run's budget across sources with work, redistributing unused shares.
+
+| Invocation | Internal loop budget | Reverse lookups across all sources | OCI timeout |
+| --- | --- | --- | --- |
+| Manual (`invoke.sh osm`, `{"mode":"manual"}`) | 240 seconds | 16 | 300 seconds, synchronous |
+| Hourly schedule (empty body) | 2,700 seconds (45 minutes) | 180 | 3,300 seconds (55 minutes), detached |
+
+The generic hourly schedule selects functions tagged
+`TraficInfo.DataSourceSchedule=Hourly` and supplies no body. An empty body, `{}`,
+or `{"mode":"scheduled"}` uses scheduled limits. `invoke.sh osm` explicitly sends
+`{"mode":"manual"}` to select manual limits. Each invocation selects its own
+limits, even when OCI reuses an instance.
+`MAX_LOOP_DURATION_SECONDS` and `MAX_WAY_MAPPINGS_PER_RUN` configure manual runs;
+`MAX_SCHEDULED_LOOP_DURATION_SECONDS` and `MAX_SCHEDULED_WAY_MAPPINGS_PER_RUN`
+configure scheduled runs. Limits are checked between resources; the active batch
+may finish after the loop budget. The detached timeout leaves time for that batch
+and cache writes before the next hourly run.
+
+Valid coordinates and no positive assigned way ID are required
 for reverse lookup. Tags are fetched for newly resolved ways and requested
 missing/stale way IDs. Tag requests are deduplicated, fresh tags are skipped,
 and failed fetches preserve existing tags.

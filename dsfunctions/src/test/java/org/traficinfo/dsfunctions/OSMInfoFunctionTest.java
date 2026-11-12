@@ -218,7 +218,7 @@ public class OSMInfoFunctionTest {
             List<MetricSample> metrics = new ArrayList<>();
             OSMInfoFunction function = new OSMInfoFunction(store, client, elapsed::get, metrics::addAll);
             function.configureLimits(context(limits));
-            assertEquals("OK", function.handleRequest(""));
+            assertEquals("OK", function.handleRequest("{\"mode\":\"manual\"}"));
             assertEquals(limits.isEmpty() ? 8 : 1, lookups.get());
             assertEquals(10, store.read.size()); // Both caches, request snapshots, review exports, and submissions.
             assertEquals(3, store.writes);
@@ -552,15 +552,89 @@ public class OSMInfoFunctionTest {
                     return json.createObjectNode().put("error", "Unable to geocode");
                 }
             };
-            assertEquals("OK", new OSMInfoFunction(store, client, () -> 0L).handleRequest(""));
+            assertEquals("OK", new OSMInfoFunction(store, client, () -> 0L).handleRequest("{\"mode\":\"manual\"}"));
             assertEquals(16, requests.values().stream().mapToInt(Integer::intValue).sum());
             assertEquals(singleSource ? Map.of(2, 16) : Map.of(1, 2, 2, 14), requests);
         }
     }
 
     @Test
+    public void scheduledBudgetDoesNotLeakIntoManualInvocationsOnAWarmInstance() throws Exception {
+        Store store = new Store();
+        ObjectMapper json = new ObjectMapper();
+        for (int source = 0; source < 2; source++) {
+            var mappings = json.createObjectNode();
+            for (int i = 0; i < 100; i++) {
+                mappings.putObject("counter" + i).put("latitude", 43 + source).put("longitude", 3 + i / 100.0);
+            }
+            store.objects.put("source" + source + "_OSMWayMapping.json", json.writeValueAsString(mappings));
+        }
+        Map<Integer, Integer> requests = new LinkedHashMap<>();
+        OpenStreetMapClient client = new OpenStreetMapClient() {
+            @Override public JsonNode reverseLookup(double latitude, double longitude) {
+                requests.merge((int) latitude, 1, Integer::sum);
+                return json.createObjectNode().put("error", "Unable to geocode");
+            }
+        };
+        OSMInfoFunction function = new OSMInfoFunction(store, client, () -> 0L);
+        assertEquals("OK", function.handleRequest("")); // Tag-selected schedule supplies no body.
+        assertEquals(Map.of(43, 90, 44, 90), requests);
+        assertEquals("OK", function.handleRequest("{\"mode\":\"manual\"}"));
+        assertEquals(Map.of(43, 98, 44, 98), requests);
+        assertEquals("OK", function.handleRequest("{\"mode\":\"manual\"}"));
+        assertEquals(Map.of(43, 100, 44, 100), requests);
+    }
+
+    @Test
+    public void scheduledLoopUsesItsOwnDefaultAndConfiguredDuration() throws Exception {
+        for (Map<String, String> limits : List.of(Map.<String, String>of(), Map.of(
+                "MAX_SCHEDULED_LOOP_DURATION_SECONDS", "1", "MAX_SCHEDULED_WAY_MAPPINGS_PER_RUN", "2"))) {
+            Store store = new Store();
+            ObjectMapper json = new ObjectMapper();
+            var mappings = json.createObjectNode();
+            for (int i = 0; i < 100; i++) {
+                mappings.putObject("counter" + i).put("latitude", 43).put("longitude", 3 + i / 100.0);
+            }
+            store.objects.put("A_OSMWayMapping.json", json.writeValueAsString(mappings));
+            store.objects.put("B_OSMWayMapping.json", json.writeValueAsString(mappings));
+            AtomicLong elapsed = new AtomicLong();
+            AtomicInteger requests = new AtomicInteger();
+            OpenStreetMapClient client = new OpenStreetMapClient() {
+                @Override public JsonNode reverseLookup(double latitude, double longitude) {
+                    requests.incrementAndGet();
+                    // Longer than the manual budget, shorter than the default scheduled budget.
+                    elapsed.set(TimeUnit.SECONDS.toNanos(300));
+                    return json.createObjectNode().put("error", "Unable to geocode");
+                }
+            };
+            OSMInfoFunction function = new OSMInfoFunction(store, client, elapsed::get);
+            function.configureLimits(context(limits));
+            assertEquals("OK", function.handleRequest("{\"mode\":\"scheduled\"}"));
+            assertEquals(limits.isEmpty() ? 180 : 1, requests.get());
+        }
+    }
+
+    @Test
+    public void rejectsInvalidInvocationBeforeStorageAccess() {
+        for (String input : List.of("invalid", "[]", "null", "{\"mode\":null}", "{\"mode\":true}",
+                "{\"mode\":\"other\"}", "{} {}")) {
+            Store store = new Store();
+            try {
+                new OSMInfoFunction(store).handleRequest(input);
+                fail("Expected invalid invocation: " + input);
+            } catch (IllegalArgumentException expected) {
+                assertTrue(expected.getMessage().contains("OSM invocation"));
+            }
+            assertTrue(store.read.isEmpty());
+            assertEquals(0, store.writes);
+        }
+        assertEquals("OK", new OSMInfoFunction(new Store()).handleRequest("{}"));
+    }
+
+    @Test
     public void rejectsInvalidLimitConfiguration() {
-        for (String key : List.of("MAX_LOOP_DURATION_SECONDS", "MAX_WAY_MAPPINGS_PER_RUN")) {
+        for (String key : List.of("MAX_LOOP_DURATION_SECONDS", "MAX_WAY_MAPPINGS_PER_RUN",
+                "MAX_SCHEDULED_LOOP_DURATION_SECONDS", "MAX_SCHEDULED_WAY_MAPPINGS_PER_RUN")) {
             for (String value : List.of("", "abc", "0", "-1", "1.5", "2147483648")) {
                 try {
                     new OSMInfoFunction(new Store()).configureLimits(context(Map.of(key, value)));

@@ -9,6 +9,9 @@ app_name="${OCI_FN_APPLICATION_NAME:?Run source ./scripts/setup.sh first}"
 runtime_name=java21.ol9
 output_bucket="${BUCKETNAME_OUT:-traficinfo}"
 osm_bucket="${BUCKETNAME_OSM:-osminfo}"
+# Leave ten minutes after the scheduled loop for its final batch and cache writes,
+# while stopping before the next hourly invocation.
+osm_detached_timeout_seconds=3300
 jar_file="$root_dir/dsfunctions/target/dsfunctions-1.0-SNAPSHOT-jar-with-dependencies.jar"
 
 # Java handlers. Data source resource names and buckets come from dsconfig.json.
@@ -91,13 +94,17 @@ build_function_config() {
     validate_bucket_name "$osm_bucket" BUCKETNAME_OSM || return
     jq -cne --arg namespace "$namespace" --arg bucket "$osm_bucket" \
       --arg compartment "${OCI_COMPARTMENT_ID:?Run source ./scripts/setup.sh first}" \
-      --arg max_loop "${MAX_LOOP_DURATION_SECONDS-240}" --arg max_way "${MAX_WAY_MAPPINGS_PER_RUN-16}" '
+      --arg max_loop "${MAX_LOOP_DURATION_SECONDS-240}" --arg max_way "${MAX_WAY_MAPPINGS_PER_RUN-16}" \
+      --arg scheduled_loop "${MAX_SCHEDULED_LOOP_DURATION_SECONDS-2700}" \
+      --arg scheduled_way "${MAX_SCHEDULED_WAY_MAPPINGS_PER_RUN-180}" '
       def positive_integer:
         test("^[1-9][0-9]*$") and (tonumber <= 2147483647);
-      if ($max_loop | positive_integer) and ($max_way | positive_integer) then
+      if ([$max_loop, $max_way, $scheduled_loop, $scheduled_way] | all(positive_integer)) then
         {NAMESPACE: $namespace, BUCKETNAME_OSM: $bucket, MAX_LOOP_DURATION_SECONDS: $max_loop,
-          MAX_WAY_MAPPINGS_PER_RUN: $max_way, METRICS_COMPARTMENT_ID: $compartment}
-      else error("MAX_LOOP_DURATION_SECONDS and MAX_WAY_MAPPINGS_PER_RUN must be positive integers fitting in a Java int") end'
+          MAX_WAY_MAPPINGS_PER_RUN: $max_way,
+          MAX_SCHEDULED_LOOP_DURATION_SECONDS: $scheduled_loop,
+          MAX_SCHEDULED_WAY_MAPPINGS_PER_RUN: $scheduled_way, METRICS_COMPARTMENT_ID: $compartment}
+      else error("MAX_LOOP_DURATION_SECONDS, MAX_WAY_MAPPINGS_PER_RUN, MAX_SCHEDULED_LOOP_DURATION_SECONDS and MAX_SCHEDULED_WAY_MAPPINGS_PER_RUN must be positive integers fitting in a Java int") end'
     return
   fi
   if [ "$type" = ds ] || [ "$type" = preprocess ]; then
@@ -159,6 +166,9 @@ create_archive_function() {
   local timeout="${6:-30}"
   if [ "$function_name" = OSMInfoFunction ]; then timeout=300; fi
   local options=(--query '"opc-work-request-id"' --raw-output)
+  if [ "$function_name" = OSMInfoFunction ]; then
+    options+=(--detached-mode-timeout-in-seconds "$osm_detached_timeout_seconds")
+  fi
   if [ -n "$5" ]; then options+=(--defined-tags "$5"); fi
   printf 'Creating archive function %s in %s\n' "$function_name" "$app_name" >&2
   oci fn function create archive-function direct-archive fn-update-runtime-config \
@@ -176,7 +186,7 @@ update_archive_function() {
   config="$4"
   local options=(--force --query '"opc-work-request-id"' --raw-output)
   if [ "$function_name" = OSMInfoFunction ]; then
-    options+=(--timeout-in-seconds 300)
+    options+=(--timeout-in-seconds 300 --detached-mode-timeout-in-seconds "$osm_detached_timeout_seconds")
   elif [ -n "${6:-}" ]; then
     options+=(--timeout-in-seconds "$6")
   fi

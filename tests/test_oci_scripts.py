@@ -65,6 +65,8 @@ elif command in [['fn', 'function', 'create'], ['fn', 'function', 'update']]:
         name = function['display-name']
     function['config'] = json.loads(opt('--config'))
     if '--timeout-in-seconds' in args: function['timeout-in-seconds'] = int(opt('--timeout-in-seconds'))
+    if '--detached-mode-timeout-in-seconds' in args:
+        function['detached-mode-timeout-in-seconds'] = int(opt('--detached-mode-timeout-in-seconds'))
     if '--defined-tags' in args: function['defined-tags'] = json.loads(opt('--defined-tags'))
     write('function', operation, name)
     print('ocid1.functionsworkrequest.test')
@@ -139,7 +141,8 @@ class OciScriptsTest(unittest.TestCase):
                         OCI_OBJECT_STORAGE_NAMESPACE='testnamespace',
                         OCI_FN_APPLICATION_NAME='3MOpenDataProcessor')
         for key in ['OCI_FN_APPLICATION_ID', 'BUCKETNAME_IN', 'BUCKETNAME_DPT34', 'BUCKETNAME_MRN',
-                    'BUCKETNAME_NIM', 'BUCKETNAME_DPT76', 'BUCKETNAME_OUT', 'BUCKETNAME_OSM', 'OSM_CACHE_OBJECT', 'OSM_WAY_MAPPING_OBJECT', 'MAX_LOOP_DURATION_SECONDS', 'MAX_WAY_MAPPINGS_PER_RUN']:
+                    'BUCKETNAME_NIM', 'BUCKETNAME_DPT76', 'BUCKETNAME_OUT', 'BUCKETNAME_OSM', 'OSM_CACHE_OBJECT', 'OSM_WAY_MAPPING_OBJECT', 'MAX_LOOP_DURATION_SECONDS', 'MAX_WAY_MAPPINGS_PER_RUN',
+                    'MAX_SCHEDULED_LOOP_DURATION_SECONDS', 'MAX_SCHEDULED_WAY_MAPPINGS_PER_RUN']:
             self.env.pop(key, None)
         self.state = {
             'applications': [{'id': 'ocid1.fnapp.test', 'display-name': '3MOpenDataProcessor',
@@ -557,7 +560,7 @@ class OciScriptsTest(unittest.TestCase):
         call = self.state['calls'][-1]
         self.assertEqual(call[:3], ['fn', 'function', 'invoke'])
         self.assertEqual(call[call.index('--fn-invoke-type') + 1], 'sync')
-        self.assertEqual(call[call.index('--body') + 1], '')
+        self.assertEqual(json.loads(call[call.index('--body') + 1]), {'mode': 'manual'})
         self.assertEqual(call[call.index('--file') + 1], '-')
         self.assertEqual(call[call.index('--read-timeout') + 1], '360')
         self.state['functions'] = [f for f in self.state['functions']
@@ -591,15 +594,20 @@ class OciScriptsTest(unittest.TestCase):
                 self.assertEqual(functions['ONISRAccidentFunction']['timeout-in-seconds'], 300)
                 self.assertEqual(functions['OSMInfoFunction']['config'],
                                  {'NAMESPACE': 'testnamespace', 'BUCKETNAME_OSM': 'osminfo',
-                                  'MAX_LOOP_DURATION_SECONDS': '180', 'MAX_WAY_MAPPINGS_PER_RUN': '12'})
+                                  'MAX_LOOP_DURATION_SECONDS': '240', 'MAX_WAY_MAPPINGS_PER_RUN': '16',
+                                  'MAX_SCHEDULED_LOOP_DURATION_SECONDS': '2700',
+                                  'MAX_SCHEDULED_WAY_MAPPINGS_PER_RUN': '180',
+                                  'METRICS_COMPARTMENT_ID': 'ocid1.compartment.test'})
                 self.assertEqual(functions['OSMInfoFunction']['timeout-in-seconds'], 300)
+                self.assertEqual(functions['OSMInfoFunction']['detached-mode-timeout-in-seconds'], 3300)
                 self.assertEqual(functions['OSMInfoFunction']['defined-tags'],
                                  {'TraficInfo': {'DataSourceSchedule': 'Hourly'}})
                 self.assertEqual(functions['DataSourceFunction']['config'], {'NAMESPACE': 'testnamespace'})
                 self.assertEqual(functions['DataSourceFunction']['defined-tags'], {})
                 self.assertEqual(functions['GeoJsonFunction']['config'],
                                  {'NAMESPACE': 'testnamespace', 'BUCKETNAME_OUT': 'traficinfo',
-                                  'BUCKETNAME_OSM': 'osminfo'})
+                                  'BUCKETNAME_OSM': 'osminfo',
+                                  'METRICS_COMPARTMENT_ID': 'ocid1.compartment.test'})
                 self.assertEqual(functions['GeoJsonFunction']['defined-tags'], {})
                 self.assertEqual(functions['GeoJsonFunction']['timeout-in-seconds'], 300)
 
@@ -627,18 +635,24 @@ class OciScriptsTest(unittest.TestCase):
         self.env['BUCKETNAME_OSM'] = 'custom-osminfo'
         self.env['MAX_LOOP_DURATION_SECONDS'] = '60'
         self.env['MAX_WAY_MAPPINGS_PER_RUN'] = '2'
+        self.env['MAX_SCHEDULED_LOOP_DURATION_SECONDS'] = '1800'
+        self.env['MAX_SCHEDULED_WAY_MAPPINGS_PER_RUN'] = '120'
         self.deploy()
         function = next(f for f in self.state['functions'] if f['display-name'] == 'OSMInfoFunction')
         self.assertEqual(function['config'],
                          {'NAMESPACE': 'testnamespace', 'BUCKETNAME_OSM': 'custom-osminfo',
-                          'MAX_LOOP_DURATION_SECONDS': '60', 'MAX_WAY_MAPPINGS_PER_RUN': '2'})
+                          'MAX_LOOP_DURATION_SECONDS': '60', 'MAX_WAY_MAPPINGS_PER_RUN': '2',
+                          'MAX_SCHEDULED_LOOP_DURATION_SECONDS': '1800',
+                          'MAX_SCHEDULED_WAY_MAPPINGS_PER_RUN': '120',
+                          'METRICS_COMPARTMENT_ID': 'ocid1.compartment.test'})
         calls = [c for c in self.state['calls'] if '--handler' in c
                  and c[c.index('--handler') + 1] == 'org.traficinfo.dsfunctions.OSMInfoFunction::handleRequest']
         self.assertEqual(len(calls), 1)
         self.assertEqual(calls[0][calls[0].index('--function-id') + 1], function['id'])
 
     def test_invalid_osm_limits_fail_before_deployment(self):
-        for key in ['MAX_LOOP_DURATION_SECONDS', 'MAX_WAY_MAPPINGS_PER_RUN']:
+        for key in ['MAX_LOOP_DURATION_SECONDS', 'MAX_WAY_MAPPINGS_PER_RUN',
+                    'MAX_SCHEDULED_LOOP_DURATION_SECONDS', 'MAX_SCHEDULED_WAY_MAPPINGS_PER_RUN']:
             for value in ['', '0', '-1', 'abc', '1.5', '2147483648']:
                 with self.subTest(key=key, value=value):
                     self.env[key] = value
@@ -679,6 +693,7 @@ class OciScriptsTest(unittest.TestCase):
         schedules = {s['display-name']: s for s in self.state['schedules']}
         self.assertEqual(schedules['Hourly']['recurrence-details'], 'FREQ=HOURLY;BYMINUTE=0;BYSECOND=0')
         self.assertEqual(schedules['Hourly']['local-time-zone'], 'UTC')
+        self.assertEqual(schedules['Hourly']['resources'], [])
         hourly_tags = next(f for f in schedules['Hourly']['resource-filters'] if f['attribute'] == 'DEFINED_TAGS')
         self.assertEqual(hourly_tags['value'],
                          [{'namespace': 'TraficInfo', 'tag-key': 'DataSourceSchedule', 'value': 'Hourly'}])

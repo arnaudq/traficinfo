@@ -42,7 +42,9 @@ main() {
     osm)
       if [ "$#" -ne 1 ]; then usage; return 1; fi
       function_name=OSMInfoFunction
-      # Keep this timeout aligned with OSMInfoFunction's MAX_LOOP_DURATION_SECONDS,
+      body='{"mode":"manual"}'
+      # Manual runs use OSMInfoFunction's MAX_LOOP_DURATION_SECONDS (not the scheduled budget).
+      # Keep this client timeout aligned with that setting,
       # allowing extra time for the final batch and response (function runtime: 300 seconds).
       invocation_options+=(--read-timeout 360)
       ;;

@@ -2,6 +2,10 @@ package org.traficinfo.dsfunctions;
 
 import com.fnproject.fn.api.FnConfiguration;
 import com.fnproject.fn.api.RuntimeContext;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,8 +28,15 @@ public class OSMInfoFunction {
     // At four reverse requests per minute (15-second spacing in OpenStreetMapClient),
     // 16 lookups use about the default 240-second loop budget across all data sources.
     private static final int MAX_WAY_MAPPINGS_PER_RUN = 16;
+    private static final int MAX_SCHEDULED_LOOP_DURATION_SECONDS = 45 * 60;
+    // With the same 15-second spacing, 180 lookups use about the 45-minute scheduled budget.
+    private static final int MAX_SCHEDULED_WAY_MAPPINGS_PER_RUN = 180;
+    private static final ObjectMapper JSON = new ObjectMapper()
+            .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
     private int maxLoopSeconds = MAX_LOOP_DURATION_SECONDS;
     private int maxWayMappings = MAX_WAY_MAPPINGS_PER_RUN;
+    private int maxScheduledLoopSeconds = MAX_SCHEDULED_LOOP_DURATION_SECONDS;
+    private int maxScheduledWayMappings = MAX_SCHEDULED_WAY_MAPPINGS_PER_RUN;
     private ObjectStoreClient osmCacheOSClient;
     private OpenStreetMapClient osmClient;
     private final LongSupplier nanoTime;
@@ -65,6 +76,10 @@ public class OSMInfoFunction {
     void configureLimits(RuntimeContext ctx) {
         maxLoopSeconds = configuredLimit(ctx, "MAX_LOOP_DURATION_SECONDS", MAX_LOOP_DURATION_SECONDS);
         maxWayMappings = configuredLimit(ctx, "MAX_WAY_MAPPINGS_PER_RUN", MAX_WAY_MAPPINGS_PER_RUN);
+        maxScheduledLoopSeconds = configuredLimit(ctx, "MAX_SCHEDULED_LOOP_DURATION_SECONDS",
+                MAX_SCHEDULED_LOOP_DURATION_SECONDS);
+        maxScheduledWayMappings = configuredLimit(ctx, "MAX_SCHEDULED_WAY_MAPPINGS_PER_RUN",
+                MAX_SCHEDULED_WAY_MAPPINGS_PER_RUN);
     }
 
     private static int configuredLimit(RuntimeContext ctx, String key, int defaultValue) {
@@ -109,11 +124,36 @@ public class OSMInfoFunction {
 
     public String handleRequest(String input) {
         try (var logging = LoggingContext.forSource("osminfo", null)) {
-            return refreshMappings();
+            boolean scheduled = isScheduled(input);
+            // Keep limits local: a warm function instance may next receive a manual invocation.
+            int loopSeconds = scheduled ? maxScheduledLoopSeconds : maxLoopSeconds;
+            int wayMappings = scheduled ? maxScheduledWayMappings : maxWayMappings;
+            LOG.info("OSM {} run: {} second loop budget, {} reverse lookups",
+                    scheduled ? "scheduled" : "manual", loopSeconds, wayMappings);
+            return refreshMappings(loopSeconds, wayMappings);
         }
     }
 
-    private String refreshMappings() {
+    private static boolean isScheduled(String input) {
+        // Tag-selected schedules supply no body. Manual invocation opts into the shorter limits.
+        if (input == null || input.isBlank()) return true;
+        try {
+            JsonNode request = JSON.readTree(input);
+            if (request != null && request.isObject()) {
+                JsonNode mode = request.get("mode");
+                if (mode == null) return true;
+                if (mode.isTextual()) {
+                    if ("scheduled".equals(mode.textValue())) return true;
+                    if ("manual".equals(mode.textValue())) return false;
+                }
+            }
+        } catch (JsonProcessingException invalid) {
+            throw new IllegalArgumentException("Invalid OSM invocation JSON", invalid);
+        }
+        throw new IllegalArgumentException("OSM invocation must be an object with mode manual or scheduled");
+    }
+
+    private String refreshMappings(int maxLoopSeconds, int maxWayMappings) {
         osmClient.clearReverseLookupCache();
         int caches = 0;
         int failures = 0;

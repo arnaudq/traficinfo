@@ -210,8 +210,12 @@ Hourly sources instead accept, for example, `"scheduleClock":
 Changing a clock needs only schedule setup; changing retrieval URLs, selected
 datasets or default buckets requires redeploying the shared JAR.
 
-The existing `Hourly` schedule continues selecting `OSMInfoFunction` through
-`TraficInfo.DataSourceSchedule=Hourly`; deployment still applies that tag.
+The generic `Hourly` schedule selects functions through
+`TraficInfo.DataSourceSchedule=Hourly` at the start of each hour (UTC).
+Deployment applies that tag to `OSMInfoFunction`. Its empty scheduled invocation
+body selects the 45-minute loop budget; `invoke.sh osm` explicitly sends
+`{"mode":"manual"}` for the shorter manual budget. Deployment sets a 55-minute
+detached timeout; manual invocations retain a 300-second timeout.
 The shared retrieval function has an empty managed defined-tag map and is
 selected by its per-source schedules instead. Other old schedules are untouched.
 
