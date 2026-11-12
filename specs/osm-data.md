@@ -102,7 +102,8 @@ for example `MRN`, `MMM`, or `DPT34`.
 | `<sourceId>_OSMInfo.json` | OSM function | GeoJSON and OSM functions | Way ID → tags and last successful refresh timestamp |
 | `OSMWayMapping_NEEDS_REVIEW.json` | OSM function | Human reviewer | Data source → counter ID → `NEEDS_REVIEW` record |
 | `OSMWayMapping_NOT_FOUND.json` | OSM function | Human reviewer | Data source → counter ID → `NOT_FOUND` record |
-| `OSMWayMapping_NEEDS_REVIEW_MERGED.json` | Human reviewer uploads; OSM function deletes after successful processing | OSM function | Approvals from either review file, grouped by data source and counter ID |
+| `OSMWayMapping_NEEDS_REVIEW_MERGED.json` | Human reviewer uploads; OSM function deletes after successful processing | OSM function | Approvals from `NEEDS_REVIEW`, grouped by data source and counter ID |
+| `OSMWayMapping_NOT_FOUND_MERGED.json` | Human reviewer uploads; OSM function deletes after successful processing | OSM function | Approvals from `NOT_FOUND`, grouped by data source and counter ID |
 
 GeoJSON generation filters by count, year, population, and other output predicates
 before requesting OSM enrichment. Each successful run publishes its source's
@@ -147,8 +148,10 @@ coordinates produce `candidateOsmWayUrl`, `osmWayIdUrl`, and a
 `coordinatesOsmUrl` with a marker at zoom 17. Links are derived values; uploaded
 link values are ignored.
 
-Upload approvals to `OSMWayMapping_NEEDS_REVIEW_MERGED.json`, using the same
-format for records originating in either review file:
+Upload approvals from `OSMWayMapping_NEEDS_REVIEW.json` to
+`OSMWayMapping_NEEDS_REVIEW_MERGED.json`, and approvals from
+`OSMWayMapping_NOT_FOUND.json` to `OSMWayMapping_NOT_FOUND_MERGED.json`.
+Both submission files use the same format:
 
 ```json
 {
@@ -161,7 +164,8 @@ format for records originating in either review file:
 }
 ```
 
-Only include the decisions being submitted. `candidateOsmWayId` is the approved
+Only include the decisions being submitted in each file. There is no need to
+combine decisions from the two review files. `candidateOsmWayId` is the approved
 positive way ID, whether it confirms the original candidate or supplies a
 different one. The OSM function preserves the source record's original
 `reverseLookupResult` when applying an approval.
@@ -169,9 +173,10 @@ different one. The OSM function preserves the source record's original
 Generated review files and source caches are outputs, not manual upload targets.
 Do not replace an outstanding `_MERGED.json` submission while OSM may be reading
 or deleting it: a later deletion could remove the replacement. Wait until it has
-been processed and deleted before submitting another batch. This fixed-filename
-convention separates review input from generated output, but does not support
-concurrent manual submissions.
+been processed and deleted before submitting another batch to that filename.
+Both submission files may be present in the same run. This convention separates
+review input from generated output, but does not support overlapping replacements
+of the same submission file.
 
 ## Lifecycle scenarios
 
@@ -246,23 +251,24 @@ relation, an invalid ID, or an unsupported highway classification.
 | 2 | OSM reverse lookup returns no acceptable way | `MRN_OSMWayMapping.json` | Add/update `{"MRN_237":{"osmWayId":null,"candidateOsmWayId":null,"status":"NOT_FOUND","reviewReason":"no_road_way"}}`; save the response and lookup coordinates/timestamps |
 | 3 | OSM regenerates the review export | `OSMWayMapping_NOT_FOUND.json` | Add/update `{"MRN":{"MRN_237":{"status":"NOT_FOUND","candidateOsmWayId":null,"latitude":49.43,"longitude":1.08,"reviewReason":"no_road_way"}}}` |
 | 4 | Subsequent GeoJSON runs still request the unresolved mapping; OSM recognizes the cached outcome | `MRN_OSMRequests.json` remains populated; caches/review export need no change | Keep `MRN_237` in `reverseLookups`; no additional reverse call at unchanged coordinates |
-| 5 | You find and approve a suitable way manually | `OSMWayMapping_NEEDS_REVIEW_MERGED.json` | Follow the common approval workflow below, supplying the previously absent `candidateOsmWayId` |
+| 5 | You find and approve a suitable way manually | `OSMWayMapping_NOT_FOUND_MERGED.json` | Follow the common approval workflow below, supplying the previously absent `candidateOsmWayId` |
 
 If no suitable way can be found, the record stays `NOT_FOUND` in the cache and
 review export. There is no permanent dismissal status in this design.
 
 ### Common manual approval workflow
 
-These steps apply to records in either generated review file. Here you approve
-way `789`, whether it confirms the candidate or replaces it.
+These steps apply separately to each generated review file and its corresponding
+`_MERGED.json` submission. Here you approve way `789`, whether it confirms the
+candidate or replaces it. OSM reads both submission filenames at startup.
 
 | Step | Actor and action | Object changed | Relevant JSON added, updated, or removed |
 | --- | --- | --- | --- |
-| 1 | You upload the decision | `OSMWayMapping_NEEDS_REVIEW_MERGED.json` | Add `{"MRN":{"MRN_237":{"status":"MATCHED","candidateOsmWayId":789}}}` |
+| 1 | You upload the decision | `OSMWayMapping_NEEDS_REVIEW_MERGED.json` for `NEEDS_REVIEW`, or `OSMWayMapping_NOT_FOUND_MERGED.json` for `NOT_FOUND` | Add `{"MRN":{"MRN_237":{"status":"MATCHED","candidateOsmWayId":789}}}` |
 | 2 | At the start of the next run, OSM applies and persists the approval | `MRN_OSMWayMapping.json` | Update `{"MRN_237":{"osmWayId":789,"candidateOsmWayId":null,"status":"MATCHED","lastUpdated":"T2"}}`; remove `reviewReason`; preserve coordinates, source metadata, and the original `reverseLookupResult` |
 | 3 | OSM queues and fetches the approved way's tags | `MRN_OSMInfo.json` | Add/update `{"789":{"tags":{"maxspeed":"50"},"lastUpdated":"T2"}}` |
 | 4 | OSM regenerates both review exports from the source caches | `OSMWayMapping_NEEDS_REVIEW.json` and `OSMWayMapping_NOT_FOUND.json` | Remove `MRN_237` wherever present; the example source group becomes `{"MRN":{}}` |
-| 5 | OSM finishes processing and persisting the submission | `OSMWayMapping_NEEDS_REVIEW_MERGED.json` | Delete the object; do not replace it with an empty JSON document |
+| 5 | OSM finishes processing and persisting the submissions | The loaded `OSMWayMapping_NEEDS_REVIEW_MERGED.json` and/or `OSMWayMapping_NOT_FOUND_MERGED.json` | Delete each processed object separately; do not replace it with an empty JSON document. A failed deletion leaves that file available for retry |
 | 6 | Next MRN GeoJSON run uses the approved mapping and available tags | `MRN_TraficInfo.geojson` | Add/update the feature with `{"properties":{"code_centrale":"MRN_237","maximum_speed":"50"}}` |
 | 7 | MRN GeoJSON publishes its new request snapshot | `MRN_OSMRequests.json` | Remove `MRN_237` from `reverseLookups`; if the approved way's tags are still missing/stale, request `{"wayTagRefreshes":[789]}`; otherwise both sections are empty |
 
@@ -279,7 +285,7 @@ removed record counts separately for each export.
 
 `OSMInfoProviderImpl` handles the OSM API interaction and cache persistence.
 `OSMInfoFunction` runs hourly, at the start of each hour. At the beginning of the
-run it reads any manual submission, loads source caches and current request
+run it reads both manual submission files when present, loads source caches and current request
 snapshots, and merges eligible requests. Newly encountered unresolved counters
 start as `MISSING`. Only OSM writes that state to the mapping cache; if its batch
 is deferred, the published request remains available for a later run.

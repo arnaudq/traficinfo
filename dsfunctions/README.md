@@ -522,12 +522,17 @@ data source prefix → counter ID → mapping record:
 
 Every loaded source has an object in each document, empty when it has no records
 in that status. These generated files are read only for change detection, never
-as approval inputs. To submit decisions, upload
-`OSMWayMapping_NEEDS_REVIEW_MERGED.json` to the same bucket. Its structure is data
-source prefix → counter ID → `{"status":"MATCHED","candidateOsmWayId":789}`;
-include only the decisions being submitted, from either review export.
+as approval inputs. Submit decisions in the same bucket using the filename that
+corresponds to their review export:
 
-At startup OSM reads the submission if present, validates all decision fields,
+- `OSMWayMapping_NEEDS_REVIEW_MERGED.json` for `NEEDS_REVIEW` decisions.
+- `OSMWayMapping_NOT_FOUND_MERGED.json` for `NOT_FOUND` decisions.
+
+Both use data source prefix → counter ID →
+`{"status":"MATCHED","candidateOsmWayId":789}`. Include only the decisions
+being submitted in each file; there is no need to combine the two exports.
+
+At startup OSM reads both submissions when present, validates all decision fields,
 assigns each approved positive candidate ID to `osmWayId`, clears the candidate
 and review reason, updates `lastUpdated`, and persists the source mapping.
 Missing/stale tags are queued for refresh. Existing positive assignments are
@@ -535,10 +540,13 @@ preserved, including on a retry after partial persistence; their missing/stale
 tags are checked again. The original `reverseLookupResult` is retained.
 
 After all processing and review exports have been saved successfully, OSM deletes
-the submission it read. On failure it retains the input for a later run. A run
-that found no submission does not delete one uploaded later. Do not replace an
-outstanding submission while OSM may be processing/deleting it: wait for deletion
-before uploading another batch. Processed status counts include manual approvals.
+each submission it read, separately. On processing or persistence failure the
+inputs remain available for a later run. A failed deletion retains that file
+without blocking deletion of another successfully processed submission. A run
+that found no submission at a given filename does not delete one uploaded there
+later. Both filenames may be present together; do not replace an outstanding
+submission at the same filename while OSM may be processing/deleting it. Wait for
+its deletion before uploading another batch there. Processed status counts include manual approvals.
 
 At the end, each document is rebuilt from all source caches, including sources
 whose API batches were skipped by the time budget. Applied approvals disappear

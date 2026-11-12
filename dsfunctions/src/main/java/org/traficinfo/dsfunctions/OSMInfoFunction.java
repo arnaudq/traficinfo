@@ -118,16 +118,22 @@ public class OSMInfoFunction {
         int caches = 0;
         int failures = 0;
         boolean completeReview = false;
-        OSMWayMappingReviewStore submissions = new OSMWayMappingReviewStore(osmCacheOSClient,
-                OSMWayMappingReviewStore.MERGED_OBJECT_NAME);
+        List<OSMWayMappingReviewStore> submissionStores = List.of(
+                new OSMWayMappingReviewStore(osmCacheOSClient, OSMWayMappingReviewStore.NEEDS_REVIEW_MERGED_OBJECT_NAME),
+                new OSMWayMappingReviewStore(osmCacheOSClient, OSMWayMappingReviewStore.NOT_FOUND_MERGED_OBJECT_NAME));
         Map<OSMWayMappingStatus, OSMWayMappingReviewStore> reviewStores = new LinkedHashMap<>();
         for (OSMWayMappingStatus status : List.of(OSMWayMappingStatus.NEEDS_REVIEW, OSMWayMappingStatus.NOT_FOUND)) {
             reviewStores.put(status, new OSMWayMappingReviewStore(osmCacheOSClient, status));
         }
         Map<String, OSMInfoProviderImpl> osmProvidersMap = new TreeMap<>();
         try {
-            Map<String, Map<String, OSMWayMapping>> reviewed = submissions.load();
-            validateApprovals(reviewed);
+            List<Map<String, Map<String, OSMWayMapping>>> reviewedDocuments = new ArrayList<>();
+            for (OSMWayMappingReviewStore submission : submissionStores) {
+                Map<String, Map<String, OSMWayMapping>> reviewed = submission.load();
+                validateApprovals(reviewed);
+                reviewedDocuments.add(reviewed);
+                if (submission.wasLoaded()) LOG.info("Loaded OSM approval submission {}", submission.getObjectName());
+            }
             for (OSMWayMappingReviewStore reviewStore : reviewStores.values()) {
                 reviewStore.load(); // Generated outputs are read only for change detection, never as decisions.
             }
@@ -139,10 +145,12 @@ public class OSMInfoFunction {
                     if (!resources.contains(cacheName)) resources.add(cacheName);
                 }
             }
-            reviewed.forEach((source, records) -> {
-                String cacheName = source + MAPPING_SUFFIX;
-                if (!records.isEmpty() && !resources.contains(cacheName)) resources.add(cacheName);
-            });
+            for (Map<String, Map<String, OSMWayMapping>> reviewed : reviewedDocuments) {
+                reviewed.forEach((source, records) -> {
+                    String cacheName = source + MAPPING_SUFFIX;
+                    if (!records.isEmpty() && !resources.contains(cacheName)) resources.add(cacheName);
+                });
+            }
             // Vary processing order so the same caches are not always handled first.
             Collections.shuffle(resources);
             // Load every source and save approvals before the bounded API loop. This also makes
@@ -158,7 +166,9 @@ public class OSMInfoFunction {
                     try {
                         osmProvider.loadCache();
                         osmProvider.mergeRequests(osmProvider.loadRequests(datasourceName));
-                        osmProvider.applyReviewedWayMappings(reviewed.getOrDefault(datasourceName, Map.of()));
+                        for (Map<String, Map<String, OSMWayMapping>> reviewed : reviewedDocuments) {
+                            osmProvider.applyReviewedWayMappings(reviewed.getOrDefault(datasourceName, Map.of()));
+                        }
                         osmProvidersMap.put(datasourceName, osmProvider);
                         LOG.info("OSM way mapping cache {}: {} unknown entries out of {} entries",
                                 osResourceName, osmProvider.getUnknownWayMappingCount(), osmProvider.getWayMappingCount());
@@ -257,13 +267,16 @@ public class OSMInfoFunction {
         } else {
             LOG.warn("Preserving existing OSM review documents because not all mapping caches were loaded and saved successfully");
         }
-        if (failures == 0 && completeReview && submissions.wasLoaded()) {
-            try {
-                osmCacheOSClient.deleteResource(OSMWayMappingReviewStore.MERGED_OBJECT_NAME);
-                LOG.info("Deleted processed OSM approval submission {}", OSMWayMappingReviewStore.MERGED_OBJECT_NAME);
-            } catch (Exception failure) {
-                failures++;
-                LOG.warn("Could not delete processed OSM approval submission", failure);
+        if (failures == 0 && completeReview) {
+            for (OSMWayMappingReviewStore submission : submissionStores) {
+                if (!submission.wasLoaded()) continue;
+                try {
+                    osmCacheOSClient.deleteResource(submission.getObjectName());
+                    LOG.info("Deleted processed OSM approval submission {}", submission.getObjectName());
+                } catch (Exception failure) {
+                    failures++;
+                    LOG.warn("Could not delete processed OSM approval submission {}", submission.getObjectName(), failure);
+                }
             }
         }
         LOG.info("OSM mapping report: {} caches processed, {} failures", caches, failures);

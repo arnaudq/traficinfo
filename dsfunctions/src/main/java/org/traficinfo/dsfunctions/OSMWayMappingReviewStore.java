@@ -14,7 +14,8 @@ import java.util.TreeMap;
 /** The global manual-review document, grouped by data source prefix and then counter ID. */
 class OSMWayMappingReviewStore {
     static final String OBJECT_NAME = "OSMWayMapping_NEEDS_REVIEW.json";
-    static final String MERGED_OBJECT_NAME = "OSMWayMapping_NEEDS_REVIEW_MERGED.json";
+    static final String NEEDS_REVIEW_MERGED_OBJECT_NAME = "OSMWayMapping_NEEDS_REVIEW_MERGED.json";
+    static final String NOT_FOUND_MERGED_OBJECT_NAME = "OSMWayMapping_NOT_FOUND_MERGED.json";
     static final String NOT_FOUND_OBJECT_NAME = "OSMWayMapping_NOT_FOUND.json";
     private final String objectName;
     private final ObjectStoreClient client;

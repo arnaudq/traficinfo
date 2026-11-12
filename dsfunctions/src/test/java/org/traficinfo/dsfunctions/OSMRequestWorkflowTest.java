@@ -126,7 +126,7 @@ public class OSMRequestWorkflowTest {
         Store store = new Store();
         store.put("MRN_OSMWayMapping.json", "{\"counter\":{\"status\":\"NOT_FOUND\","
                 + "\"reverseLookupResult\":{\"error\":\"No road\"}}}");
-        store.put(OSMWayMappingReviewStore.MERGED_OBJECT_NAME,
+        store.put(OSMWayMappingReviewStore.NEEDS_REVIEW_MERGED_OBJECT_NAME,
                 "{\"MRN\":{\"counter\":{\"status\":\"MATCHED\",\"candidateOsmWayId\":789}}}");
         List<Long> fetched = new ArrayList<>();
         OpenStreetMapClient client = new OpenStreetMapClient() {
@@ -139,18 +139,54 @@ public class OSMRequestWorkflowTest {
         var function = new OSMInfoFunction(store, client, () -> 0L);
         store.failWrite = OSMWayMappingReviewStore.NOT_FOUND_OBJECT_NAME;
         assertFunctionFailure(() -> function.handleRequest(""));
-        assertTrue(store.objects.containsKey(OSMWayMappingReviewStore.MERGED_OBJECT_NAME));
+        assertTrue(store.objects.containsKey(OSMWayMappingReviewStore.NEEDS_REVIEW_MERGED_OBJECT_NAME));
         assertEquals(789, store.json("MRN_OSMWayMapping.json").get("counter").get("osmWayId").asLong());
         assertTrue(store.deleted.isEmpty());
         store.failWrite = null;
         assertEquals("OK", function.handleRequest(""));
-        assertFalse(store.objects.containsKey(OSMWayMappingReviewStore.MERGED_OBJECT_NAME));
-        assertEquals(List.of(OSMWayMappingReviewStore.MERGED_OBJECT_NAME), store.deleted);
+        assertFalse(store.objects.containsKey(OSMWayMappingReviewStore.NEEDS_REVIEW_MERGED_OBJECT_NAME));
+        assertEquals(List.of(OSMWayMappingReviewStore.NEEDS_REVIEW_MERGED_OBJECT_NAME), store.deleted);
         assertEquals(List.of(789L), fetched);
         assertEquals(0, store.json(OSMWayMappingReviewStore.NOT_FOUND_OBJECT_NAME).get("MRN").size());
         assertEquals(0, store.json(OSMWayMappingReviewStore.OBJECT_NAME).get("MRN").size());
         assertEquals("No road", store.json("MRN_OSMWayMapping.json").get("counter")
                 .get("reverseLookupResult").get("error").asText());
+    }
+
+    @Test
+    public void processesBothSubmissionFilesAndRetriesOnlyTheFileWhoseDeletionFailed() throws Exception {
+        Store store = new Store();
+        store.put("MRN_OSMWayMapping.json", "{\"needsReview\":{\"status\":\"NEEDS_REVIEW\"},"
+                + "\"notFound\":{\"status\":\"NOT_FOUND\"}}");
+        store.put(OSMWayMappingReviewStore.NEEDS_REVIEW_MERGED_OBJECT_NAME,
+                "{\"MRN\":{\"needsReview\":{\"status\":\"MATCHED\",\"candidateOsmWayId\":123}}}");
+        store.put(OSMWayMappingReviewStore.NOT_FOUND_MERGED_OBJECT_NAME,
+                "{\"MRN\":{\"notFound\":{\"status\":\"MATCHED\",\"candidateOsmWayId\":456}}}");
+        List<Long> fetched = new ArrayList<>();
+        OpenStreetMapClient client = new OpenStreetMapClient() {
+            @Override public JsonNode reverseLookup(double lat, double lon) { throw new AssertionError(); }
+            @Override public Map<String, String> getWayTags(long id) {
+                fetched.add(id);
+                return Map.of("maxspeed", "50");
+            }
+        };
+        var function = new OSMInfoFunction(store, client, () -> 0L);
+        store.failDelete = OSMWayMappingReviewStore.NEEDS_REVIEW_MERGED_OBJECT_NAME;
+        assertFunctionFailure(() -> function.handleRequest(""));
+        assertEquals(123, store.json("MRN_OSMWayMapping.json").get("needsReview").get("osmWayId").asLong());
+        assertEquals(456, store.json("MRN_OSMWayMapping.json").get("notFound").get("osmWayId").asLong());
+        assertEquals(List.of(123L, 456L), fetched);
+        assertTrue(store.objects.containsKey(OSMWayMappingReviewStore.NEEDS_REVIEW_MERGED_OBJECT_NAME));
+        assertFalse(store.objects.containsKey(OSMWayMappingReviewStore.NOT_FOUND_MERGED_OBJECT_NAME));
+        assertEquals(List.of(OSMWayMappingReviewStore.NOT_FOUND_MERGED_OBJECT_NAME), store.deleted);
+        assertEquals(0, store.json(OSMWayMappingReviewStore.OBJECT_NAME).get("MRN").size());
+        assertEquals(0, store.json(OSMWayMappingReviewStore.NOT_FOUND_OBJECT_NAME).get("MRN").size());
+        store.failDelete = null;
+        assertEquals("OK", function.handleRequest(""));
+        assertFalse(store.objects.containsKey(OSMWayMappingReviewStore.NEEDS_REVIEW_MERGED_OBJECT_NAME));
+        assertEquals(List.of(123L, 456L), fetched);
+        assertEquals(List.of(OSMWayMappingReviewStore.NOT_FOUND_MERGED_OBJECT_NAME,
+                OSMWayMappingReviewStore.NEEDS_REVIEW_MERGED_OBJECT_NAME), store.deleted);
     }
 
     @Test
@@ -170,13 +206,13 @@ public class OSMRequestWorkflowTest {
         Store store = new Store() {
             @Override public List<String> listResources() {
                 try {
-                    put(OSMWayMappingReviewStore.MERGED_OBJECT_NAME, "{\"MRN\":{\"counter\":{\"status\":\"MATCHED\",\"candidateOsmWayId\":789}}}");
+                    put(OSMWayMappingReviewStore.NEEDS_REVIEW_MERGED_OBJECT_NAME, "{\"MRN\":{\"counter\":{\"status\":\"MATCHED\",\"candidateOsmWayId\":789}}}");
                 } catch (IOException impossible) { throw new AssertionError(impossible); }
                 return super.listResources();
             }
         };
         assertEquals("OK", new OSMInfoFunction(store, noHttp(), () -> 0L).handleRequest(""));
-        assertTrue(store.objects.containsKey(OSMWayMappingReviewStore.MERGED_OBJECT_NAME));
+        assertTrue(store.objects.containsKey(OSMWayMappingReviewStore.NEEDS_REVIEW_MERGED_OBJECT_NAME));
         assertTrue(store.deleted.isEmpty());
     }
 
@@ -193,10 +229,10 @@ public class OSMRequestWorkflowTest {
             assertTrue(store.writes.isEmpty());
         }
         Store store = new Store();
-        store.put(OSMWayMappingReviewStore.MERGED_OBJECT_NAME,
+        store.put(OSMWayMappingReviewStore.NEEDS_REVIEW_MERGED_OBJECT_NAME,
                 "{\"unknown\":{\"counter\":{\"status\":\"MATCHED\",\"candidateOsmWayId\":789}}}");
         assertFunctionFailure(() -> new OSMInfoFunction(store, noHttp(), () -> 0L).handleRequest(""));
-        assertTrue(store.objects.containsKey(OSMWayMappingReviewStore.MERGED_OBJECT_NAME));
+        assertTrue(store.objects.containsKey(OSMWayMappingReviewStore.NEEDS_REVIEW_MERGED_OBJECT_NAME));
         assertTrue(store.deleted.isEmpty());
     }
 
@@ -217,6 +253,7 @@ public class OSMRequestWorkflowTest {
         final List<String> writes = new ArrayList<>();
         final List<String> deleted = new ArrayList<>();
         String failWrite;
+        String failDelete;
         Store() { super(null, "namespace", "osminfo"); }
         void put(String name, String json) throws IOException { objects.put(name, JSON.writeValueAsBytes(JSON.readTree(json))); }
         JsonNode json(String name) throws IOException { return JSON.readTree(objects.get(name)); }
@@ -230,6 +267,10 @@ public class OSMRequestWorkflowTest {
             writes.add(name);
             objects.put(name, body.readAllBytes());
         }
-        @Override public void deleteResource(String name) { deleted.add(name); objects.remove(name); }
+        @Override public void deleteResource(String name) {
+            if (name.equals(failDelete)) throw new IllegalStateException("Delete failed: " + name);
+            deleted.add(name);
+            objects.remove(name);
+        }
     }
 }
