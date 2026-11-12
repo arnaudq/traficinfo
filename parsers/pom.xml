@@ -41,7 +41,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.16.0</version>
+                <version>${maven-compiler-plugin.version}</version>
                 <configuration>
                     <source>17</source>
                     <target>17</target>
@@ -50,7 +50,7 @@
             <plugin>
                  <groupId>org.apache.maven.plugins</groupId>
                  <artifactId>maven-surefire-plugin</artifactId>
-                 <version>3.6.1</version>
+                 <version>${maven-surefire-plugin.version}</version>
                  <configuration>
                      <useSystemClassLoader>false</useSystemClassLoader>
                  </configuration>
