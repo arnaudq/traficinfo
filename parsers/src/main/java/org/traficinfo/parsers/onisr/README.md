@@ -7,7 +7,7 @@ describes characteristics, locations, vehicles and users, joined by `Num_Acc`.
 The characteristics parser reads accident records. The participant parser joins
 the modern usagers files for involved people and their injury severity. The vehicle
 parser joins the modern vehicles files for vehicle categories and motorization.
-The manual function currently selects the 2024 and 2025 publications through
+The manual function currently selects the 2023, 2024 and 2025 publications through
 `ONISRYearInputs.configured()`.
 
 ## API and model
