@@ -20,13 +20,13 @@ final class OSMRequestCollector implements OSMInfoProvider {
     }
 
     @Override
-    public Long getWayId(String counterId, Point point, String sourceRoadReference) {
+    public Long getWayId(String counterId, Point point, String sourceRoadReference, String streetName) {
         Long wayId = provider.getCachedWayId(counterId);
         if (wayId != null) return wayId;
         if (counterId != null && !counterId.isBlank()) {
             Double lat = point == null || point.getCoordinates() == null ? null : point.getCoordinates().getLatitude();
             Double lon = point == null || point.getCoordinates() == null ? null : point.getCoordinates().getLongitude();
-            reverseLookups.put(counterId, new OSMRequests.ReverseLookup(lat, lon, sourceRoadReference));
+            reverseLookups.put(counterId, new OSMRequests.ReverseLookup(lat, lon, sourceRoadReference, streetName));
         }
         return null;
     }

@@ -21,7 +21,7 @@ import java.util.Objects;
 /** A counter's cached OSM way assignment, location, and review metadata. */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 @JsonPropertyOrder({"osmWayId", "osmWayIdUrl", "candidateOsmWayId", "candidateOsmWayUrl",
-        "latitude", "longitude", "coordinatesOsmUrl"})
+        "latitude", "longitude", "coordinatesOsmUrl", "sourceRoadReference", "sourceStreetName", "sourceMatchCriteria"})
 public class OSMWayMapping {
     @JsonInclude(JsonInclude.Include.ALWAYS)
     @JsonDeserialize(using = WayIdDeserializer.class)
@@ -33,6 +33,8 @@ public class OSMWayMapping {
     @JsonInclude(JsonInclude.Include.ALWAYS)
     // Source road identifier retained for later comparison: D0011 may match OSM ref D 11.
     private String sourceRoadReference;
+    @JsonInclude(JsonInclude.Include.ALWAYS)
+    private String sourceStreetName;
     private OSMWayMappingStatus status = OSMWayMappingStatus.MISSING;
     private String firstSeen;
     private String lastSeen;
@@ -41,6 +43,7 @@ public class OSMWayMapping {
     @JsonDeserialize(using = WayIdDeserializer.class)
     private Long candidateOsmWayId;
     private String osmRoadReference;
+    private String osmStreetName;
     private String reviewReason;
     private Double distanceMeters;
     private Double lastLookupLatitude;
@@ -57,12 +60,14 @@ public class OSMWayMapping {
         latitude = other.latitude;
         longitude = other.longitude;
         sourceRoadReference = other.sourceRoadReference;
+        sourceStreetName = other.sourceStreetName;
         status = other.status;
         firstSeen = other.firstSeen;
         lastSeen = other.lastSeen;
         lastUpdated = other.lastUpdated;
         candidateOsmWayId = other.candidateOsmWayId;
         osmRoadReference = other.osmRoadReference;
+        osmStreetName = other.osmStreetName;
         reviewReason = other.reviewReason;
         distanceMeters = other.distanceMeters;
         lastLookupLatitude = other.lastLookupLatitude;
@@ -103,6 +108,23 @@ public class OSMWayMapping {
 
     public void setSourceRoadReference(String sourceRoadReference) {
         this.sourceRoadReference = sourceRoadReference;
+    }
+
+    public String getSourceStreetName() { return sourceStreetName; }
+
+    public void setSourceStreetName(String sourceStreetName) { this.sourceStreetName = sourceStreetName; }
+
+    public String getOsmStreetName() { return osmStreetName; }
+
+    public void setOsmStreetName(String osmStreetName) { this.osmStreetName = osmStreetName; }
+
+    /** Available source identifiers, not a claim that both identifiers matched. */
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    public OSMSourceMatchCriteria getSourceMatchCriteria() {
+        boolean reference = sourceRoadReference != null && !sourceRoadReference.isBlank();
+        boolean street = sourceStreetName != null && !sourceStreetName.isBlank();
+        return reference ? street ? OSMSourceMatchCriteria.BOTH : OSMSourceMatchCriteria.ROAD_REFERENCE
+                : street ? OSMSourceMatchCriteria.STREET_NAME : OSMSourceMatchCriteria.NONE;
     }
 
     public OSMWayMappingStatus getStatus() {
@@ -235,7 +257,8 @@ public class OSMWayMapping {
     @JsonAnySetter
     public void setAdditionalProperty(String name, JsonNode value) {
         // Jackson's any-setter also receives read-only properties; never retain uploaded derived links.
-        if (!name.equals("candidateOsmWayUrl") && !name.equals("coordinatesOsmUrl") && !name.equals("osmWayIdUrl")) {
+        if (!name.equals("candidateOsmWayUrl") && !name.equals("coordinatesOsmUrl") && !name.equals("osmWayIdUrl")
+                && !name.equals("sourceMatchCriteria")) {
             additionalProperties.put(name, value);
         }
     }
@@ -248,12 +271,14 @@ public class OSMWayMapping {
                 && Objects.equals(latitude, other.latitude)
                 && Objects.equals(longitude, other.longitude)
                 && Objects.equals(sourceRoadReference, other.sourceRoadReference)
+                && Objects.equals(sourceStreetName, other.sourceStreetName)
                 && status == other.status
                 && Objects.equals(firstSeen, other.firstSeen)
                 && Objects.equals(lastSeen, other.lastSeen)
                 && Objects.equals(lastUpdated, other.lastUpdated)
                 && Objects.equals(candidateOsmWayId, other.candidateOsmWayId)
                 && Objects.equals(osmRoadReference, other.osmRoadReference)
+                && Objects.equals(osmStreetName, other.osmStreetName)
                 && Objects.equals(reviewReason, other.reviewReason)
                 && Objects.equals(distanceMeters, other.distanceMeters)
                 && Objects.equals(lastLookupLatitude, other.lastLookupLatitude)
@@ -265,7 +290,7 @@ public class OSMWayMapping {
 
     @Override
     public int hashCode() {
-        return Objects.hash(osmWayId, latitude, longitude, sourceRoadReference, status,
+        return Objects.hash(osmWayId, latitude, longitude, sourceRoadReference, sourceStreetName, osmStreetName, status,
                 firstSeen, lastSeen, lastUpdated, candidateOsmWayId, osmRoadReference,
                 reviewReason, distanceMeters, lastLookupLatitude, lastLookupLongitude,
                 lastLookupAt, reverseLookupResult, additionalProperties);

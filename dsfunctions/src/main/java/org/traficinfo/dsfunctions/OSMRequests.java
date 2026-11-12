@@ -12,7 +12,7 @@ public record OSMRequests(Map<String, ReverseLookup> reverseLookups,
         @JsonDeserialize(contentUsing = OSMWayMapping.WayIdDeserializer.class) Set<Long> wayTagRefreshes) {
     public static final String SUFFIX = "_OSMRequests.json";
 
-    public record ReverseLookup(Double latitude, Double longitude, String sourceRoadReference) {
+    public record ReverseLookup(Double latitude, Double longitude, String sourceRoadReference, String sourceStreetName) {
         public ReverseLookup {
             if (latitude != null && (!Double.isFinite(latitude) || Math.abs(latitude) > 90)
                     || longitude != null && (!Double.isFinite(longitude) || Math.abs(longitude) > 180)) {

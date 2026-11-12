@@ -166,7 +166,7 @@ public class MRNComptageParserTest extends ParserBaseTest {
         + "Comptage ponctuel directionnel sur carrefour;;C;" + year
         + ";Carrefour;Rouen;;120;;;;;1.3;49.4;\n";
     OSMInfoProvider osm = new OSMInfoProvider() {
-      public Long getWayId(String id, Point point, String road) {
+      public Long getWayId(String id, Point point, String road, String streetName) {
         assertNotNull(point);
         assertNull(road);
         return "MRN_A".equals(id) ? 123L : null;

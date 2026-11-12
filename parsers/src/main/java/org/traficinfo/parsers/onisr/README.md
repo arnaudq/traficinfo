@@ -32,6 +32,9 @@ reader open. The file overload closes its own reader.
   mail delivery and are not interchangeable with commune codes.
 - `address` comes from `adr`. It is not used as an official road reference:
   characteristics does not provide one, so `getRoadReference()` returns null.
+  `getStreetName()` exposes the original `adr` separately. OSM requests carry it
+  as `sourceStreetName`; the hourly OSM function normalizes names such as
+  `JEAN JAURES (AVENUE)` to compare with `Avenue Jean Jaurès`.
 - `latitude` and `longitude` are nullable WGS84 decimal degrees. Geometry is a
   point in longitude, latitude order, or null if either coordinate is unavailable.
 - `osmWayId` starts null and can be assigned later by the existing cache workflow.
@@ -166,7 +169,8 @@ decimal commas.
 Missing, malformed, non-finite or out-of-range coordinates do not discard the
 accident. An all-zero coordinate pair is treated as unlocated; a longitude of
 zero with a valid nonzero latitude remains usable. Original values remain in
-`sourceFields` for inspection. No coordinate snapping or street matching is done.
+`sourceFields` for inspection. The parser does not snap coordinates or match streets; candidate-name comparison
+is performed later by the hourly OSM function.
 
 ## Validation and observed snapshots
 

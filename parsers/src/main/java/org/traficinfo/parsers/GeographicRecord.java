@@ -13,6 +13,11 @@ public interface GeographicRecord {
 
   void setOsmWayId(Long osmWayId);
 
+  /** Source street name/address for comparison with OSM names, or null if unavailable. */
+  default String getStreetName() {
+    return null;
+  }
+
   /** Official road reference for comparison with an OSM ref tag, or null if absent. */
   default String getRoadReference() {
     return null;

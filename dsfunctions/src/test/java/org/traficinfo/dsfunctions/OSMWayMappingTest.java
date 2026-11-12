@@ -14,6 +14,7 @@ public class OSMWayMappingTest {
         ObjectMapper mapper = new ObjectMapper();
         var json = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree("""
                 {"osmWayId":123,"latitude":43.5,"longitude":3.2,"sourceRoadReference":"D11",
+                 "sourceStreetName":"Jean Jaures (AVENUE)","osmStreetName":"Avenue Jean Jaurès",
                  "status":"NEEDS_REVIEW","firstSeen":"first","lastSeen":"last","lastUpdated":"updated",
                  "candidateOsmWayId":456,"osmRoadReference":"M11","reviewReason":"different_ref",
                  "distanceMeters":12.5,"lastLookupLatitude":43.5,"lastLookupLongitude":3.2,
@@ -34,6 +35,25 @@ public class OSMWayMappingTest {
             else changed.putNull(field);
             assertNotEquals(field, original, mapper.treeToValue(changed, OSMWayMapping.class));
         }
+    }
+
+    @Test
+    public void indicatesAvailableIdentifiersAndIgnoresUploadedIndicator() throws Exception {
+        var mapping = new OSMWayMapping();
+        assertEquals(OSMSourceMatchCriteria.NONE, mapping.getSourceMatchCriteria());
+        mapping.setSourceStreetName("Jean Jaures (AVENUE)");
+        assertEquals(OSMSourceMatchCriteria.STREET_NAME, mapping.getSourceMatchCriteria());
+        mapping.setSourceRoadReference("D11");
+        assertEquals(OSMSourceMatchCriteria.BOTH, mapping.getSourceMatchCriteria());
+        mapping.setSourceStreetName(" ");
+        assertEquals(OSMSourceMatchCriteria.ROAD_REFERENCE, mapping.getSourceMatchCriteria());
+        var json = new ObjectMapper();
+        var encoded = json.valueToTree(mapping);
+        assertEquals("ROAD_REFERENCE", encoded.get("sourceMatchCriteria").asText());
+        ((com.fasterxml.jackson.databind.node.ObjectNode) encoded).put("sourceMatchCriteria", "STREET_NAME");
+        var decoded = json.treeToValue(encoded, OSMWayMapping.class);
+        assertEquals(OSMSourceMatchCriteria.ROAD_REFERENCE, decoded.getSourceMatchCriteria());
+        assertFalse(decoded.getAdditionalProperties().containsKey("sourceMatchCriteria"));
     }
 
     @Test
@@ -74,7 +94,7 @@ public class OSMWayMappingTest {
         assertEquals("https://www.openstreetmap.org/way/456", encoded.get("candidateOsmWayUrl").asText());
         assertEquals("https://www.openstreetmap.org/?mlat=43.5&mlon=3.2#map=17/43.5/3.2", encoded.get("coordinatesOsmUrl").asText());
         assertFalse(encoded.has("osmWayIdUrl"));
-        ((com.fasterxml.jackson.databind.node.ObjectNode) encoded).remove(List.of("candidateOsmWayUrl", "coordinatesOsmUrl"));
+        ((com.fasterxml.jackson.databind.node.ObjectNode) encoded).remove(List.of("candidateOsmWayUrl", "coordinatesOsmUrl", "sourceStreetName", "sourceMatchCriteria"));
         assertEquals(mapper.readTree(json), encoded);
         // Ignore uploaded links and regenerate them from the actual IDs and coordinates.
         OSMWayMapping roundTrip = mapper.readValue(mapper.writeValueAsBytes(mapping), OSMWayMapping.class);

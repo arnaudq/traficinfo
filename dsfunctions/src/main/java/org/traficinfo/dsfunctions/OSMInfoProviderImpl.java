@@ -135,7 +135,7 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
             if (getCachedWayId(entry.getKey()) == null) mappingsChanged = true;
             Point point = location.latitude() == null || location.longitude() == null
                     ? null : new Point(location.longitude(), location.latitude());
-            Long wayId = getWayId(entry.getKey(), point, location.sourceRoadReference());
+            Long wayId = getWayId(entry.getKey(), point, location.sourceRoadReference(), location.sourceStreetName());
             if (wayId != null) getWayInfo(wayId);
         }
         requests.wayTagRefreshes().forEach(this::getWayInfo);
@@ -270,7 +270,7 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
     }
 
     @Override
-    public Long getWayId(String centraleId, Point point, String roadReference) {
+    public Long getWayId(String centraleId, Point point, String roadReference, String streetName) {
         if (mappingObject == null || centraleId == null || centraleId.isBlank()) {
             return null;
         }
@@ -296,6 +296,9 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
         }
         if (roadReference != null && !roadReference.isBlank()) {
             mapping.setSourceRoadReference(roadReference);
+        }
+        if (streetName != null && !streetName.isBlank()) {
+            mapping.setSourceStreetName(streetName);
         }
         mapping.setLastSeen(now);
         return null;
@@ -337,9 +340,10 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
                     mapping.setLastLookupLongitude(mapping.getLongitude());
                     mapping.setReverseLookupResult(result);
                     applyReverseResult(mapping, result);
-                    LOG.info("OSM reverse mapping {}: status={}, wayId={}, candidateWayId={}, sourceRef={}, osmRef={}, reason={}",
+                    LOG.info("OSM reverse mapping {}: status={}, wayId={}, candidateWayId={}, sourceRef={}, osmRef={}, sourceStreet={}, osmStreet={}, reason={}",
                             entry.getKey(), mapping.getStatus(), mapping.getOsmWayId(), mapping.getCandidateOsmWayId(),
-                            mapping.getSourceRoadReference(), mapping.getOsmRoadReference(), mapping.getReviewReason());
+                            mapping.getSourceRoadReference(), mapping.getOsmRoadReference(), mapping.getSourceStreetName(),
+                            mapping.getOsmStreetName(), mapping.getReviewReason());
                     Long wayId = mappedWayId(mapping);
                     if (wayId != null) {
                         getWayInfo(wayId);
@@ -393,6 +397,7 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
             mapping.setStatus(OSMWayMappingStatus.NOT_FOUND);
             mapping.setCandidateOsmWayId(null);
             mapping.setOsmRoadReference(null);
+            mapping.setOsmStreetName(null);
             mapping.setReviewReason("no_road_way");
             return;
         }
@@ -400,10 +405,23 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
         mapping.setCandidateOsmWayId(wayId);
         mapping.setOsmRoadReference(reference);
         String source = mapping.getSourceRoadReference();
-        if (source != null && !source.isBlank()
-                && (reference == null || !sameRoadReference(source, reference))) {
+        String sourceStreet = mapping.getSourceStreetName();
+        List<String> names = new ArrayList<>();
+        for (JsonNode name : List.of(result.path("namedetails").path("name:fr"),
+                result.path("namedetails").path("name"), result.path("name"), result.path("address").path("road"))) {
+            if (name.isTextual() && !name.asText().isBlank() && !names.contains(name.asText())) names.add(name.asText());
+        }
+        boolean hasReference = source != null && !source.isBlank();
+        boolean hasStreet = sourceStreet != null && !sourceStreet.isBlank();
+        String matchedName = hasStreet ? names.stream()
+                .filter(name -> StreetNameNormalizer.sameName(sourceStreet, name)).findFirst().orElse(null) : null;
+        mapping.setOsmStreetName(matchedName != null ? matchedName : names.isEmpty() ? null : names.get(0));
+        boolean referenceMatches = hasReference && reference != null && sameRoadReference(source, reference);
+        if ((hasReference || hasStreet) && !referenceMatches && matchedName == null) {
             mapping.setStatus(OSMWayMappingStatus.NEEDS_REVIEW);
-            mapping.setReviewReason(reference == null ? "missing_osm_ref" : "different_ref");
+            mapping.setReviewReason(hasReference && hasStreet ? "no_matching_road_reference_or_street_name"
+                    : hasReference ? reference == null ? "missing_osm_ref" : "different_ref"
+                    : names.isEmpty() ? "missing_osm_street_name" : "different_street_name");
             return;
         }
         mapping.setOsmWayId(wayId);

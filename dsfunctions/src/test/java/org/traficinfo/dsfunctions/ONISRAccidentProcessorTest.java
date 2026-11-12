@@ -123,17 +123,21 @@ public class ONISRAccidentProcessorTest {
     public void refreshPicksUpSharedReverseLookupResultsWithoutReimportingCsv() throws Exception {
         Store data = new Store();
         Store osm = new Store();
-        data.text("2025.csv", HEADER + row(2025, 1, "30", "43", "3"));
+        data.text("2025.csv", HEADER + row(2025, 1, "30", "43", "3").replace("Rue de l'École", "JEAN JAURES (AVENUE)"));
         var processor = processor(data, osm, "30");
         processor.importCsv("2025.csv", 2025);
         var resolver = provider(osm, "ONISR_DPT30", new OpenStreetMapClient() {
             @Override public JsonNode reverseLookup(double lat, double lon) throws IOException {
-                return JSON.readTree("{\"osm_type\":\"way\",\"osm_id\":123,\"category\":\"highway\",\"type\":\"residential\"}");
+                return JSON.readTree("{\"osm_type\":\"way\",\"osm_id\":123,\"category\":\"highway\",\"type\":\"residential\",\"namedetails\":{\"name\":\"Avenue Jean Jaurès\"}}");
             }
         });
+        assertEquals("JEAN JAURES (AVENUE)", osm.json("ONISR_DPT30_OSMRequests.json")
+                .get("reverseLookups").get("202500000001").get("sourceStreetName").asText());
         resolver.loadCache();
         resolver.mergeRequests(resolver.loadRequests("ONISR_DPT30"));
         resolver.refreshWayMappings(1);
+        assertEquals("STREET_NAME", osm.json("ONISR_DPT30_OSMWayMapping.json")
+                .get("202500000001").get("sourceMatchCriteria").asText());
         data.objects.remove("2025.csv");
         var result = processor.refresh();
         assertEquals(1, result.get("30").matched());

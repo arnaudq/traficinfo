@@ -31,12 +31,12 @@ public class OSMRequestWorkflowTest {
         var provider = provider(store, noHttp(), "MRN");
         provider.loadCache();
         var collector = new OSMRequestCollector(provider);
-        assertEquals(Long.valueOf(123), collector.getWayId("known", null, null));
+        assertEquals(Long.valueOf(123), collector.getWayId("known", null, null, null));
         assertEquals(50, collector.getWayInfo(123).getMaximumSpeed());
         assertEquals(30, collector.getWayInfo(456).getMaximumSpeed());
         assertNull(collector.getWayInfo(789));
-        assertNull(collector.getWayId("pending", new Point(3, 43), "D0011"));
-        assertNull(collector.getWayId("pending", new Point(3.1, 43.1), "D0012"));
+        assertNull(collector.getWayId("pending", new Point(3, 43), "D0011", null));
+        assertNull(collector.getWayId("pending", new Point(3.1, 43.1), "D0012", null));
         // Simulate the OSM function saving newer caches after GeoJSON's initial reads.
         store.put("MRN_OSMWayMapping.json", "{\"pending\":{\"osmWayId\":999,\"status\":\"MATCHED\"}}");
         byte[] newerMappings = store.objects.get("MRN_OSMWayMapping.json").clone();

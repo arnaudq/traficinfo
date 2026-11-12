@@ -128,7 +128,7 @@ public class OSMWayInfoTest {
             @Override public OSMWayInfo getWayInfo(long id) {
                 return new OSMWayInfo(NOW, Map.of("maxspeed", "80"));
             }
-            @Override public Long getWayId(String id, Point point, String roadReference) {
+            @Override public Long getWayId(String id, Point point, String roadReference, String streetName) {
                 seen.add(id);
                 if ("DPT34_A".equals(id)) {
                     assertEquals("D0011", roadReference);

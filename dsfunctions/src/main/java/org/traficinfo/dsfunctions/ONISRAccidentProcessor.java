@@ -141,7 +141,7 @@ public final class ONISRAccidentProcessor {
             int matched = 0;
             for (ONISRAccident accident : records) {
                 // Stored source records never take precedence over the current mapping cache.
-                Long way = osmRequests.getWayId(accident.getAccidentId(), accident.getGeometry(), accident.getRoadReference());
+                Long way = osmRequests.getWayId(accident.getAccidentId(), accident.getGeometry(), accident.getRoadReference(), accident.getStreetName());
                 accident.setOsmWayId(way);
                 if (way != null && way > 0 && accident.getGeometry() != null) {
                     byWay.computeIfAbsent(way, ignored -> new ArrayList<>()).add(accident);

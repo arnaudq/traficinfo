@@ -30,9 +30,9 @@ public class OSMMappingCacheTest {
         Store store = new Store();
         OSMInfoProviderImpl provider = provider(store, NOW);
         provider.loadCache();
-        assertNull(provider.getWayId("DPT34_A", new Point(3.0, 43.0), "D0011"));
-        assertNull(provider.getWayId("DPT34_A", new Point(3.001, 43.001), "M11"));
-        assertNull(provider.getWayId("DPT34_B", null, null));
+        assertNull(provider.getWayId("DPT34_A", new Point(3.0, 43.0), "D0011", null));
+        assertNull(provider.getWayId("DPT34_A", new Point(3.001, 43.001), "M11", null));
+        assertNull(provider.getWayId("DPT34_B", null, null, null));
         assertEquals(0, store.writes);
         provider.refreshCache();
         JsonNode cache = JSON.readTree(store.objects.get("mappings.json"));
@@ -66,7 +66,7 @@ public class OSMMappingCacheTest {
             Long expected = mapping.get("osmWayId").isNull() ? null : mapping.get("osmWayId").asLong();
             assertEquals(expected, provider.getWayId(entry.getKey(),
                     new Point(mapping.get("longitude").asDouble(), mapping.get("latitude").asDouble()),
-                    mapping.path("sourceRoadReference").asText(null)));
+                    mapping.path("sourceRoadReference").asText(null), null));
         });
         provider.refreshCache();
         JsonNode after = JSON.readTree(store.objects.get("mappings.json"));
@@ -86,11 +86,11 @@ public class OSMMappingCacheTest {
         Store store = new Store();
         OSMInfoProviderImpl first = provider(store, NOW);
         first.loadCache();
-        first.getWayId("A", new Point(3.0, 43.0), "D11");
+        first.getWayId("A", new Point(3.0, 43.0), "D11", null);
         first.refreshCache();
         OSMInfoProviderImpl second = provider(store, NOW.plusSeconds(86400));
         second.loadCache();
-        second.getWayId("A", new Point(3.0, 43.0), null);
+        second.getWayId("A", new Point(3.0, 43.0), null, null);
         second.refreshCache();
         JsonNode saved = JSON.readTree(store.objects.get("mappings.json"));
         assertEquals("D11", saved.get("A").get("sourceRoadReference").asText());
@@ -100,7 +100,7 @@ public class OSMMappingCacheTest {
         store.objects.put("mappings.json", JSON.writeValueAsBytes(saved));
         OSMInfoProviderImpl next = provider(store, NOW);
         next.loadCache();
-        assertEquals(Long.valueOf(123), next.getWayId("A", new Point(3.0, 43.0), null));
+        assertEquals(Long.valueOf(123), next.getWayId("A", new Point(3.0, 43.0), null, null));
     }
 
     @Test
@@ -109,7 +109,7 @@ public class OSMMappingCacheTest {
         store.objects.put("mappings.json", "{\"A\":{\"osmWayId\":123,\"note\":\"manual\"}}".getBytes(StandardCharsets.UTF_8));
         OSMInfoProviderImpl provider = provider(store, NOW);
         provider.loadCache();
-        assertEquals(Long.valueOf(123), provider.getWayId("A", null, null));
+        assertEquals(Long.valueOf(123), provider.getWayId("A", null, null, null));
         provider.refreshCache();
         assertEquals("manual", JSON.readTree(store.objects.get("mappings.json")).get("A").get("note").asText());
         assertEquals(1, store.writes);

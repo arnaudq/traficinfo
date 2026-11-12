@@ -112,7 +112,7 @@ public class OSMInfoFunctionTest {
         assertEquals(9, provider.getUnknownWayMappingCount());
         assertEquals(10, provider.getWayMappingCount());
         assertEquals(1, provider.getWayInfoCount());
-        provider.getWayId("new", null, null);
+        provider.getWayId("new", null, null, null);
         assertEquals(10, provider.getUnknownWayMappingCount());
         assertEquals(11, provider.getWayMappingCount());
         store.objects.clear();

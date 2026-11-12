@@ -25,9 +25,9 @@ We use two APIs:
   may come from `category=highway` and `type`, or from `extratags.highway`; this
   also accepts road ways classified as administrative boundaries by Nominatim.
   Where available, the source road reference is compared with OSM's `namedetails.ref` (using `namedetails=1`), allowing formatting differences
-  such as `D0011` versus `D 11` or `D0111E01` versus `D 111E1`. If a source reference is provided, a missing or
-  differing OSM reference leaves a candidate for review instead of assigning
-  the way automatically.
+  such as `D0011` versus `D 11` or `D0111E01` versus `D 111E1`. Source street
+  names are also compared with the candidate's names. If both identifiers are
+  supplied, either matching is sufficient; if none matches, the candidate needs review.
 
 Reverse geocoding can return a nearby different road or another kind of object.
 The response is therefore a candidate to validate, not proof of the correct road.
@@ -36,8 +36,9 @@ Existing positive way IDs are preserved.
 ## Candidate acceptance
 
 Automatic validation uses the Nominatim fields `osm_type`, `osm_id`, `category`,
-`type`, `extratags.highway`, and `namedetails.ref`, together with the source road
-identifier. The first four are response fields rather than OSM tags.
+`type`, `extratags.highway`, `namedetails.ref`, `namedetails["name:fr"]`,
+`namedetails.name`, `name`, and `address.road`, together with the source road
+reference and street name. The first four are response fields rather than OSM tags.
 
 The following table checks whether the candidate is a suitable road way before
 comparing references. `any` means that field does not affect that row's result.
@@ -69,8 +70,8 @@ matches source identifier `D0925`, producing `MATCHED`.
 
 ### Road reference comparison
 
-For a suitable road way, the following table determines whether its reference
-is accepted. Rows are the `Comptage` road identifier; columns are OSM's
+When no source street name is supplied, the following table determines whether
+a suitable road way's reference is accepted. Rows are the `Comptage` road identifier; columns are OSM's
 `namedetails.ref`. `null` means no reference, and `A` and `B` represent distinct
 references after normalization (for example, `D0011` and `D 11` both represent `A`).
 
@@ -84,8 +85,64 @@ When a source identifier exists, `NEEDS_REVIEW` has reason `missing_osm_ref`
 if the OSM reference is absent, or `different_ref` if it differs. Without a
 source identifier, a suitable road way is accepted regardless of its reference.
 OSM references separated by `;` are compared individually; any normalized match
-is sufficient. Fields such as `name`, `address`, `maxspeed`, `lanes`, and
-`admin_level` do not determine candidate acceptance.
+is sufficient. `maxspeed`, `lanes`, and `admin_level` do not determine candidate
+acceptance.
+
+### Street name comparison and combined criteria
+
+`sourceRoadReference` remains an official identifier such as `D925`.
+`sourceStreetName` holds the original street name/address separately. ONISR
+populates it from `adr` (for example, `JEAN JAURES (AVENUE)`) while its road
+reference remains null. Sources with a dedicated street-name field provide that
+value. The original source and selected OSM names are retained as
+`sourceStreetName` and `osmStreetName` in mapping/review records.
+
+Name normalization uppercases, removes accents, expands common French street-type
+abbreviations, turns punctuation into spaces, and collapses whitespace. A
+recognized trailing street type in parentheses is moved to the beginning.
+A leading house number is removed only when immediately followed by a recognized
+street type; numbers within a street name are preserved. `ST`/`STE` become
+`SAINT`/`SAINTE`, and ligatures such as `Œ` become `OE`. Comparison is exact after
+normalization, without fuzzy matching or reordering the name's words.
+
+| Source value | OSM name | Normalized comparison | Result |
+| --- | --- | --- | --- |
+| `JEAN JAURES (AVENUE)` | `Avenue Jean Jaurès` | `AVENUE JEAN JAURES` | Same name |
+| `12 bis av. Jean-Jaurès` | `Avenue Jean Jaurès` | `AVENUE JEAN JAURES` | Same name |
+| `Général de Gaulle (BD)` | `Boulevard Général de Gaulle` | `BOULEVARD GENERAL DE GAULLE` | Same name |
+| `R. ST PIERRE` | `Rue Saint-Pierre` | `RUE SAINT PIERRE` | Same name |
+| `JEAN JAURES (RUE)` | `Avenue Jean Jaurès` | `RUE JEAN JAURES` versus `AVENUE JEAN JAURES` | Different name |
+
+Nominatim returns one candidate. Its name alternatives are checked in order:
+`namedetails["name:fr"]`, `namedetails.name`, top-level `name`, and `address.road`.
+A normalized match against any available name is sufficient. `osmStreetName`
+contains the matched alternative, or the first available name when none matches.
+This does not search additional nearby OSM objects or make additional API calls.
+
+`sourceMatchCriteria` is a derived indicator of which source identifiers are
+available, not which identifiers matched. Blank values count as absent. After
+the candidate has passed the way-ID/highway checks, acceptance uses **OR**:
+
+| Source identifiers | `sourceMatchCriteria` | Road reference matches | Street name matches | Result |
+| --- | --- | --- | --- | --- |
+| Neither | `NONE` | Not supplied | Not supplied | `MATCHED` |
+| Road reference only | `ROAD_REFERENCE` | Yes | Not supplied | `MATCHED` |
+| Road reference only | `ROAD_REFERENCE` | No or OSM ref missing | Not supplied | `NEEDS_REVIEW` |
+| Street name only | `STREET_NAME` | Not supplied | Yes | `MATCHED` |
+| Street name only | `STREET_NAME` | Not supplied | No or OSM name missing | `NEEDS_REVIEW` |
+| Both | `BOTH` | Yes | Any | `MATCHED` |
+| Both | `BOTH` | No or OSM ref missing | Yes | `MATCHED` |
+| Both | `BOTH` | No or OSM ref missing | No or OSM name missing | `NEEDS_REVIEW` |
+
+For street-name-only failures the reason is `missing_osm_street_name` or
+`different_street_name`. If both source identifiers are available and neither
+matches, the reason is `no_matching_road_reference_or_street_name`; both actual
+OSM values are retained where available. Road-reference-only reasons remain
+`missing_osm_ref` and `different_ref`.
+
+These criteria apply to new/reset reverse lookups only. Existing positive
+assignments are preserved, and cached review/negative outcomes are not
+automatically re-evaluated when a street name becomes available.
 
 ## Object ownership and formats
 
@@ -122,7 +179,8 @@ For example, `MRN_OSMRequests.json` can contain both kinds of work:
     "MRN_237": {
       "latitude": 49.43,
       "longitude": 1.08,
-      "sourceRoadReference": null
+      "sourceRoadReference": null,
+      "sourceStreetName": "JEAN JAURES (AVENUE)"
     }
   },
   "wayTagRefreshes": [123456, 789012]
@@ -130,7 +188,8 @@ For example, `MRN_OSMRequests.json` can contain both kinds of work:
 ```
 
 The counter ID and coordinates identify a reverse request. The optional
-`sourceRoadReference` validates the returned candidate. A direct tag request
+`sourceRoadReference` and `sourceStreetName` provide the optional OR-matching
+criteria. A direct tag request
 needs only its positive way ID. The filename identifies the data source; status,
 lookup results, tags, and update timestamps belong in the caches.
 

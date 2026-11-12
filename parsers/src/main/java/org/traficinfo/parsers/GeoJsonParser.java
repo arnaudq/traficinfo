@@ -214,7 +214,7 @@ public class GeoJsonParser {
             Long wayId = comptage.getOsmWayId();
             if (wayId == null || wayId <= 0) {
                 wayId = osmInfoProvider.getWayId(comptage.getCodeCentrale(),
-                        comptage.getGeometry() instanceof Point point ? point : null, comptage.getRoadReference());
+                        comptage.getGeometry() instanceof Point point ? point : null, comptage.getRoadReference(), comptage.getStreetName());
                 comptage.setOsmWayId(wayId);
             }
             if (wayId == null || wayId <= 0) {

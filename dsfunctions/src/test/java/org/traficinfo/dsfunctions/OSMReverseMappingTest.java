@@ -306,6 +306,117 @@ public class OSMReverseMappingTest {
     }
 
     @Test
+    public void acceptsEitherRoadReferenceOrStreetNameAndShowsAvailableCriteria() throws Exception {
+        String[] references = {null, "D0011", "D0012"};
+        String[] streetNames = {null, "JEAN JAURES (AVENUE)", "VICTOR HUGO (AVENUE)"};
+        for (int ref = 0; ref < 3; ref++) {
+            for (int street = 0; street < 3; street++) {
+                Store store = new Store();
+                OSMWayMapping mapping = new OSMWayMapping();
+                mapping.setLatitude(43.5);
+                mapping.setLongitude(3.2);
+                mapping.setSourceRoadReference(references[ref]);
+                mapping.setSourceStreetName(streetNames[street]);
+                store.objects.put("mappings.json", JSON.writeValueAsBytes(Map.of("counter", mapping)));
+                var result = JSON.createObjectNode().put("osm_type", "way").put("osm_id", 123)
+                        .put("category", "highway").put("type", "primary");
+                result.putObject("namedetails").put("ref", "D 11").put("name", "Avenue Jean Jaurès");
+                var provider = provider(store, new OpenStreetMapClient() {
+                    @Override public JsonNode reverseLookup(double lat, double lon) { return result; }
+                });
+                provider.loadCache();
+                provider.refreshWayMappings(1);
+                JsonNode saved = JSON.readTree(store.objects.get("mappings.json")).get("counter");
+                boolean matched = ref == 1 || street == 1 || ref == 0 && street == 0;
+                assertEquals("ref=" + ref + ", street=" + street, matched ? "MATCHED" : "NEEDS_REVIEW",
+                        saved.get("status").asText());
+                assertEquals(ref == 0 ? street == 0 ? "NONE" : "STREET_NAME" : street == 0 ? "ROAD_REFERENCE" : "BOTH",
+                        saved.get("sourceMatchCriteria").asText());
+                assertEquals("Avenue Jean Jaurès", saved.get("osmStreetName").asText());
+                if (matched) assertEquals(123, saved.get("osmWayId").asLong());
+                else assertEquals(ref > 0 && street > 0 ? "no_matching_road_reference_or_street_name"
+                        : ref > 0 ? "different_ref" : "different_street_name", saved.get("reviewReason").asText());
+            }
+        }
+    }
+
+    @Test
+    public void checksStreetNameAlternativesAndRequiresReviewWhenTheNameIsMissing() throws Exception {
+        for (String field : List.of("name:fr", "name", "top-level", "address.road", "alternatives", "street-only", "ref-only", "missing", "non-road")) {
+            Store store = new Store();
+            OSMWayMapping mapping = new OSMWayMapping();
+            mapping.setLatitude(43.5);
+            mapping.setLongitude(3.2);
+            mapping.setSourceStreetName("JEAN JAURES (AVENUE)");
+            if (field.equals("street-only") || field.equals("ref-only")) mapping.setSourceRoadReference("D0011");
+            store.objects.put("mappings.json", JSON.writeValueAsBytes(Map.of("counter", mapping)));
+            var result = JSON.createObjectNode().put("osm_type", "way").put("osm_id", 123)
+                    .put("category", "highway").put("type", "primary");
+            switch (field) {
+                case "name:fr", "name" -> result.putObject("namedetails").put(field, "Avenue Jean Jaurès");
+                case "alternatives" -> result.putObject("namedetails").put("name:fr", "Avenue Victor Hugo")
+                        .put("name", "Avenue Jean Jaurès");
+                case "street-only" -> result.putObject("namedetails").put("name", "Avenue Jean Jaurès");
+                case "ref-only" -> result.putObject("namedetails").put("ref", "D 11");
+                case "top-level" -> result.put("name", "Avenue Jean Jaurès");
+                case "address.road" -> result.putObject("address").put("road", "Avenue Jean Jaurès");
+                case "non-road" -> { result.put("category", "building"); result.put("name", "Avenue Jean Jaurès"); }
+                default -> { }
+            }
+            var provider = provider(store, new OpenStreetMapClient() {
+                @Override public JsonNode reverseLookup(double lat, double lon) { return result; }
+            });
+            provider.loadCache();
+            provider.refreshWayMappings(1);
+            JsonNode saved = JSON.readTree(store.objects.get("mappings.json")).get("counter");
+            assertEquals(field, field.equals("missing") ? "NEEDS_REVIEW" : field.equals("non-road") ? "NOT_FOUND" : "MATCHED",
+                    saved.get("status").asText());
+            if (field.equals("missing")) assertEquals("missing_osm_street_name", saved.get("reviewReason").asText());
+        }
+    }
+
+    @Test
+    public void newlyAvailableStreetNameDoesNotReevaluateCachedOutcomeUntilMissingReset() throws Exception {
+        Store store = new Store();
+        var oldResult = JSON.createObjectNode().put("osm_type", "way").put("osm_id", 123)
+                .put("category", "highway").put("type", "primary");
+        oldResult.putObject("namedetails").put("ref", "D 12").put("name", "Avenue Jean Jaurès");
+        OSMWayMapping mapping = new OSMWayMapping();
+        mapping.setStatus(OSMWayMappingStatus.NEEDS_REVIEW);
+        mapping.setLatitude(43.5);
+        mapping.setLongitude(3.2);
+        mapping.setLastLookupLatitude(43.5);
+        mapping.setLastLookupLongitude(3.2);
+        mapping.setReverseLookupResult(oldResult);
+        mapping.setSourceRoadReference("D0011");
+        store.objects.put("mappings.json", JSON.writeValueAsBytes(Map.of("counter", mapping)));
+        List<Double> lookups = new ArrayList<>();
+        var provider = provider(store, new OpenStreetMapClient() {
+            @Override public JsonNode reverseLookup(double lat, double lon) {
+                lookups.add(lat);
+                return oldResult;
+            }
+        });
+        provider.loadCache();
+        provider.mergeRequests(new OSMRequests(Map.of("counter",
+                new OSMRequests.ReverseLookup(43.5, 3.2, "D0011", "JEAN JAURES (AVENUE)")), java.util.Set.of()));
+        assertEquals(0, provider.getPendingReverseLookupCount());
+        provider.refreshWayMappings(1);
+        assertTrue(lookups.isEmpty());
+        var cache = (com.fasterxml.jackson.databind.node.ObjectNode) JSON.readTree(store.objects.get("mappings.json"));
+        var record = (com.fasterxml.jackson.databind.node.ObjectNode) cache.get("counter");
+        assertEquals("NEEDS_REVIEW", record.get("status").asText());
+        assertEquals("BOTH", record.get("sourceMatchCriteria").asText());
+        record.put("status", "MISSING");
+        store.objects.put("mappings.json", JSON.writeValueAsBytes(cache));
+        provider.loadCache();
+        assertEquals(1, provider.getPendingReverseLookupCount());
+        provider.refreshWayMappings(1);
+        assertEquals(List.of(43.5), lookups);
+        assertEquals("MATCHED", JSON.readTree(store.objects.get("mappings.json")).get("counter").get("status").asText());
+    }
+
+    @Test
     public void appliesReferenceMatrixAndCountsProcessedAndAllStatuses() throws Exception {
         Store store = new Store();
         Map<String, OSMWayMapping> mappings = new LinkedHashMap<>();

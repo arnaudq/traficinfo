@@ -87,7 +87,7 @@ public class GeoJsonParserTest extends ParserBaseTest {
             List<String> mappingRequests = new ArrayList<>();
             Set<Long> tagRequests = new LinkedHashSet<>();
             OSMInfoProvider provider = new OSMInfoProvider() {
-                @Override public Long getWayId(String id, Point point, String roadReference) {
+                @Override public Long getWayId(String id, Point point, String roadReference, String streetName) {
                     mappingRequests.add(id);
                     return 321L;
                 }
@@ -295,7 +295,7 @@ public class GeoJsonParserTest extends ParserBaseTest {
                 FeatureCollection reused = new FeatureCollection();
                 reused.add(supplied);
                 OSMInfoProvider provider = new OSMInfoProvider() {
-                    @Override public Long getWayId(String id, Point point, String ref) {
+                    @Override public Long getWayId(String id, Point point, String ref, String streetName) {
                         return oneway.equals("missing-id") ? null : 123L;
                     }
                     @Override public OSMWayInfo getWayInfo(long id) {

@@ -59,6 +59,7 @@ public final class ONISRAccident implements Accident {
   @Override public String getRegionalId() { return regionalId; }
   @Override public String getMunicipalityId() { return municipalityId; }
   @Override public String getAddress() { return address; }
+  @Override public String getStreetName() { return address; }
   public Double getLatitude() { return latitude; }
   public Double getLongitude() { return longitude; }
   @Override public Long getOsmWayId() { return osmWayId; }

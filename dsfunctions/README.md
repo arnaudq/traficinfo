@@ -411,12 +411,12 @@ and persistence using `org.traficinfo.dsfunctions.OpenStreetMapClient` for OSM
 requests. GeoJSON publication calls `loadCache()` before rendering, then uses
 `OSMRequestCollector` for cache-only lookups. After both populations are uploaded,
 the collector publishes `<sourceId>_OSMRequests.json` with `reverseLookups` keyed
-by counter ID (latitude, longitude, optional source road reference) and a
+by counter ID (latitude, longitude, optional source road reference and street name) and a
 `wayTagRefreshes` array of positive IDs. Both sections are always written, even
 when empty, so a later run clears satisfied or removed requests. The cache maps
 remain private; only the OSM function changes and persists them. Parsers use the
 `org.traficinfo.parsers.OSMInfoProvider` interface, which exposes `OSMWayInfo getWayInfo(long wayId)` and the cache-only
-`getWayId(centraleId, point, roadReference)` lookup.
+`getWayId(centraleId, point, roadReference, streetName)` lookup.
 
 The JSON object is keyed by OSM way ID. Each record contains `lastUpdated`, an
 ISO 8601 UTC timestamp of the successful fetch, and `tags`, all tag values
@@ -596,16 +596,35 @@ an accepted `type`, or an accepted `extratags.highway` value. This permits road
 ways classified by Nominatim as administrative boundaries. Nodes, relations,
 and ways without a supported road classification (such as steps or buildings)
 are rejected. `footway`, `cycleway`, `path`, `pedestrian`, and `track` are accepted for every counter
-regardless of transport type or bicycle-access tags; reference checks still apply. When a source road reference exists, the OSM `namedetails.ref` must
-match after removing spacing, punctuation, and leading zeroes from each number
+regardless of transport type or bicycle-access tags; reference checks still apply. A supplied source road reference is compared with OSM `namedetails.ref`
+after removing spacing, punctuation, and leading zeroes from each number
 following a letter (`D0011` matches `D 11`; `D0111E01` matches `D 111E1`).
-A change from `D 11` to `M 11` requires review rather than automatic assignment.
-Without a source reference, a road way may be accepted by its classification.
+A differing/missing reference alone requires review. Optional `sourceStreetName`
+is compared with `namedetails["name:fr"]`, `namedetails.name`, `name`, and
+`address.road`. It is populated from ONISR `adr`, separately from the numeric
+road reference, and from sources' dedicated street-name fields. Names are
+uppercased, accents/punctuation/spacing normalized, and common French street-type
+abbreviations expanded. Recognized trailing types are moved to the beginning:
+`JEAN JAURES (AVENUE)` matches `Avenue Jean Jaurès`. Leading house numbers are
+removed only before a recognized street type; name words/numbers are otherwise
+preserved. Matching is exact after normalization.
+
+When both identifiers are supplied, a matching reference **or** street name
+accepts the candidate. When neither is supplied, highway classification is
+sufficient. `sourceMatchCriteria` reports `NONE`, `ROAD_REFERENCE`, `STREET_NAME`,
+or `BOTH`; it describes available source values, not which ones matched.
+`sourceStreetName` and the matched/first available `osmStreetName` are retained
+for review. Street-only failures use `missing_osm_street_name` or
+`different_street_name`; both supplied but neither matched uses
+`no_matching_road_reference_or_street_name`. The existing reference-only reasons
+remain unchanged. See the [decision tables](../specs/osm-data.md#street-name-comparison-and-combined-criteria).
+Existing assignments and cached outcomes are not automatically re-evaluated;
+the new criteria apply to new/reset lookups only.
 Reverse geocoding can still select a nearby different street; see the
 [Nominatim reverse API](https://nominatim.org/release-docs/latest/api/Reverse/).
 
 Successful results populate `osmWayId` and set `status` to `MATCHED`.
-Road-reference mismatches or missing OSM references set `NEEDS_REVIEW`, with
+When no supplied identifier matches, the candidate is `NEEDS_REVIEW`, with
 `candidateOsmWayId`, `osmRoadReference`, and `reviewReason`; the usable ID remains
 unset. Responses without a suitable road way set `NOT_FOUND`. Responses and the
 query coordinates are saved in `reverseLookupResult`, `lastLookupLatitude`, and
