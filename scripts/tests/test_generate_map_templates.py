@@ -23,6 +23,22 @@ class MapGenerationTest(unittest.TestCase):
         self.config = GENERATOR.read_json(ROOT / "mapconfig.json")
         self.sources = GENERATOR.read_json(ROOT / "dsconfig.json")
 
+    def test_boundary_relationship_validation(self):
+        invalid_changes = [
+            ("boundary key mismatch", lambda c: c["boundaries"]["epci:243400017"].update(boundaryId="wrong")),
+            ("unknown type", lambda c: c["boundaries"]["epci:243400017"].update(type="epci")),
+            ("wrong parent type", lambda c: c["boundaries"]["epci:243400017"].update(parentId="epci:243000643")),
+            ("region parent", lambda c: c["boundaries"]["departement:34"].update(parentId="departement:30")),
+            ("missing map boundary", lambda c: c["maps"]["MMM"].update(boundaryId="missing")),
+            ("unsafe path", lambda c: c["boundaries"]["departement:34"].update(geoJsonPath="boundaries/../34.geojson")),
+        ]
+        for label, change in invalid_changes:
+            with self.subTest(label=label):
+                config = deepcopy(self.config)
+                change(config)
+                with self.assertRaises(ValueError):
+                    GENERATOR.validate(config, self.sources)
+
     def test_maps_use_source_ids_and_keep_umap_placeholders(self):
         base = GENERATOR.read_json(ROOT / "map-templates/templates/map.json")
         layer = GENERATOR.read_json(ROOT / "map-templates/templates/layer.json")

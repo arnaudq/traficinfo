@@ -46,8 +46,36 @@ def number(value):
 
 def validate(config, sources):
     require(isinstance(config, dict), "mapconfig must be an object")
-    require(not (config.keys() - {"$schema", "geoJsonBaseUrl", "maps"}),
+    require(not (config.keys() - {"$schema", "geoJsonBaseUrl", "maps", "boundaries"}),
             "Unknown mapconfig field")
+    boundaries = config.get("boundaries")
+    require(isinstance(boundaries, dict) and boundaries,
+            "boundaries must be a nonempty object")
+    for boundary_id, boundary in boundaries.items():
+        require(isinstance(boundary, dict)
+                and not (boundary.keys() - {"boundaryId", "type", "name", "parentId", "geoJsonPath"}),
+                f"{boundary_id}: invalid boundary fields")
+        require(nonempty(boundary_id) and boundary.get("boundaryId") == boundary_id,
+                f"{boundary_id}: key must match boundaryId")
+        kind = boundary.get("type")
+        require(kind in ("region", "city"), f"{boundary_id}: invalid boundary type")
+        require(nonempty(boundary.get("name")), f"{boundary_id}: missing name")
+        path = boundary.get("geoJsonPath")
+        require(nonempty(path) and path.startswith("boundaries/")
+                and path.endswith(".geojson") and ".." not in path.split("/")
+                and "?" not in path and "#" not in path,
+                f"{boundary_id}: invalid geoJsonPath")
+        if boundary_id.startswith("departement:"):
+            require(kind == "region", f"{boundary_id}: departement must have region type")
+        if boundary_id.startswith("epci:"):
+            require(kind == "city", f"{boundary_id}: EPCI must have city type")
+        if kind == "city":
+            parent_id = boundary.get("parentId")
+            parent = boundaries.get(parent_id) if isinstance(parent_id, str) else None
+            require(isinstance(parent, dict) and parent.get("type") == "region",
+                    f"{boundary_id}: parentId must reference a Region boundary")
+        else:
+            require("parentId" not in boundary, f"{boundary_id}: Region must not have parentId")
     url = config.get("geoJsonBaseUrl")
     require(http_url(url) and not urlsplit(url).query and not urlsplit(url).fragment,
             "geoJsonBaseUrl must be an HTTP(S) URL without query or fragment")
@@ -55,13 +83,16 @@ def validate(config, sources):
     require(isinstance(maps, dict) and maps, "maps must be a nonempty object")
     require(isinstance(sources, dict), "dsconfig must be an object")
     allowed = {"id", "name", "description", "center", "zoom", "dataSources",
-               "uri", "properties", "layerProperties"}
+               "uri", "properties", "layerProperties", "boundaryId"}
     for map_id, entry in maps.items():
         require(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", map_id),
                 f"Invalid map ID: {map_id}")
         require(isinstance(entry, dict) and not (entry.keys() - allowed),
                 f"{map_id}: invalid map fields")
         require(entry.get("id") == map_id, f"{map_id}: key must match id")
+        boundary_id = entry.get("boundaryId")
+        require(isinstance(boundary_id, str) and boundary_id in boundaries,
+                f"{map_id}: boundaryId must reference an existing boundary")
         require(all(nonempty(entry.get(k)) for k in ("name", "description")),
                 f"{map_id}: name and description are required")
         center = entry.get("center")

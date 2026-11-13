@@ -1,11 +1,53 @@
 {
   "$schema": "./specs/mapconfig.schema.json",
   "geoJsonBaseUrl": "https://objectstorage.eu-frankfurt-1.oraclecloud.com/n/frivwhhfdcjn/b/traficinfo/o",
+  "boundaries": {
+    "departement:34": {
+      "boundaryId": "departement:34",
+      "type": "region",
+      "name": "Hérault",
+      "geoJsonPath": "boundaries/departements/34.geojson"
+    },
+    "epci:243400017": {
+      "boundaryId": "epci:243400017",
+      "type": "city",
+      "name": "Montpellier Méditerranée Métropole",
+      "parentId": "departement:34",
+      "geoJsonPath": "boundaries/epcis/243400017.geojson"
+    },
+    "departement:30": {
+      "boundaryId": "departement:30",
+      "type": "region",
+      "name": "Gard",
+      "geoJsonPath": "boundaries/departements/30.geojson"
+    },
+    "epci:243000643": {
+      "boundaryId": "epci:243000643",
+      "type": "city",
+      "name": "Communauté d'agglomération de Nîmes Métropole",
+      "parentId": "departement:30",
+      "geoJsonPath": "boundaries/epcis/243000643.geojson"
+    },
+    "departement:76": {
+      "boundaryId": "departement:76",
+      "type": "region",
+      "name": "Seine-Maritime",
+      "geoJsonPath": "boundaries/departements/76.geojson"
+    },
+    "epci:200023414": {
+      "boundaryId": "epci:200023414",
+      "type": "city",
+      "name": "Métropole Rouen Normandie",
+      "parentId": "departement:76",
+      "geoJsonPath": "boundaries/epcis/200023414.geojson"
+    }
+  },
   "maps": {
     "MMM": {
       "id": "MMM",
       "name": "Comptage véhicules - Montpellier",
       "description": "Carte basée sur les données de la métropole de Montpellier et du département de l'Hérault.",
+      "boundaryId": "epci:243400017",
       "center": [
         3.88401,
         43.606499
@@ -32,6 +74,7 @@
       "id": "NIM",
       "name": "Comptage véhicules - Nîmes",
       "description": "Carte basée sur les données de Nîmes Métropole et du département du Gard.",
+      "boundaryId": "epci:243000643",
       "center": [
         4.341316223144532,
         43.85507847990137
@@ -57,6 +100,7 @@
       "id": "MRN",
       "name": "Comptages véhicules et vélos - Métropole Rouen Normandie",
       "description": "Carte basée sur les données de comptage de véhicules et de vélos de la Métropole Rouen Normandie et de véhicules du département de la Seine-Maritime.",
+      "boundaryId": "epci:200023414",
       "center": [
         1.09266,
         49.435218

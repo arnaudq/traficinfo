@@ -130,7 +130,7 @@ registries. The relationships are:
 
 Boundaries must not contain datasource selections or uMap links. Those belong
 exclusively to maps. A map's boundary defines its view territory; datasource
-coverage may extend beyond that boundary, as with departmental sources included
+coverage may extend beyond that boundary, as with sources from départements included
 in a city map. The client must not infer datasource membership from containment.
 
 ### Configuration
@@ -142,18 +142,18 @@ Configuration example for Montpellier:
   "$schema": "./specs/mapconfig.schema.json",
   "geoJsonBaseUrl": "https://objectstorage.eu-frankfurt-1.oraclecloud.com/n/frivwhhfdcjn/b/traficinfo/o",
   "boundaries": {
-    "department:34": {
-      "boundaryId": "department:34",
+    "departement:34": {
+      "boundaryId": "departement:34",
       "type": "region",
       "name": "Hérault",
-      "geoJsonPath": "boundaries/departments/34.geojson"
+      "geoJsonPath": "boundaries/departements/34.geojson"
     },
     "epci:243400017": {
       "boundaryId": "epci:243400017",
       "type": "city",
       "name": "Montpellier Méditerranée Métropole",
-      "parentId": "department:34",
-      "geoJsonPath": "boundaries/epci/243400017.geojson"
+      "parentId": "departement:34",
+      "geoJsonPath": "boundaries/epcis/243400017.geojson"
     }
   },
   "maps": {
@@ -181,8 +181,8 @@ Boundary fields:
 
 | Field | Required | Meaning and constraints |
 | --- | --- | --- |
-| `boundaryId` | Yes | Nonempty URI-like identifier matching the registry key, independent of map and datasource IDs. The scheme identifies the geographic reference system, such as `department:34` or `epci:243400017`. Preserve leading zeros in the official identifier. |
-| `type` | Yes | Application role: exactly `region` or `city`. This determines presentation and interaction independently of the identifier scheme. For France, `department:` boundaries have type `region`, and `epci:` boundaries have type `city`. |
+| `boundaryId` | Yes | Nonempty URI-like identifier matching the registry key, independent of map and datasource IDs. The scheme identifies the geographic reference system, such as `departement:34` or `epci:243400017`. Preserve leading zeros in the official identifier. |
+| `type` | Yes | Application role: exactly `region` or `city`. This determines presentation and interaction independently of the identifier scheme. For France, `departement:` boundaries have type `region`, and `epci:` boundaries have type `city`. |
 | `name` | Yes | Nonempty display name for the territory. |
 | `parentId` | City only | Required for City boundaries and absent for Region boundaries. Identifies the containing Region boundary and expresses geographic containment. |
 | `geoJsonPath` | Yes | Object path relative to `geoJsonBaseUrl`. It must begin with `boundaries/`, end with `.geojson`, and contain no parent directory segments, query or fragment. Join the base and path with one slash, including when the base has no trailing slash. |
@@ -208,9 +208,9 @@ For the initial French coverage, the application concepts map as follows:
 
 | Map | City boundary (EPCI) | City boundaryId | Region boundary (département) | Region boundaryId |
 | --- | --- | --- | --- | --- |
-| MMM | Montpellier Méditerranée Métropole | `epci:243400017` | Hérault | `department:34` |
-| NIM | Communauté d'agglomération de Nîmes Métropole | `epci:243000643` | Gard | `department:30` |
-| MRN | Métropole Rouen Normandie | `epci:200023414` | Seine-Maritime | `department:76` |
+| MMM | Montpellier Méditerranée Métropole | `epci:243400017` | Hérault | `departement:34` |
+| NIM | Communauté d'agglomération de Nîmes Métropole | `epci:243000643` | Gard | `departement:30` |
+| MRN | Métropole Rouen Normandie | `epci:200023414` | Seine-Maritime | `departement:76` |
 
 An administrative outline does not imply that every road inside has counts.
 
@@ -231,12 +231,12 @@ Polygon or MultiPolygon geometry and its `boundaryId` in feature properties.
 The initial published object layout is:
 
 ```text
-boundaries/epci/243400017.geojson
-boundaries/epci/243000643.geojson
-boundaries/epci/200023414.geojson
-boundaries/departments/34.geojson
-boundaries/departments/30.geojson
-boundaries/departments/76.geojson
+boundaries/epcis/243400017.geojson
+boundaries/epcis/243000643.geojson
+boundaries/epcis/200023414.geojson
+boundaries/departements/34.geojson
+boundaries/departements/30.geojson
+boundaries/departements/76.geojson
 boundaries/attribution.json
 ```
 
