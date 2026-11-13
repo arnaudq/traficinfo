@@ -299,6 +299,20 @@ the MMM (MMM + DPT34), NIM (NIM + DPT30), and MRN (vehicles and bicycles)
 uMap files. See the
 [map template README](../map-templates/README.md) for usage and customization.
 
+To publish the overview's Region and City contours, deploy and manually invoke
+the boundary function after setup:
+
+```sh
+./scripts/deploy-functions.sh boundaries
+./scripts/invoke.sh boundaries
+```
+
+The function bundles `mapconfig.json` and overwrites all departements and the
+configured EPCI boundaries in the public bucket on each invocation. It has no
+schedule or event trigger.
+See [boundary refresh](../dsfunctions/README.md#boundary-refresh) for the source
+mapping and publication behavior.
+
 When importing a generated file into uMap, account for
 [bug #3531](https://github.com/umap-project/umap/issues/3531): imported filter
 changes can be lost after saving and reopening. In **Manage filters**, temporarily

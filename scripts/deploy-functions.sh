@@ -21,10 +21,11 @@ functions=(
   'PreprocessingFunction|preprocess|org.traficinfo.dsfunctions.PreprocessingFunction::handleRequest'
   'GeoJsonFunction|geojson|org.traficinfo.dsfunctions.GeoJsonFunction::handleRequest'
   'ONISRAccidentFunction|accidents|org.traficinfo.dsfunctions.ONISRAccidentFunction::handleRequest'
+  'BoundaryFunction|boundaries|org.traficinfo.dsfunctions.BoundaryFunction::handleRequest'
 )
 
 usage() {
-  printf 'Usage: %s [ds | preprocess | geojson | osm | accidents]\n' "$0" >&2
+  printf 'Usage: %s [ds | preprocess | geojson | osm | accidents | boundaries]\n' "$0" >&2
 }
 
 select_functions() {
@@ -47,6 +48,10 @@ select_functions() {
     accidents)
       if [ "$#" -ne 1 ]; then usage; return 1; fi
       functions=('ONISRAccidentFunction|accidents|org.traficinfo.dsfunctions.ONISRAccidentFunction::handleRequest')
+      ;;
+    boundaries)
+      if [ "$#" -ne 1 ]; then usage; return 1; fi
+      functions=('BoundaryFunction|boundaries|org.traficinfo.dsfunctions.BoundaryFunction::handleRequest')
       ;;
     osm)
       if [ "$#" -ne 1 ]; then usage; return 1; fi
@@ -81,6 +86,10 @@ validate_jar() {
     printf 'The fat JAR does not contain bundled dsconfig.json.\n' >&2
     return 1
   fi
+  if ! jar tf "$jar_file" | grep -Fx 'mapconfig.json' >/dev/null; then
+    printf 'The fat JAR does not contain bundled mapconfig.json.\n' >&2
+    return 1
+  fi
   jar_bytes="$(wc -c < "$jar_file" | tr -d '[:space:]')"
   if [ "$jar_bytes" -gt 25000000 ]; then
     printf 'Direct archive upload is limited to 25 MB; this JAR is %s bytes.\n' "$jar_bytes" >&2
@@ -111,7 +120,7 @@ build_function_config() {
       else error("MAX_LOOP_DURATION_SECONDS, MAX_WAY_MAPPINGS_PER_RUN, MAX_SCHEDULED_LOOP_DURATION_SECONDS and MAX_SCHEDULED_WAY_MAPPINGS_PER_RUN must be positive integers fitting in a Java int") end'
     return
   fi
-  if [ "$type" = ds ] || [ "$type" = preprocess ]; then
+  if [ "$type" = ds ] || [ "$type" = preprocess ] || [ "$type" = boundaries ]; then
     jq -cn --arg namespace "$namespace" '{NAMESPACE: $namespace}'
     return
   fi
@@ -267,7 +276,7 @@ main() {
     defined_tags+=("$tags")
     timeout=''
     if [ "$type" = ds ]; then timeout="$(jq -r '[.[] | .datasets[.activeDatasetId].timeoutSeconds // 30] | max' <<< "$sources")"; fi
-    if [ "$type" = preprocess ] || [ "$type" = geojson ] || [ "$type" = accidents ]; then timeout=300; fi
+    if [ "$type" = preprocess ] || [ "$type" = geojson ] || [ "$type" = accidents ] || [ "$type" = boundaries ]; then timeout=300; fi
     timeouts+=("$timeout")
   done
   application_id="$(resolve_application_id)"

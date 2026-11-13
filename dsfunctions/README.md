@@ -4,6 +4,55 @@ The module provides shared retrieval, preprocessing and GeoJSON functions,
 an OSM cache refresh function and a manually invoked ONISR accident function. Retrieval selects its datasource
 from each request and loads the source settings from the bundled configuration.
 
+## Boundary refresh
+
+`org.traficinfo.dsfunctions.BoundaryFunction::handleRequest` is an on-demand
+function accepting `{}`. It reads the bundled root `mapconfig.json`, publishes
+all departements from the official collection and the configured EPCI boundaries
+in the public bucket identified by `geoJsonBaseUrl`. Maven bundles the root registry directly;
+configuration changes require rebuilding and redeploying the function.
+
+| Boundary ID scheme | Source URL |
+| --- | --- |
+| `departement:<id>` | `https://etalab-datasets.geo.data.gouv.fr/contours-administratifs/latest/geojson/departements-100m.geojson`, publishing every feature separately using `properties.code` as `<id>` |
+| `epci:<id>` | `https://geo.api.gouv.fr/epcis/<id>?format=geojson&geometry=contour` |
+
+The département API endpoint returns metadata rather than contours. Download the
+official département FeatureCollection once per invocation and publish every
+departement to `boundaries/departements/<id>.geojson`. For departements already
+in `mapconfig.json`, honor their configured `geoJsonPath`. Publishing additional
+departements does not add them to the registry or the webapp overview; the
+registry still determines which boundaries the client displays. EPCI responses
+are individual GeoJSON Features, downloaded only for configured EPCI boundaries.
+Each selected feature must have the expected source identifier and a nonempty
+WGS84 Polygon or MultiPolygon. The function adds
+`properties.boundaryId`, preserving the source properties and geometry, and
+uploads with `Content-Type: application/geo+json` using the shared gzip storage
+client. It publishes `boundaries/attribution.json` after all boundary uploads.
+The attribution records source URLs, download time and licence. Département
+files record their 100 m simplification; EPCI simplification and release dates
+are null because the source does not expose those values.
+
+Each invocation downloads and overwrites all departements and configured EPCI boundaries. There are
+no origin-change checks, storage reads, immediate retries, schedules or event
+triggers. A download, validation or upload failure stops the invocation and is
+reported as a function failure. Earlier successful uploads remain published;
+rerun manually to refresh the complete set.
+
+After `source ./scripts/setup.sh`:
+
+```sh
+./scripts/deploy-functions.sh boundaries
+./scripts/invoke.sh boundaries
+```
+
+Deployment sets `NAMESPACE` from the shared setup, clears schedule tags and uses
+a 300-second timeout. Authentication uses the resource principal by default,
+with the application's existing Object Storage write permissions. The function
+needs outbound HTTPS access to `geo.api.gouv.fr` and the official contour
+download service, including its redirects. It does not build the webapp
+or generate its public configuration.
+
 Files are gzip-compressed before upload, keeping their original object names and
 content types with `Content-Encoding: gzip`. Compression uses a temporary file
 that is deleted after the upload, including on failure. Readers must support

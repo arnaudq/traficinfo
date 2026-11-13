@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Invoke a traffic data-source, preprocessing, GeoJSON, OSM information, or accident function.
+# Invoke a traffic data-source, preprocessing, GeoJSON, OSM, accident, or boundary function.
 set -euo pipefail
 
 source "${TRAFICINFO_ROOT:?Run source ./scripts/setup.sh first}/scripts/oci-common.sh"
 
 usage() {
-  printf 'Usage: %s <ds|geojson> <data-source-id>\n       %s preprocess <data-source-id> [archive-dataset-id]\n       %s osm\n       %s accidents [refresh]\n' "$0" "$0" "$0" "$0" >&2
+  printf 'Usage: %s <ds|geojson> <data-source-id>\n       %s preprocess <data-source-id> [archive-dataset-id]\n       %s osm\n       %s accidents [refresh]\n       %s boundaries\n' "$0" "$0" "$0" "$0" "$0" >&2
 }
 
 main() {
@@ -31,6 +31,12 @@ main() {
         timeout="$(load_data_sources | jq -r '[.[] | .datasets[.activeDatasetId].timeoutSeconds // 30] | max')"
         if [ "$timeout" -gt 30 ]; then invocation_options+=(--read-timeout "$((timeout + 60))"); fi
       fi
+      ;;
+    boundaries)
+      if [ "$#" -ne 1 ]; then usage; return 1; fi
+      function_name=BoundaryFunction
+      body='{}'
+      invocation_options+=(--read-timeout 360)
       ;;
     accidents)
       if [ "$#" -gt 2 ] || { [ "$#" -eq 2 ] && [ "$2" != refresh ]; }; then usage; return 1; fi

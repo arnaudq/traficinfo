@@ -218,8 +218,9 @@ Use [IGN ADMIN EXPRESS](https://cartes.gouv.fr/rechercher-une-donnee/dataset/IGN
 as the geographic reference for France. The government-published
 [Contours administratifs dataset](https://www.data.gouv.fr/datasets/contours-administratifs)
 provides IGN-derived GeoJSON. Extract EPCI contours for City boundaries and
-département contours for Region boundaries. Use its 100 m simplified contours
-for the initial overview and record the source release used.
+département contours for Region boundaries. The on-demand function uses the
+official 100 m département contours and the government API's delivered EPCI
+contours without additional simplification.
 The [government administrative API](https://geo.api.gouv.fr/decoupage-administratif/epcis)
 also exposes individual contours, for example
 [Montpellier's GeoJSON](https://geo.api.gouv.fr/epcis/243400017?format=geojson&geometry=contour).
@@ -243,6 +244,35 @@ boundaries/attribution.json
 `attribution.json` records the source URL, release date, simplification level,
 licence and attribution for the published files. The Contours administratifs
 dataset is marked ODbL; preserve its applicable attribution and licence metadata.
+
+### On-demand boundary publication
+
+`BoundaryFunction` must read the bundled root `mapconfig.json` and publish all
+departements plus the configured EPCI boundaries on each manual invocation.
+Select the source by identifier
+scheme:
+
+| Scheme | Source and selection |
+| --- | --- |
+| `departement:` | Download the official [100 m département FeatureCollection](https://etalab-datasets.geo.data.gouv.fr/contours-administratifs/latest/geojson/departements-100m.geojson) once per invocation and publish every feature separately, using `properties.code` as the identifier suffix. |
+| `epci:` | Download `https://geo.api.gouv.fr/epcis/<id>?format=geojson&geometry=contour`, using the identifier suffix as `<id>`. |
+
+Upload each validated Feature to its configured `geoJsonPath`, or to
+`boundaries/departements/<id>.geojson` for departements absent from the registry,
+in the bucket identified by `geoJsonBaseUrl`, adding
+`properties.boundaryId` while retaining the source geometry and properties.
+
+The function must overwrite existing objects without checking whether the
+origin has changed. It must not have a schedule or event trigger. A failure must
+stop the invocation without immediate retries; earlier successful uploads may
+remain published. Publish attribution after all boundary uploads. Publication
+must not add entries to `mapconfig.json`: its configured boundaries continue to
+determine which territories the webapp displays.
+Record source URLs and download time, plus 100 m simplification on département
+file entries; use null for unavailable release dates and EPCI simplification.
+
+The handler, deployment and invocation commands are documented in the
+[function module README](../dsfunctions/README.md#boundary-refresh).
 
 ### Build output and zone catalogue
 

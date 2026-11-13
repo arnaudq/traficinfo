@@ -554,6 +554,20 @@ class OciScriptsTest(unittest.TestCase):
         self.assertIn('--read-timeout', self.state['calls'][-1])
         self.script('invoke.sh', 'ds', 'UNKNOWN', success=False)
 
+    def test_boundary_deployment_and_manual_invocation(self):
+        self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main boundaries')
+        function = next(f for f in self.state['functions'] if f['display-name'] == 'BoundaryFunction')
+        self.assertEqual({'NAMESPACE': 'testnamespace'}, function['config'])
+        self.assertEqual(300, function['timeout-in-seconds'])
+        self.assertEqual({}, function['defined-tags'])
+        self.assertEqual([], self.state['schedules'])
+        self.script('invoke.sh', 'boundaries')
+        call = self.state['calls'][-1]
+        self.assertEqual('ocid1.fnfunc.BoundaryFunction', call[call.index('--function-id') + 1])
+        self.assertEqual({}, json.loads(call[call.index('--body') + 1]))
+        self.assertEqual('360', call[call.index('--read-timeout') + 1])
+        self.script('invoke.sh', 'boundaries', 'MMM', success=False)
+
     def test_invoke_osm_without_data_source_config(self):
         self.config_file.unlink()
         result = self.script('invoke.sh', 'osm')
@@ -587,8 +601,11 @@ class OciScriptsTest(unittest.TestCase):
                     self.state['writes'] = []
                     self.save()
                 self.deploy()
-                self.assertEqual(len(self.state['writes']), 5)
+                self.assertEqual(len(self.state['writes']), 6)
                 functions = {f['display-name']: f for f in self.state['functions']}
+                self.assertEqual({'NAMESPACE': 'testnamespace'}, functions['BoundaryFunction']['config'])
+                self.assertEqual({}, functions['BoundaryFunction']['defined-tags'])
+                self.assertEqual(300, functions['BoundaryFunction']['timeout-in-seconds'])
                 self.assertEqual(functions['ONISRAccidentFunction']['config'],
                                  {'NAMESPACE': 'testnamespace', 'BUCKETNAME_OSM': 'osminfo'})
                 self.assertEqual(functions['ONISRAccidentFunction']['defined-tags'], {})

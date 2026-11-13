@@ -80,6 +80,12 @@
                     <include>dsconfig.json</include>
                 </includes>
             </resource>
+            <resource>
+                <directory>${project.basedir}/..</directory>
+                <includes>
+                    <include>mapconfig.json</include>
+                </includes>
+            </resource>
         </resources>
         <plugins>
             <plugin>
