@@ -1,5 +1,16 @@
 # Map configuration and generation
 
+This specification defines how TraficInfo describes its maps and makes them
+available through generated uMap templates and the webapp. A shared map registry
+connects each map to its traffic-count datasources and geographic boundary.
+Region and City boundaries organize the webapp overview, allowing users to
+discover available maps and open the corresponding uMap.
+
+The sections below define the registry fields, uMap generation rules, boundary
+data and public webapp configuration. The initial webapp interaction displays
+boundary contours and map links; a subsequent release uses the same relationships
+to zoom to a selected map and load its count data on demand.
+
 `mapconfig.json` is the map registry, analogous to the source registry in
 `dsconfig.json`. Its schema is `specs/mapconfig.schema.json` (JSON Schema
 2020-12). The generator also validates references and key/ID consistency, which
@@ -91,16 +102,36 @@ from the dashboard to verify that the imported filter persists.
 ## Webapp territory boundaries
 
 This section specifies the required boundary configuration, publication and
-webapp behavior. The initial release must display the three EPCI territories
-and their associated departments listed below, with territory-specific popups
-linking to the published uMaps. Displaying count layers in the webapp is a
-subsequent release, specified separately below.
+webapp behavior. The initial release must display the three City boundaries
+and their containing Region boundaries listed below, with popups providing
+access to published uMaps. Displaying count layers in the webapp is a subsequent
+release, specified separately below.
 
-`mapconfig.json` must be the source for the public zone catalogue. Each map
-may declare a `boundaries` array describing the administrative territories
-available on the webapp overview. A map may group several territories and
-datasources; each boundary must have its own popup content and source selection.
-A boundary must not implicitly select all sources of its parent map.
+### Geographic model and relationships
+
+Region and City are application concepts, independent of a country's
+administrative terminology. A Region boundary groups City boundaries; a City
+boundary defines the territory of a city map. In France, Region maps to a
+**département** and City maps to an **EPCI**, including métropoles and
+communautés d'agglomération. Region does not mean a French administrative
+région in this specification.
+
+`mapconfig.json` must contain separate top-level `boundaries` and `maps`
+registries. The relationships are:
+
+- A datasource is defined in `dsconfig.json` and may be referenced by several maps.
+- Each map references one boundary through `boundaryId` and declares its own
+  `dataSources`, with the existing ordered source/type selection contract.
+- Each City boundary references its containing Region through `parentId`.
+  A Region can therefore contain multiple city maps through its child boundaries.
+- A Region does not require a map of its own. If one is provided, it is an
+  ordinary map referencing the Region boundary, with the same fields and
+  behavior as a city map. No separate regional-map entity is required.
+
+Boundaries must not contain datasource selections or uMap links. Those belong
+exclusively to maps. A map's boundary defines its view territory; datasource
+coverage may extend beyond that boundary, as with departmental sources included
+in a city map. The client must not infer datasource membership from containment.
 
 ### Configuration
 
@@ -110,37 +141,29 @@ Configuration example for Montpellier:
 {
   "$schema": "./specs/mapconfig.schema.json",
   "geoJsonBaseUrl": "https://objectstorage.eu-frankfurt-1.oraclecloud.com/n/frivwhhfdcjn/b/traficinfo/o",
+  "boundaries": {
+    "department:34": {
+      "boundaryId": "department:34",
+      "type": "region",
+      "name": "Hérault",
+      "geoJsonPath": "boundaries/departments/34.geojson"
+    },
+    "epci:243400017": {
+      "boundaryId": "epci:243400017",
+      "type": "city",
+      "name": "Montpellier Méditerranée Métropole",
+      "parentId": "department:34",
+      "geoJsonPath": "boundaries/epci/243400017.geojson"
+    }
+  },
   "maps": {
     "MMM": {
       "id": "MMM",
       "name": "Comptage véhicules - Montpellier",
       "description": "Carte basée sur les données de la métropole de Montpellier et du département de l'Hérault.",
+      "boundaryId": "epci:243400017",
       "center": [3.88401, 43.606499],
       "zoom": 14,
-      "boundaries": [
-        {
-          "type": "epci",
-          "code": "243400017",
-          "name": "Montpellier Méditerranée Métropole",
-          "geoJsonPath": "boundaries/epci/243400017.geojson",
-          "description": "Comptages de véhicules et de vélos publiés par Montpellier Méditerranée Métropole.",
-          "dataSources": [
-            {"id": "MMM", "types": ["VEHICULES", "BICYCLES"]}
-          ],
-          "uri": "http://umap.openstreetmap.fr/en/map/comptage-vehicules-montpellier_754880"
-        },
-        {
-          "type": "department",
-          "code": "34",
-          "name": "Hérault",
-          "geoJsonPath": "boundaries/departments/34.geojson",
-          "description": "Comptages routiers publiés par le département de l'Hérault.",
-          "dataSources": [
-            {"id": "DPT34", "types": ["VEHICULES"]}
-          ],
-          "uri": "http://umap.openstreetmap.fr/en/map/comptage-vehicules-montpellier_754880"
-        }
-      ],
       "dataSources": [
         {"id": "MMM", "types": ["VEHICULES", "BICYCLES"]},
         {"id": "DPT34", "types": ["VEHICULES"]}
@@ -151,64 +174,52 @@ Configuration example for Montpellier:
 }
 ```
 
-`boundaries` is optional; when present it must be a nonempty array. A map
-without boundaries contributes no territories to the webapp overview. Each
-boundary must contain `type`, `code`, `name`, `description`, `geoJsonPath` and
-`dataSources`. `uri` is optional. Unknown boundary fields must be rejected.
+`boundaries` must be a nonempty object keyed by boundary identifier. Unknown
+boundary fields must be rejected.
 
 Boundary fields:
 
-- `type`: administrative level; the initial supported values are `epci` and
-  `department`. Administrative regions are outside the initial release.
-- `code`: official identifier as a string, preserving leading zeros. Use the
-  EPCI SIREN or the department/region code. The pair `(type, code)` identifies
-  a territory independently of its parent map and datasource IDs.
-- `name` and `description`: minimal territory-specific popup content. An
-  administrative outline does not imply that every road inside has counts.
-- `geoJsonPath`: object path relative to `geoJsonBaseUrl`, resolved by joining
-  the base and path with one slash, including when the base has no trailing slash.
-  It must begin with `boundaries/`, end with `.geojson`, and contain no parent
-  directory segments, query or fragment.
-- `dataSources`: the source/type selection for this territory, using the same
-  structure and nonempty/distinctness rules as the map-level field. Each source
-  and each selected type must be included in the parent map's `dataSources` and
-  reference a GeoJSON-enabled source in `dsconfig.json`.
-- `uri`: the published uMap link for this territory; it may point to the same
-  combined uMap as another boundary. Omit for an unpublished map and do not
-  render a link when absent.
+| Field | Required | Meaning and constraints |
+| --- | --- | --- |
+| `boundaryId` | Yes | Nonempty URI-like identifier matching the registry key, independent of map and datasource IDs. The scheme identifies the geographic reference system, such as `department:34` or `epci:243400017`. Preserve leading zeros in the official identifier. |
+| `type` | Yes | Application role: exactly `region` or `city`. This determines presentation and interaction independently of the identifier scheme. For France, `department:` boundaries have type `region`, and `epci:` boundaries have type `city`. |
+| `name` | Yes | Nonempty display name for the territory. |
+| `parentId` | City only | Required for City boundaries and absent for Region boundaries. Identifies the containing Region boundary and expresses geographic containment. |
+| `geoJsonPath` | Yes | Object path relative to `geoJsonBaseUrl`. It must begin with `boundaries/`, end with `.geojson`, and contain no parent directory segments, query or fragment. Join the base and path with one slash, including when the base has no trailing slash. |
 
-`code`, `name` and `description` must be nonempty strings. Boundary identifiers
-must be distinct within a map. The schema must validate field structure and
-supported types; generation must validate source references, selection subsets
-and identifier uniqueness. Invalid configuration must fail generation.
+Map fields relevant to boundary navigation:
 
-Keep map-level `dataSources`, `center`, `zoom` and `uri` for the combined uMap.
-Do not store CSS, colors, line weights, fill opacity or dash patterns in the
-boundary configuration. The webapp derives presentation and hit behavior from
-`type`, consistently across maps.
+| Field | Required | Meaning and constraints |
+| --- | --- | --- |
+| `boundaryId` | Yes | Reference to an existing boundary defining the map's view territory. Multiple maps may reference the same boundary; the client must offer them individually. |
+| `name`, `description` | Yes | Map-specific popup content, retaining the existing map configuration meanings. |
+| `dataSources` | Yes | Ordered datasource/type selections using the existing contract. |
+| `center`, `zoom` | Yes | Preferred opening view for the generated uMap. |
+| `uri` | No | Published uMap link. Omit for unpublished maps. |
 
-### Territory scope and boundary data
+The schema must validate field structure and the two supported types.
+Generation must validate key/ID consistency, boundary and parent references,
+City-to-Region parent types, and existing datasource reference rules. Invalid
+configuration must fail generation.
 
-The initial three map areas are Montpellier, Nîmes and Rouen, rather than three
-administrative regions. Their EPCI and associated departmental references are:
+### Initial territories and authoritative data
 
-| Map | EPCI | EPCI code | Department | Department code |
+For the initial French coverage, the application concepts map as follows:
+
+| Map | City boundary (EPCI) | City boundaryId | Region boundary (département) | Region boundaryId |
 | --- | --- | --- | --- | --- |
-| MMM | Montpellier Méditerranée Métropole | `243400017` | Hérault | `34` |
-| NIM | Communauté d'agglomération de Nîmes Métropole | `243000643` | Gard | `30` |
-| MRN | Métropole Rouen Normandie | `200023414` | Seine-Maritime | `76` |
+| MMM | Montpellier Méditerranée Métropole | `epci:243400017` | Hérault | `department:34` |
+| NIM | Communauté d'agglomération de Nîmes Métropole | `epci:243000643` | Gard | `department:30` |
+| MRN | Métropole Rouen Normandie | `epci:200023414` | Seine-Maritime | `department:76` |
 
-Nîmes Métropole is a communauté d'agglomération despite its name; the EPCI
-boundary type covers all three intercommunal territories. Their sources span
-two administrative regions, Occitanie and Normandie. Departmental boundaries
-provide context for the department-level counts outside the EPCI outlines.
+An administrative outline does not imply that every road inside has counts.
 
 Use [IGN ADMIN EXPRESS](https://cartes.gouv.fr/rechercher-une-donnee/dataset/IGNF_ADMIN-EXPRESS)
-as the geographic reference. The government-published
+as the geographic reference for France. The government-published
 [Contours administratifs dataset](https://www.data.gouv.fr/datasets/contours-administratifs)
-provides IGN-derived GeoJSON for EPCI, departments and regions, with several
-simplification levels. Use its 100 m simplified contours for the initial
-overview and record the source release used.
+provides IGN-derived GeoJSON. Extract EPCI contours for City boundaries and
+département contours for Region boundaries. Use its 100 m simplified contours
+for the initial overview and record the source release used.
 The [government administrative API](https://geo.api.gouv.fr/decoupage-administratif/epcis)
 also exposes individual contours, for example
 [Montpellier's GeoJSON](https://geo.api.gouv.fr/epcis/243400017?format=geojson&geometry=contour).
@@ -216,8 +227,8 @@ also exposes individual contours, for example
 Host prepared boundary files under `boundaries/` in the existing public
 `traficinfo` bucket, rather than fetching the government service on each client
 visit. Each file must be a WGS84 GeoJSON Feature containing one territory's
-Polygon or MultiPolygon geometry. Popup text and source selection stay in the
-map registry. The initial published object layout is:
+Polygon or MultiPolygon geometry and its `boundaryId` in feature properties.
+The initial published object layout is:
 
 ```text
 boundaries/epci/243400017.geojson
@@ -227,77 +238,105 @@ boundaries/departments/34.geojson
 boundaries/departments/30.geojson
 boundaries/departments/76.geojson
 boundaries/attribution.json
-boundaries/catalogue.json
 ```
 
 `attribution.json` records the source URL, release date, simplification level,
 licence and attribution for the published files. The Contours administratifs
 dataset is marked ODbL; preserve its applicable attribution and licence metadata.
 
-### Client discovery and interaction
+### Build output and zone catalogue
 
-Boundary preparation and catalogue generation must be separate from the uMap
-template generator, which retains its no-fetch behavior. Catalogue generation
-must read the prepared local geometry files and fail for missing files, empty
-or invalid geometry, or a territory identifier inconsistent with the registry.
+Keep the authoritative `mapconfig.json` at the repository root. During the
+webapp build, generate `webapp/dist/mapconfig.json` from it and the prepared
+local boundary GeoJSON. The source file must not be moved. The public output
+must contain the `geoJsonBaseUrl`, `boundaries` and `maps` collections needed by
+the client, preserving identifiers, relationships and configured map selections.
+The repository-local `$schema` reference and uMap-only `properties` and
+`layerProperties` overrides must not be included in the public output.
 
-Publish `boundaries/catalogue.json` as an object with a `zones` array. Each
-entry must contain `mapId`, `type`, `code`, `name`, `description`, `geoJsonUrl`,
-`bounds` and `dataSources`, plus `uri` when configured. Copy the boundary fields
-from the registry; resolve `geoJsonUrl` from `geoJsonBaseUrl` and `geoJsonPath`.
-Calculate `bounds` from the prepared geometry in
-`[west, south, east, north]` order. Do not hand-maintain approximate bounding
-boxes in `mapconfig.json`. Entries follow map registry order and then boundary
-array order. A zone selection is identified by `(mapId, type, code)`.
+This public configuration is the **zone catalogue**: the client index of
+available territories and map views. Do not generate a separate
+`boundaries/catalogue.json` or duplicate maps/datasources into boundary entries.
+The client must derive maps directly associated with a boundary from map
+`boundaryId` references, and contained city maps from the `parentId` hierarchy.
 
-The client must load the catalogue from the configured public base URL, then
-fetch the boundary files it references. It must not list bucket objects or
-download count GeoJSON to discover zones. Boundary objects and the catalogue
-must be available through anonymous browser GET requests. Publish referenced
-boundary objects before publishing the catalogue.
+The build must add the following field to each public boundary entry:
 
-In the initial release, clicking a boundary must open its name, description and
-available uMap link without loading count layers or transitioning to a count
-view. A missing `uri` must not produce a broken link. The webapp must render
-EPCI with a strong outline and light fill, and departments with a thin dashed
-outline and no fill. Department interaction must target only the outline,
-leaving EPCI interiors clickable. EPCI layers must be above department layers
-and take precedence where outlines overlap. Map-level popup fields must not
-replace the selected boundary's content.
+| Field | Source | Meaning and constraints |
+| --- | --- | --- |
+| `bounds` | Calculated from the prepared geometry | Four numbers in `[west, south, east, north]` order defining the full territory extent. Must not be manually maintained in the source registry. |
+
+Bounds support navigation and viewport candidate selection before geometry is
+fetched, not exact containment.
+
+Boundary preparation and public configuration generation must be separate from
+the uMap template generator, which retains its no-fetch behavior. Public
+configuration generation must fail for missing files, empty or invalid geometry,
+or a feature `boundaryId` inconsistent with its registry entry. Publish referenced
+boundary objects before deploying the webapp build that references them.
+
+### Initial client discovery and interaction
+
+The client must load `mapconfig.json` from the built webapp and then fetch the
+configured overview boundary files using `geoJsonBaseUrl` and `geoJsonPath`.
+It must not list bucket objects or download count GeoJSON to discover zones.
+Boundary objects and public configuration must be available through anonymous
+browser GET requests.
+
+The webapp must render City boundaries with a strong outline and light fill,
+and Region boundaries with a thin dashed outline and no fill. Region interaction
+must target only the outline, leaving City interiors clickable. City layers must
+be above Region layers and take precedence where outlines overlap.
+
+Clicking a City boundary must open its name and the directly associated maps,
+including each map's name, description and available uMap link. Clicking a
+Region outline must open its name and the maps attached to its child City
+boundaries, plus any map directly attached to the Region itself. A Region with
+no directly attached map must still offer its contained city maps. When only
+one map is available, the popup may display that map directly. A missing `uri`
+must not produce a broken link. Initial interaction must not load count layers
+or transition to a count view.
 
 ### Subsequent release: count layers on demand
 
-The initial release must retain the boundary-specific source/type selections
-and derived bounds needed for this interaction. In the subsequent release,
-clicking a boundary must transition and zoom to that territory's bounds,
-then loads only its declared datasource/type GeoJSON using the existing public
-layer URL contract. Selecting Hérault therefore loads DPT34, while selecting
-Montpellier Métropole loads MMM. Switching zones removes the previous zone's
-count layers; downloaded data may remain cached for reuse. Overview boundary
-layers and count layers must have separate lifecycles so counts can be loaded
-and unloaded without losing the zone selector.
+The initial public configuration must retain the map-specific source/type
+selections and boundary bounds needed for this interaction. In the subsequent
+release, selecting a map must transition and zoom to its referenced boundary's
+bounds, then load only that map's declared datasource/type GeoJSON using the
+existing public layer URL contract. A Region outline with several available
+maps must offer a selection before loading a map; geographic containment must
+not implicitly combine their datasource selections.
 
-If automatic zone selection while panning is added later, catalogue bounds can
-identify candidate territories before loading their geometry or counts. Bounds
-are an extent for navigation and discovery, not an exact containment test.
+Switching maps must remove the previous map's count layers; downloaded data may
+remain cached for reuse. Overview boundary layers and count layers must have
+separate lifecycles so counts can be loaded and unloaded without losing the
+zone selector. A map attached directly to a Region follows this same behavior.
+
+If automatic selection while panning is added later, boundary bounds can identify
+candidate territories before loading their geometry or counts.
 
 ### Initial release acceptance criteria
 
-1. The registry declares all six territories in the scope table, with the
-   correct boundary identifiers and source/type selections.
-2. Schema and generation validation accept the configuration example and reject
-   unsupported boundary fields/types, duplicate identifiers within a map,
-   unknown sources and source/type selections outside the parent map.
-3. All six boundary files, their attribution and the generated catalogue are
-   publicly readable. Catalogue URLs resolve to the intended files, and each
-   generated extent encloses the corresponding geometry.
+1. The registry declares all six boundaries in the scope table, with the correct
+   `region`/`city` types, matching keys and `boundaryId` fields, City-to-Region
+   parent references, and map-to-boundary references.
+2. Schema and generation validation accept the example and reject unsupported
+   fields/types, key/ID mismatches, invalid parents, missing boundary references
+   and unknown datasources. Two maps may reference the same datasource without
+   duplicating its definition in `dsconfig.json`.
+3. All six boundary files and their attribution are publicly readable. Building
+   the webapp generates `webapp/dist/mapconfig.json` with bounds enclosing each
+   geometry, while retaining the root source registry. No separate zone catalogue
+   is required.
 4. The overview displays all six contours with presentation inferred from
    `type`; no boundary-specific style properties occur in the registry.
-5. Clicking an EPCI interior opens that EPCI's popup. Clicking a department
-   outline opens the department's popup, except where an EPCI outline takes
-   precedence. The department interior does not intercept EPCI clicks.
-6. Each popup displays the selected territory's content and configured uMap
-   link. An unpublished territory displays no link. Initial map loading and
-   popup interaction make no count-GeoJSON requests.
-7. uMap template generation continues to use the map-level source selections
+5. Clicking a City interior opens its associated maps. Clicking a Region outline
+   offers its contained city maps and any directly attached map, except where a
+   City outline takes precedence. Region interiors do not intercept City clicks.
+6. Popup links use the selected map's `uri`; unpublished maps display no link.
+   Initial loading and popup interaction make no count-GeoJSON requests.
+7. Datasource selections and uMap links occur only on map records. A Region
+   without its own map remains navigable, and a map attached to a Region uses
+   the same representation and behavior as any other map.
+8. uMap template generation continues to use the map-level source selections
    and does not fetch or add webapp boundary layers to generated `.umap` files.
