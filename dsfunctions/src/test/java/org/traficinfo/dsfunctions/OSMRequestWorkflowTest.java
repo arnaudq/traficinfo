@@ -207,6 +207,52 @@ public class OSMRequestWorkflowTest {
     }
 
     @Test
+    public void unresolvedSubmissionEntriesDoNotOverwriteCachesOrCreateSources() throws Exception {
+        for (String submission : List.of(OSMWayMappingReviewStore.NEEDS_REVIEW_MERGED_OBJECT_NAME,
+                OSMWayMappingReviewStore.NOT_FOUND_MERGED_OBJECT_NAME)) {
+            Store store = new Store();
+            store.put("MRN_OSMWayMapping.json", """
+                    {"review":{"status":"NEEDS_REVIEW","candidateOsmWayId":123,"reviewReason":"different_ref"},
+                     "notFound":{"status":"NOT_FOUND","reviewReason":"no_road_way"}}
+                    """);
+            JsonNode originalMappings = store.json("MRN_OSMWayMapping.json");
+            // Even stale unresolved entries from an export must have no effect on source state.
+            store.put(submission, """
+                    {"MRN":{"review":{"status":"NOT_FOUND"},
+                            "notFound":{"status":"NEEDS_REVIEW","candidateOsmWayId":999}},
+                     "unknown":{"counter":{"status":"NOT_FOUND"}}}
+                    """);
+            assertEquals("OK", new OSMInfoFunction(store, noHttp(), () -> 0L).handleRequest(""));
+            assertEquals(originalMappings, store.json("MRN_OSMWayMapping.json"));
+            assertFalse(store.objects.containsKey("unknown_OSMWayMapping.json"));
+            assertFalse(store.objects.containsKey("unknown_OSMInfo.json"));
+            assertFalse(store.objects.containsKey(submission));
+            assertEquals(List.of(submission), store.deleted);
+            JsonNode review = store.json(OSMWayMappingReviewStore.OBJECT_NAME);
+            assertEquals(123, review.get("MRN").get("review").get("candidateOsmWayId").asInt());
+            assertFalse(review.has("unknown"));
+            assertTrue(store.json(OSMWayMappingReviewStore.NOT_FOUND_OBJECT_NAME).get("MRN").has("notFound"));
+        }
+    }
+
+    @Test
+    public void invalidApprovalAlongsideUnresolvedEntriesPreservesSubmission() throws Exception {
+        for (String submission : List.of(OSMWayMappingReviewStore.NEEDS_REVIEW_MERGED_OBJECT_NAME,
+                OSMWayMappingReviewStore.NOT_FOUND_MERGED_OBJECT_NAME)) {
+            Store store = new Store();
+            store.put(submission, """
+                    {"MRN":{"review":{"status":"NEEDS_REVIEW","candidateOsmWayId":123},
+                            "notFound":{"status":"NOT_FOUND"},
+                            "invalid":{"status":"MATCHED"}}}
+                    """);
+            assertFunctionFailure(() -> new OSMInfoFunction(store, noHttp(), () -> 0L).handleRequest(""));
+            assertTrue(store.objects.containsKey(submission));
+            assertTrue(store.writes.isEmpty());
+            assertTrue(store.deleted.isEmpty());
+        }
+    }
+
+    @Test
     public void submissionUploadedAfterStartupIsNotDeleted() throws Exception {
         Store store = new Store() {
             @Override public List<String> listResources() {

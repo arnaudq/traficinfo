@@ -261,8 +261,13 @@ Both submission files use the same format:
 }
 ```
 
-Only include the decisions being submitted in each file. There is no need to
-combine decisions from the two review files. `candidateOsmWayId` is the approved
+Each submission may contain only the decisions being submitted or the whole
+review export with selected entries edited. `NEEDS_REVIEW` and `NOT_FOUND`
+entries are ignored; they remain unresolved in the caches and appear again in
+the generated review exports. Missing or unexpected statuses are rejected.
+Every `MATCHED` entry requires a nonblank counter ID and a positive
+`candidateOsmWayId`. There is no need to combine decisions from the two review
+files. `candidateOsmWayId` is the approved
 positive way ID, whether it confirms the original candidate or supplies a
 different one. The OSM function preserves the source record's original
 `reverseLookupResult` when applying an approval.

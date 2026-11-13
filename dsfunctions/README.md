@@ -492,7 +492,14 @@ and `status` dimensions. Counts match the all-record status totals, including ze
 for empty categories. See the [monitoring specification](../specs/monitoring.md#osmwaymappings)
 for metric definitions, configuration and publication behavior.
 
-`org.traficinfo.dsfunctions.OSMInfoFunction::handleRequest` lists the objects in
+`org.traficinfo.dsfunctions.OSMInfoFunction::handleRequest` selects the invocation
+limits and delegates to a new `OSMMappingRefresher` for each run. Its separate
+steps load reviews, discover sources, load caches and approvals, allocate and
+perform lookups, save review exports, delete processed submissions, and publish
+metrics. `OSMWayMappingReviewStore` loads and validates approval submissions,
+filtering out unresolved entries before they reach the source providers.
+
+The refresher lists the objects in
 `osminfo`, shuffles the list, and discovers sources from `_OSMRequests.json` and
 `_OSMWayMapping.json` suffixes. A source with only requests starts with empty
 caches. For each source it loads the mapping and matching `<prefix>_OSMInfo.json`
@@ -529,10 +536,12 @@ corresponds to their review export:
 - `OSMWayMapping_NOT_FOUND_MERGED.json` for `NOT_FOUND` decisions.
 
 Both use data source prefix → counter ID →
-`{"status":"MATCHED","candidateOsmWayId":789}`. Include only the decisions
-being submitted in each file; there is no need to combine the two exports.
+`{"status":"MATCHED","candidateOsmWayId":789}` for approvals. You may submit a
+whole review export after editing selected entries: unchanged `NEEDS_REVIEW`
+and `NOT_FOUND` entries are ignored and remain unresolved in the caches. There
+is no need to combine the two exports. Missing or unexpected statuses are rejected.
 
-At startup OSM reads both submissions when present, validates all decision fields,
+At startup OSM reads both submissions when present, validates approval fields,
 assigns each approved positive candidate ID to `osmWayId`, clears the candidate
 and review reason, updates `lastUpdated`, and persists the source mapping.
 Missing/stale tags are queued for refresh. Existing positive assignments are

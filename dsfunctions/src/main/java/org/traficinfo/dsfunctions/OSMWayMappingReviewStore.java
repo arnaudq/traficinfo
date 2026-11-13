@@ -66,6 +66,27 @@ class OSMWayMappingReviewStore {
         }
     }
 
+    /** Load a submission, leaving unresolved entries out of the approval decisions. */
+    Map<String, Map<String, OSMWayMapping>> loadApprovals() throws IOException {
+        Map<String, Map<String, OSMWayMapping>> approvals = new TreeMap<>();
+        load().forEach((source, records) -> {
+            if (source == null || source.isBlank()) throw new IllegalArgumentException("Approval source is required");
+            Map<String, OSMWayMapping> decisions = new TreeMap<>();
+            records.forEach((counterId, decision) -> {
+                if (decision.getStatus() == OSMWayMappingStatus.NEEDS_REVIEW
+                        || decision.getStatus() == OSMWayMappingStatus.NOT_FOUND) return;
+                if (counterId == null || counterId.isBlank() || decision.getStatus() != OSMWayMappingStatus.MATCHED
+                        || decision.getCandidateOsmWayId() == null || decision.getCandidateOsmWayId() <= 0) {
+                    throw new IllegalArgumentException("Approval requires counter ID, MATCHED status, and positive candidateOsmWayId: "
+                            + source + "/" + counterId);
+                }
+                decisions.put(counterId, decision);
+            });
+            if (!decisions.isEmpty()) approvals.put(source, decisions);
+        });
+        return approvals;
+    }
+
     SaveResult save(Map<String, Map<String, OSMWayMapping>> review) throws IOException {
         Map<String, Map<String, OSMWayMapping>> current = snapshot(review);
         Map<String, Map<String, OSMWayMapping>> previous = previousReview == null ? Map.of() : previousReview;

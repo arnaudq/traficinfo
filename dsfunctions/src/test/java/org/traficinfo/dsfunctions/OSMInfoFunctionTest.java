@@ -322,7 +322,7 @@ public class OSMInfoFunctionTest {
         approved.put("status", "MATCHED");
         approved.put("candidateOsmWayId", 777);
         store.objects.put(OSMWayMappingReviewStore.NEEDS_REVIEW_MERGED_OBJECT_NAME,
-                json.writeValueAsString(Map.of("DPT30", Map.of("counter", approved))));
+                json.writeValueAsString(review)); // Submit the whole export, including the unresolved DPT34 entry.
         metrics.clear();
         assertEquals("OK", function.handleRequest(""));
         assertEquals(8, metrics.size());
@@ -380,7 +380,7 @@ public class OSMInfoFunctionTest {
         approval.put("candidateOsmWayId", 777);
         approval.put("status", "MATCHED");
         store.objects.put(OSMWayMappingReviewStore.NOT_FOUND_MERGED_OBJECT_NAME,
-                json.writeValueAsString(Map.of("DPT34", Map.of("missingRoad", approval))));
+                json.writeValueAsString(notFound)); // Leave the other NOT_FOUND entry unchanged.
         assertEquals("OK", function.handleRequest(""));
         JsonNode saved = json.readTree(store.objects.get("DPT34_OSMWayMapping.json")).get("missingRoad");
         assertEquals("MATCHED", saved.get("status").asText());
@@ -452,7 +452,16 @@ public class OSMInfoFunctionTest {
         for (String reviewName : List.of(OSMWayMappingReviewStore.NEEDS_REVIEW_MERGED_OBJECT_NAME, OSMWayMappingReviewStore.NOT_FOUND_MERGED_OBJECT_NAME)) {
             for (String document : List.of("invalid", "null", "{} trailing", "{\"DPT30\":null}",
                     "{\"DPT30\":{\"counter\":null}}",
-                    "{\"DPT30\":{\"counter\":{\"status\":\"MATCHED\",\"candidateOsmWayId\":0}}}")) {
+                    "{\"DPT30\":{\"counter\":{}}}",
+                    "{\"DPT30\":{\"counter\":{\"status\":null}}}",
+                    "{\"DPT30\":{\"counter\":{\"status\":\"UNKNOWN\"}}}",
+                    "{\"DPT30\":{\"counter\":{\"status\":\"MISSING\",\"candidateOsmWayId\":123}}}",
+                    "{\"DPT30\":{\"counter\":{\"status\":\"MATCHED\"}}}",
+                    "{\"DPT30\":{\"counter\":{\"status\":\"MATCHED\",\"candidateOsmWayId\":null}}}",
+                    "{\"DPT30\":{\"counter\":{\"status\":\"MATCHED\",\"candidateOsmWayId\":0}}}",
+                    "{\"DPT30\":{\"counter\":{\"status\":\"MATCHED\",\"candidateOsmWayId\":-1}}}",
+                    "{\"DPT30\":{\" \":{\"status\":\"MATCHED\",\"candidateOsmWayId\":123}}}",
+                    "{\" \":{\"counter\":{\"status\":\"MATCHED\",\"candidateOsmWayId\":123}}}")) {
                 Store store = new Store();
                 store.objects.put(reviewName, document);
                 store.objects.put("DPT30_OSMWayMapping.json", "{}");
@@ -516,22 +525,22 @@ public class OSMInfoFunctionTest {
         demand.put("DPT30", 20);
         demand.put("DPT34", 20);
         assertEquals(Map.of("MMM", 0, "DPT30", 6, "DPT34", 6),
-                OSMInfoFunction.allocateReverseLookups(demand, 12));
+                OSMMappingRefresher.allocateReverseLookups(demand, 12));
         demand.put("MMM", 2);
         assertEquals(Map.of("MMM", 2, "DPT30", 5, "DPT34", 5),
-                OSMInfoFunction.allocateReverseLookups(demand, 12));
+                OSMMappingRefresher.allocateReverseLookups(demand, 12));
         demand.put("MMM", 20);
         assertEquals(Map.of("MMM", 4, "DPT30", 4, "DPT34", 3),
-                OSMInfoFunction.allocateReverseLookups(demand, 11));
+                OSMMappingRefresher.allocateReverseLookups(demand, 11));
         assertEquals(Map.of("MMM", 1, "DPT30", 1, "DPT34", 0),
-                OSMInfoFunction.allocateReverseLookups(demand, 2));
+                OSMMappingRefresher.allocateReverseLookups(demand, 2));
         assertEquals(Map.of("DPT34", 12),
-                OSMInfoFunction.allocateReverseLookups(Map.of("DPT34", 20), 12));
+                OSMMappingRefresher.allocateReverseLookups(Map.of("DPT34", 20), 12));
         assertEquals(Map.of("DPT34", 3),
-                OSMInfoFunction.allocateReverseLookups(Map.of("DPT34", 3), 12));
+                OSMMappingRefresher.allocateReverseLookups(Map.of("DPT34", 3), 12));
         assertEquals(Map.of("DPT34", 0),
-                OSMInfoFunction.allocateReverseLookups(Map.of("DPT34", 0), 12));
-        assertTrue(OSMInfoFunction.allocateReverseLookups(Map.of(), 12).isEmpty());
+                OSMMappingRefresher.allocateReverseLookups(Map.of("DPT34", 0), 12));
+        assertTrue(OSMMappingRefresher.allocateReverseLookups(Map.of(), 12).isEmpty());
     }
 
     @Test
