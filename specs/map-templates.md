@@ -284,6 +284,12 @@ the client, preserving identifiers, relationships and configured map selections.
 The repository-local `$schema` reference and uMap-only `properties` and
 `layerProperties` overrides must not be included in the public output.
 
+The webapp's preparation step must download the configured, already-published
+boundary files into `webapp/.cache/boundaries/` before development or production
+builds. The build must derive bounds from these local files, not from manually
+maintained extents or from the national source dataset. The cache is generated
+output and must not be committed.
+
 This public configuration is the **zone catalogue**: the client index of
 available territories and map views. Do not generate a separate
 `boundaries/catalogue.json` or duplicate maps/datasources into boundary entries.

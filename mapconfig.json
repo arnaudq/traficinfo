@@ -99,6 +99,7 @@
     "MRN": {
       "id": "MRN",
       "name": "Comptages véhicules et vélos - Métropole Rouen Normandie",
+      "uri": "https://umap.openstreetmap.fr/en/map/comptage-vehicules-rouen_1475742",
       "description": "Carte basée sur les données de comptage de véhicules et de vélos de la Métropole Rouen Normandie et de véhicules du département de la Seine-Maritime.",
       "boundaryId": "epci:200023414",
       "center": [

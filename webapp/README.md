@@ -1,7 +1,10 @@
 # TraficInfo webapp
 
-Minimal static single-page prototype: a TraficInfo header and a Leaflet map
-centered on metropolitan France, with OpenStreetMap France's `osmfr` tiles.
+Static boundary overview centered on metropolitan France, with OpenStreetMap
+France's `osmfr` tiles. City boundaries have a solid outline and light fill;
+Region boundaries have an unfilled dashed outline. Click a City or Region
+outline to open its available maps, or use the keyboard-accessible map list.
+For France, Cities correspond to EPCI and Regions to départements.
 
 ## Prerequisites and installation
 
@@ -22,7 +25,8 @@ npm run dev
 ```
 
 Open the local URL printed by Vite, usually <http://localhost:5173>.
-An internet connection is required to install packages and load map tiles.
+An internet connection is required to install packages, prepare boundaries and
+load map tiles and boundary layers.
 Leaflet itself is bundled into the website, rather than fetched from a CDN
 by the browser.
 
@@ -30,27 +34,63 @@ by the browser.
 
 Run these commands from `webapp/`:
 
-| Command                | Purpose                                                  |
-| ---------------------- | -------------------------------------------------------- |
-| `npm ci`               | Install the versions recorded in the lockfile            |
-| `npm run dev`          | Start the development server with live updates           |
-| `npm run lint`         | Catch common JavaScript mistakes                         |
-| `npm run format`       | Apply consistent formatting                              |
-| `npm run format:check` | Check formatting without changing files                  |
-| `npm run build`        | Generate the deployable website in `dist/`               |
-| `npm run preview`      | Serve the production build locally, usually on port 4173 |
+| Command                      | Purpose                                                  |
+| ---------------------------- | -------------------------------------------------------- |
+| `npm ci`                     | Install the versions recorded in the lockfile            |
+| `npm run dev`                | Start the development server with live updates           |
+| `npm run lint`               | Catch common JavaScript mistakes                         |
+| `npm test`                   | Test configuration, bounds and territory relationships   |
+| `npm run prepare:boundaries` | Download configured contours into the local build cache  |
+| `npm run format`             | Apply consistent formatting                              |
+| `npm run format:check`       | Check formatting without changing files                  |
+| `npm run build`              | Generate the deployable website in `dist/`               |
+| `npm run preview`            | Serve the production build locally, usually on port 4173 |
 
 `npm run preview` requires a successful build first. Node.js and npm are
 development/build tools; the published site runs entirely in the browser.
+
+## Boundary configuration and build
+
+The root `mapconfig.json` is the authoritative map and boundary registry. Each
+map references a boundary and selects its datasources; City boundaries reference
+their containing Region. A Region popup lists its child City maps and any map
+attached directly to the Region. Maps without a published `uri` have no uMap link.
+The client initially loads contours only, without traffic-count GeoJSON.
+
+`npm run dev` and `npm run build` automatically run `prepare:boundaries`. This
+downloads only configured contours from the public bucket to the ignored
+`.cache/boundaries/` directory and validates their identifiers and geometry.
+Publish those files with `BoundaryFunction` before building the website.
+
+The Vite plugin reads the prepared local files, calculates each territory's
+`bounds` as `[west, south, east, north]`, and emits `dist/mapconfig.json`. The
+public copy keeps map selections and boundary relationships, omitting the
+repository schema reference and uMap property overrides. The root registry is
+not modified. Missing/invalid geometry or broken registry references fail the
+build. To build again offline from already prepared files, run `npm exec vite build`.
+
+At runtime, the browser reads the site's public configuration and downloads its
+configured contours directly from the bucket. It does not list bucket objects,
+load the entire national dataset or fetch count layers. Extra départements
+published by the boundary function remain hidden until added to the registry.
+Individual contour failures leave other contours and the map list usable.
+
+See the [map specification](../specs/map-templates.md#webapp-territory-boundaries)
+for publication and interaction requirements. Bounds and datasource selections
+are retained for a subsequent release that loads counts for a selected map.
 
 ## Source layout
 
 - `index.html`: page structure and application entry point.
 - `src/main.js`: imports styles and starts the application.
 - `src/map.js`: creates the Leaflet map and base layer.
+- `src/overview.js`: loads overview layers, popups and the accessible map list.
+- `src/territories.js`: boundary URLs, map relationships and geometry validation.
 - `src/styles.css`: application styling.
 - `licences.html`: licences, third-party attribution and access to source code.
 - `build/legal-notices.js`: source revision links and licence publication.
+- `build/prepare-boundaries.js` and `build/map-config.js`: prepared geometry and
+  generated public map configuration.
 - The footers in `index.html` and `licences.html` embed the GitHub Octicons SVG
   directly. Its licence is included in `public/licenses/Octicons.txt`, which
   Vite copies into the built site. GitHub logo usage also follows its
@@ -99,10 +139,11 @@ also be run manually on `main` from the Actions tab.
 Enable it in the repository's **Settings → Pages → Build and deployment →
 Source → GitHub Actions**. The workflow does not change this repository setting.
 
-Only changes under `webapp/`, to the root `LICENSE`, or to the workflow itself
-trigger it. Java-only changes do not redeploy the website. When configuration files such as
-`mapconfig.json` become build inputs, add their paths to both workflow filters.
-The current prototype does not consume them.
+Changes under `webapp/`, to the root `mapconfig.json`, `dsconfig.json`, `LICENSE`,
+or to the workflow itself trigger it. Java-only changes do not redeploy the website.
+The build needs anonymous access to the published boundary objects. Refreshing
+bucket geometry alone does not trigger Pages deployment; run the workflow
+manually when its generated bounds need updating.
 
 Vite generates relative asset URLs so the same output works under a project
 path such as `/traficinfo/` or at the root of a custom domain. The application
@@ -126,8 +167,8 @@ uncommitted edits are not included in the linked source. Commit and push the
 changes before publishing a build. Restart the development server after changing
 the licence texts or checking out another commit.
 
-The prototype displays only the base map; it does not yet load traffic layers,
-`mapconfig.json` or `dsconfig.json`.
+Boundary attribution is displayed on the map. `dsconfig.json` is used only for
+build-time reference validation and is not published to the website.
 
 Keep the visible map attribution and follow the provider's
 [usage policy](https://www.openstreetmap.fr/usage/).

@@ -4,7 +4,7 @@ import prettier from 'eslint-config-prettier';
 import globals from 'globals';
 
 export default defineConfig([
-  globalIgnores(['dist/']),
+  globalIgnores(['dist/', '.cache/']),
   js.configs.recommended,
   {
     files: ['src/**/*.js'],
@@ -13,7 +13,7 @@ export default defineConfig([
     },
   },
   {
-    files: ['*.config.js', 'build/**/*.js'],
+    files: ['*.config.js', 'build/**/*.js', 'test/**/*.js'],
     languageOptions: {
       globals: globals.node,
     },

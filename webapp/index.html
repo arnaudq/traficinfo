@@ -10,6 +10,17 @@
   <body>
     <header class="site-header">
       <h1>Trafic<span>Info</span></h1>
+      <div class="overview-controls">
+        <p id="map-status" role="status">Chargement des territoires…</p>
+        <details class="available-maps">
+          <summary>Cartes disponibles</summary>
+          <div id="available-maps"></div>
+        </details>
+      </div>
+      <div class="map-legend" aria-label="Légende des contours">
+        <span><i class="city-key" aria-hidden="true"></i> Villes</span>
+        <span><i class="region-key" aria-hidden="true"></i> Régions</span>
+      </div>
     </header>
     <main id="map" aria-label="Carte interactive de France" tabindex="0">
       <noscript

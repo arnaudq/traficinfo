@@ -8,11 +8,15 @@
     "node": ">=24.22.2 <25"
   },
   "scripts": {
+    "prepare:boundaries": "node build/prepare-boundaries.js",
+    "predev": "npm run prepare:boundaries",
     "dev": "vite",
     "lint": "eslint . --max-warnings 0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "prebuild": "npm run prepare:boundaries",
     "build": "vite build",
+    "test": "node --test test/*.test.js",
     "preview": "vite preview"
   },
   "dependencies": {

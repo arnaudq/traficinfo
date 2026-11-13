@@ -22,9 +22,101 @@ body {
 }
 
 .site-header {
+  position: relative;
   flex-shrink: 0;
   padding: 16px 24px;
   border-bottom: 1px solid #dce5df;
+}
+
+.overview-controls {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 24px;
+  flex-wrap: wrap;
+  font-size: 14px;
+}
+
+#map-status {
+  margin: 8px 0;
+}
+
+.available-maps summary {
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.available-maps[open] #available-maps {
+  position: absolute;
+  right: 16px;
+  top: 100%;
+  z-index: 1000;
+  width: min(390px, calc(100vw - 32px));
+  max-height: 55vh;
+  overflow-y: auto;
+  padding: 16px;
+  background: #fff;
+  border: 1px solid #dce5df;
+  border-radius: 8px;
+  box-shadow: 0 6px 20px #173c3526;
+}
+
+.map-legend {
+  display: flex;
+  gap: 20px;
+  font-size: 12px;
+}
+
+.map-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.map-legend i {
+  display: inline-block;
+  width: 24px;
+}
+
+.city-key {
+  height: 10px;
+  border: 2px solid #225f4c;
+  background: #28775d29;
+}
+
+.region-key {
+  border-top: 2px dashed #64748b;
+}
+
+.map-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.map-entry + .map-entry {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #dce5df;
+}
+
+.map-entry h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+
+.map-entry p {
+  margin: 0 0 8px;
+  line-height: 1.5;
+}
+
+.territory-popup h2 {
+  margin: 0 0 14px;
+  font-size: 17px;
+}
+
+.leaflet-interactive:focus-visible {
+  outline: 3px solid #d3911d;
 }
 
 h1 {

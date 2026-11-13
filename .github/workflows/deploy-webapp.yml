@@ -5,12 +5,16 @@ on:
     branches: [main]
     paths:
       - 'webapp/**'
+      - 'mapconfig.json'
+      - 'dsconfig.json'
       - 'LICENSE'
       - '.github/workflows/deploy-webapp.yml'
   pull_request:
     branches: [main]
     paths:
       - 'webapp/**'
+      - 'mapconfig.json'
+      - 'dsconfig.json'
       - 'LICENSE'
       - '.github/workflows/deploy-webapp.yml'
   workflow_dispatch:
@@ -37,6 +41,8 @@ jobs:
         run: npm ci
       - name: Check JavaScript
         run: npm run lint
+      - name: Test boundary configuration
+        run: npm test
       - name: Check formatting
         run: npm run format:check
       - name: Build website

@@ -1,11 +1,12 @@
 import { defineConfig } from 'vite';
 import { fileURLToPath } from 'node:url';
 import { legalNotices } from './build/legal-notices.js';
+import { mapConfig } from './build/map-config.js';
 
 export default defineConfig({
   // Relative assets work at /traficinfo/ on Pages and at / on a custom domain.
   base: './',
-  plugins: [legalNotices()],
+  plugins: [legalNotices(), mapConfig()],
   build: {
     rollupOptions: {
       input: {
