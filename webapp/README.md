@@ -38,7 +38,8 @@ Run these commands from `webapp/`:
 | ---------------------------- | -------------------------------------------------------- |
 | `npm ci`                     | Install the versions recorded in the lockfile            |
 | `npm run dev`                | Start the development server with live updates           |
-| `npm run lint`               | Catch common JavaScript mistakes                         |
+| `npm run typecheck`          | Check types in the client, build scripts and tests       |
+| `npm run lint`               | Lint TypeScript and tool configuration                   |
 | `npm test`                   | Test configuration, bounds and territory relationships   |
 | `npm run prepare:boundaries` | Download configured contours into the local build cache  |
 | `npm run format`             | Apply consistent formatting                              |
@@ -82,23 +83,25 @@ are retained for a subsequent release that loads counts for a selected map.
 ## Source layout
 
 - `index.html`: page structure and application entry point.
-- `src/main.js`: imports styles and starts the application.
-- `src/map.js`: creates the Leaflet map and base layer.
-- `src/overview.js`: loads overview layers, popups and the accessible map list.
-- `src/territories.js`: boundary URLs, map relationships and geometry validation.
+- `src/main.ts`: imports styles and starts the application.
+- `src/map.ts`: creates the Leaflet map and base layer.
+- `src/overview.ts`: loads overview layers, popups and the accessible map list.
+- `src/territories.ts`: boundary URLs, map relationships and geometry validation.
+- `src/types.ts`: shared map, boundary, public configuration and GeoJSON types.
+- `tsconfig.json`: strict type checking without emitting JavaScript.
 - `src/styles.css`: application styling.
 - `licences.html`: licences, third-party attribution and access to source code.
-- `build/legal-notices.js`: source revision links and licence publication.
-- `build/prepare-boundaries.js` and `build/map-config.js`: prepared geometry and
+- `build/legal-notices.ts`: source revision links and licence publication.
+- `build/prepare-boundaries.ts` and `build/map-config.ts`: prepared geometry and
   generated public map configuration.
 - The footers in `index.html` and `licences.html` embed the GitHub Octicons SVG
   directly. Its licence is included in `public/licenses/Octicons.txt`, which
   Vite copies into the built site. GitHub logo usage also follows its
   [brand guidelines](https://brand.github.com/foundations/logo).
-- `vite.config.js`: build settings, including relative asset URLs for Pages.
+- `vite.config.ts`: build settings, including relative asset URLs for Pages.
 - `eslint.config.js` and `.prettierrc.json`: code checking and formatting.
 
-Use descriptive names and straightforward JavaScript functions. Add modules
+Use descriptive names and straightforward TypeScript functions. Add modules
 when a feature needs its own responsibility; avoid clever abbreviations and
 code-size shortcuts. JavaScript minification is disabled in the production
 build to keep the generated code readable during prototyping.
@@ -124,6 +127,14 @@ Replace `<version>` with the chosen release. Review changes, run lint,
 format checks and a build, then verify the map in a browser. `npm outdated`
 lists available updates; `npm audit` reports known dependency advisories.
 Review findings before applying fixes, especially major upgrades.
+
+The client, build plugins and tests use TypeScript. Node.js 24 runs the build
+scripts and tests with its built-in type stripping; Vite compiles the browser
+code to JavaScript. Use explicit `.ts` extensions and `import type` for type-only
+imports. Keep syntax compatible with `erasableSyntaxOnly` (no runtime enums or
+parameter properties). Type stripping does not check types: `npm run typecheck`
+runs the compiler, and both `npm run build` and CI require it to pass. Downloaded
+JSON still passes runtime validation.
 
 The application starts at version `0.1.0`; optional release tags can use
 `webapp-v0.1.0` independently of Java releases. Each Actions deployment is also
@@ -155,7 +166,7 @@ The map footer links to `licences.html` and to the Git revision used to build
 the website. The licences page also links to a source archive at that revision,
 the source of the installed Leaflet version, and the complete licence texts.
 
-The Vite plugin in `build/legal-notices.js` reads the root `LICENSE` and the
+The Vite plugin in `build/legal-notices.ts` reads the root `LICENSE` and the
 installed Leaflet package's `LICENSE`. It publishes them as
 `licenses/AGPL-3.0.txt` and `licenses/Leaflet.txt` during development and copies
 them into `dist/` on each build. Do not maintain separate handwritten copies.

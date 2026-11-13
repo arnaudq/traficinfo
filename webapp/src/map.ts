@@ -1,7 +1,7 @@
 import L from 'leaflet';
 
 /** Create the base map inside the given HTML element. */
-export function createMap(elementId) {
+export function createMap(elementId: string): L.Map {
   // Leaflet coordinates are ordered as latitude, longitude.
   const map = L.map(elementId).setView([46.6, 2.4], 6);
 

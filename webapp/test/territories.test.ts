@@ -1,13 +1,15 @@
+import type { Feature, Polygon } from 'geojson';
+import type { BoundaryFeature, MapConfig } from '../src/types.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   boundaryBounds,
   boundaryUrl,
   mapsForBoundary,
-} from '../src/territories.js';
-import { publicConfig, validateRegistry } from '../build/map-config.js';
+} from '../src/territories.ts';
+import { publicConfig, validateRegistry } from '../build/map-config.ts';
 
-function registry() {
+function registry(): MapConfig {
   return {
     $schema: './specs/mapconfig.schema.json',
     geoJsonBaseUrl: 'https://example.org/o',
@@ -58,7 +60,7 @@ function registry() {
   };
 }
 
-function feature(id) {
+function feature(id: string): Feature<Polygon, { boundaryId: string }> {
   return {
     type: 'Feature',
     properties: { boundaryId: id },
@@ -105,7 +107,7 @@ test('base URL joins retain the object directory with or without a trailing slas
 test('bounds cover all polygons and invalid or mismatched geometry is rejected', () => {
   const single = feature('epci:1');
   assert.deepEqual(boundaryBounds(single, 'epci:1'), [2, 43, 4, 45]);
-  const multi = structuredClone(single);
+  const multi: BoundaryFeature = structuredClone(single);
   multi.geometry = {
     type: 'MultiPolygon',
     coordinates: [
@@ -132,11 +134,11 @@ test('public config derives bounds without exposing uMap overrides or mutating s
     feature(boundary.boundaryId),
   );
   assert.deepEqual(output.boundaries['epci:1'].bounds, [2, 43, 4, 45]);
-  assert.equal(output.$schema, undefined);
-  assert.equal(output.maps.A.properties, undefined);
-  assert.equal(output.maps.A.layerProperties, undefined);
-  assert.equal(output.boundaries['epci:1'].dataSources, undefined);
-  assert.equal(config.boundaries['epci:1'].bounds, undefined);
+  assert.equal('$schema' in output, false);
+  assert.equal('properties' in output.maps.A, false);
+  assert.equal('layerProperties' in output.maps.A, false);
+  assert.equal('dataSources' in output.boundaries['epci:1'], false);
+  assert.equal('bounds' in config.boundaries['epci:1'], false);
   assert.deepEqual(output.maps.A.dataSources, config.maps.A.dataSources);
   await assert.rejects(publicConfig(config, async () => feature('wrong')));
   await assert.rejects(
@@ -149,7 +151,7 @@ test('public config derives bounds without exposing uMap overrides or mutating s
 test('registry validation rejects broken references, unsupported fields and invalid selections', () => {
   const sources = { SOURCE: { id: 'SOURCE' } };
   validateRegistry(registry(), sources);
-  for (const change of [
+  const changes: Array<(config: MapConfig) => void> = [
     (config) => {
       config.boundaries['epci:1'].boundaryId = 'wrong';
     },
@@ -157,10 +159,10 @@ test('registry validation rejects broken references, unsupported fields and inva
       config.boundaries['epci:1'].parentId = 'epci:2';
     },
     (config) => {
-      config.boundaries['epci:1'].type = 'epci';
+      Object.assign(config.boundaries['epci:1'], { type: 'epci' });
     },
     (config) => {
-      config.boundaries['epci:1'].style = {};
+      Object.assign(config.boundaries['epci:1'], { style: {} });
     },
     (config) => {
       config.maps.A.boundaryId = 'missing';
@@ -169,9 +171,10 @@ test('registry validation rejects broken references, unsupported fields and inva
       config.maps.A.dataSources[0].id = 'missing';
     },
     (config) => {
-      config.maps.A.dataSources[0].types = ['unknown'];
+      Object.assign(config.maps.A.dataSources[0], { types: ['unknown'] });
     },
-  ]) {
+  ];
+  for (const change of changes) {
     const config = registry();
     change(config);
     assert.throws(() => validateRegistry(config, sources));

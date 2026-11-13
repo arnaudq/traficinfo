@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
-import { readRegistry, preparedDirectory } from './map-config.js';
-import { boundaryBounds, boundaryUrl } from '../src/territories.js';
+import { readRegistry, preparedDirectory } from './map-config.ts';
+import { boundaryBounds, boundaryUrl } from '../src/territories.ts';
 
 const config = await readRegistry();
 await Promise.all(

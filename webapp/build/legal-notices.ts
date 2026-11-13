@@ -1,3 +1,4 @@
+import type { Plugin } from 'vite';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -6,7 +7,7 @@ const repositoryDirectory = fileURLToPath(new URL('../../', import.meta.url));
 const repositoryUrl = 'https://github.com/arnaudq/traficinfo';
 
 /** Publish the same licence texts in development and in the built website. */
-export function legalNotices() {
+export function legalNotices(): Plugin {
   const revision = execFileSync('git', ['rev-parse', 'HEAD'], {
     cwd: repositoryDirectory,
     encoding: 'utf8',
@@ -55,7 +56,8 @@ export function legalNotices() {
     },
     configureServer(server) {
       server.middlewares.use((request, response, next) => {
-        const pathname = new URL(request.url, 'http://localhost').pathname;
+        const pathname = new URL(request.url ?? '/', 'http://localhost')
+          .pathname;
         const licence = licences.find((item) => pathname === `/${item.path}`);
         if (!licence) {
           next();

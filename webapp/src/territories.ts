@@ -1,10 +1,15 @@
+import type { BoundaryFeature, Bounds, MapConfig } from './types.ts';
+
 /** Resolve public Object Storage paths without replacing the final base segment. */
-export function boundaryUrl(base, path) {
+export function boundaryUrl(base: string, path: string): string {
   return `${base.replace(/\/$/, '')}/${path}`;
 }
 
 /** Maps attached to this territory, including child City maps for a Region. */
-export function mapsForBoundary(config, boundaryId) {
+export function mapsForBoundary(
+  config: Pick<MapConfig, 'boundaries' | 'maps'>,
+  boundaryId: string,
+) {
   const ids = new Set([boundaryId]);
   if (config.boundaries[boundaryId].type === 'region') {
     for (const boundary of Object.values(config.boundaries)) {
@@ -15,7 +20,8 @@ export function mapsForBoundary(config, boundaryId) {
 }
 
 /** Validate published polygon geometry and derive its WGS84 extent. */
-export function boundaryBounds(feature, boundaryId) {
+export function boundaryBounds(value: unknown, boundaryId: string): Bounds {
+  const feature = value as Partial<BoundaryFeature> | null;
   if (
     feature?.type !== 'Feature' ||
     feature.properties?.boundaryId !== boundaryId
@@ -29,10 +35,10 @@ export function boundaryBounds(feature, boundaryId) {
       : geometry?.type === 'MultiPolygon'
         ? geometry.coordinates
         : null;
-  const bounds = [Infinity, Infinity, -Infinity, -Infinity];
-  const invalid = () => {
+  const bounds: Bounds = [Infinity, Infinity, -Infinity, -Infinity];
+  function invalid(): never {
     throw new Error(`Géométrie de contour incorrecte : ${boundaryId}`);
-  };
+  }
   if (!Array.isArray(polygons) || polygons.length === 0) invalid();
   for (const polygon of polygons) {
     if (!Array.isArray(polygon) || polygon.length === 0) invalid();
@@ -52,9 +58,19 @@ export function boundaryBounds(feature, boundaryId) {
         bounds[2] = Math.max(bounds[2], point[0]);
         bounds[3] = Math.max(bounds[3], point[1]);
       }
-      if (ring[0].some((value, index) => value !== ring.at(-1)[index]))
+      if (
+        ring[0].some((value, index) => value !== ring[ring.length - 1][index])
+      )
         invalid();
     }
   }
   return bounds;
+}
+
+export function parseBoundaryFeature(
+  value: unknown,
+  boundaryId: string,
+): BoundaryFeature {
+  boundaryBounds(value, boundaryId);
+  return value as BoundaryFeature;
 }
