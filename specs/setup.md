@@ -7,8 +7,12 @@ and maps, see the [README](../README.md).
 ## Environment
 
 Install JDK 25, Node.js 24 (version recorded in `webapp/.nvmrc`), the Fn Project
-CLI, OCI CLI, and `jq`, and place your OCI configuration at
-`~/.oci/config.arnaudq`. Then, from the project root, run:
+CLI, OCI CLI, `jq`, and OpenTofu 1.13 or newer (the `tofu` command), and place your OCI
+configuration at `~/.oci/config.arnaudq`. On macOS with Homebrew, install OpenTofu
+with `brew install opentofu`. See the [infrastructure README](../infra/README.md)
+for the dev gateway configuration and OpenTofu commands.
+
+Then, from the project root, run:
 
 ```sh
 source ./scripts/setup.sh

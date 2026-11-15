@@ -1,0 +1,3 @@
+region         = "<OCI region>"
+compartment_id = "<compartment OCID>"
+namespace      = "<Object Storage namespace>"

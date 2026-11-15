@@ -6,3 +6,13 @@ target
 /webapp/dist/
 /webapp/.cache/
 /webapp/**/*.local
+
+# Infrastructure working directories, state, plans and local settings
+/infra/**/.terraform/
+/infra/**/terraform.tfstate*
+/infra/**/*.tfplan
+/infra/**/crash.log
+/infra/**/crash.*.log
+/infra/**/*.tfvars
+/infra/**/*.tfvars.json
+/infra/**/*.tfbackend

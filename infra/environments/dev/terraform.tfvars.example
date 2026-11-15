@@ -1,0 +1,6 @@
+region         = "<OCI region>"
+compartment_id = "<compartment OCID>"
+subnet_id      = "<public subnet OCID>"
+gateway_name   = "TraficInfoAPIGW"
+state_bucket_name          = "<private state bucket name>"
+function_objects_policy_id = "<existing functions Object Storage policy OCID>"
