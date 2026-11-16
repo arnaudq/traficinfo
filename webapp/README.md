@@ -1,6 +1,6 @@
 # TraficInfo webapp
 
-Static boundary overview centered on metropolitan France, with Jawg tiles
+Static map centered on metropolitan France, with on-demand traffic counts and Jawg tiles
 served through the TraficInfo API Gateway. City boundaries have a solid outline and light fill;
 Region boundaries have an unfilled dashed outline. Click a City or Region
 outline to open its available maps, or use the keyboard-accessible map list.
@@ -40,7 +40,7 @@ Run these commands from `webapp/`:
 | `npm run dev`                | Start the development server with live updates           |
 | `npm run typecheck`          | Check types in the client, build scripts and tests       |
 | `npm run lint`               | Lint TypeScript and tool configuration                   |
-| `npm test`                   | Test configuration, bounds and territory relationships   |
+| `npm test`                   | Test configuration, territories and count data loading   |
 | `npm run prepare:boundaries` | Download configured contours into the local build cache  |
 | `npm run format`             | Apply consistent formatting                              |
 | `npm run format:check`       | Check formatting without changing files                  |
@@ -57,6 +57,24 @@ map references a boundary and selects its datasources; City boundaries reference
 their containing Region. A Region popup lists its child City maps and any map
 attached directly to the Region. Maps without a published `uri` have no uMap link.
 The client initially loads contours only, without traffic-count GeoJSON.
+Choose **Afficher les comptages** in a territory popup or the available-map list
+to zoom to the selected boundary and load its configured source/population
+layers. Departmental sources remain complete layers; counts are not clipped to
+the selected city boundary.
+
+Counts use green (≤1,000/day), blue (≤5,000/day), or red (>5,000/day)
+circles. Bicycle circles are smaller, lighter and dashed. Hover for a count label;
+click a circle or focus it and press Enter/Space for source, counter ID, year,
+average and the published compact history. Vehicle popups include available
+speed fields. Advanced filters, clustering and full history charts are not yet
+implemented.
+
+Switching maps removes previous counts; **Retour aux territoires** unloads them
+and restores the France view. Contours remain independently available. Successful
+downloads are cached for the page session, and requests completed after leaving
+a map cannot restore its layers. Individual layer failures leave successful
+layers visible and identify unavailable sources in the status. Select the map
+again to retry failed downloads; refresh the page to fetch updated cached data.
 
 `npm run dev` and `npm run build` automatically run `prepare:boundaries`. This
 downloads only configured contours from the public bucket to the ignored
@@ -72,13 +90,14 @@ build. To build again offline from already prepared files, run `npm exec vite bu
 
 At runtime, the browser reads the site's public configuration and downloads its
 configured contours directly from the bucket. It does not list bucket objects,
-load the entire national dataset or fetch count layers. Extra départements
-published by the boundary function remain hidden until added to the registry.
+load the entire national dataset or fetch count layers before map selection.
+Extra départements published by the boundary function remain hidden until added
+to the registry.
 Individual contour failures leave other contours and the map list usable.
 
 See the [map specification](../specs/map-templates.md#webapp-territory-boundaries)
 for publication and interaction requirements. Bounds and datasource selections
-are retained for a subsequent release that loads counts for a selected map.
+drive the on-demand count view.
 
 ## Source layout
 
@@ -86,7 +105,10 @@ are retained for a subsequent release that loads counts for a selected map.
 - `src/main.ts`: imports styles and starts the application.
 - `src/map.ts`: creates the Leaflet map and base layer.
 - `src/config.ts`: public basemap URL, zoom limits and provider attribution.
-- `src/overview.ts`: loads overview layers, popups and the accessible map list.
+- `src/overview.ts`: loads overview layers and connects map selection controls.
+- `src/count-data.ts`: framework-independent layer URLs, validation and download cache.
+- `src/count-map.ts`: Leaflet count layers, marker styling and counter popups.
+- `src/dom.ts`: shared text-only HTML element creation.
 - `src/territories.ts`: boundary URLs, map relationships and geometry validation.
 - `src/types.ts`: shared map, boundary, public configuration and GeoJSON types.
 - `tsconfig.json`: strict type checking without emitting JavaScript.

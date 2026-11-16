@@ -1,4 +1,6 @@
 import L from 'leaflet';
+import { element } from './dom.ts';
+import { createCountMap } from './count-map.ts';
 import {
   parseBoundaryFeature,
   boundaryUrl,
@@ -16,20 +18,16 @@ const styles: Record<Boundary['type'], L.PathOptions> = {
   },
 };
 
-function element<K extends keyof HTMLElementTagNameMap>(
-  tag: K,
-  text?: string | null,
-  className?: string,
-): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  if (text) node.textContent = text;
-  if (className) node.className = className;
-  return node;
-}
-
-function mapContent(map: PublicMap): HTMLLIElement {
+function mapContent(
+  map: PublicMap,
+  select: (map: PublicMap) => void,
+): HTMLLIElement {
   const item = element('li', null, 'map-entry');
   item.append(element('h3', map.name), element('p', map.description));
+  const open = element('button', 'Afficher les comptages');
+  open.type = 'button';
+  open.addEventListener('click', () => select(map));
+  item.append(open);
   const url = map.uri ? new URL(map.uri) : null;
   if (url && ['http:', 'https:'].includes(url.protocol)) {
     const link = element('a', 'Ouvrir la carte uMap');
@@ -42,12 +40,13 @@ function mapContent(map: PublicMap): HTMLLIElement {
 function popupContent(
   config: PublicMapConfig,
   boundary: Boundary,
+  select: (map: PublicMap) => void,
 ): HTMLElement {
   const container = element('section', null, 'territory-popup');
   container.append(element('h2', boundary.name));
   const list = element('ul', null, 'map-list');
   for (const map of mapsForBoundary(config, boundary.boundaryId))
-    list.append(mapContent(map));
+    list.append(mapContent(map, select));
   container.append(list);
   return container;
 }
@@ -75,6 +74,32 @@ export async function loadOverview(map: L.Map): Promise<void> {
     return;
   }
 
+  const countStatus = document.getElementById('count-status');
+  const back = document.getElementById('show-overview');
+  const legend = document.getElementById('count-legend');
+  if (!countStatus || !back || !legend)
+    throw new Error('Missing count controls');
+  const counts = createCountMap(map, config, (message) => {
+    countStatus.textContent = message;
+  });
+  const select = (selected: PublicMap) => {
+    back.hidden = false;
+    legend.hidden = false;
+    document.querySelector('details.available-maps')?.removeAttribute('open');
+    void counts.select(selected).catch((error: unknown) => {
+      console.error(error);
+      countStatus.textContent = 'Les comptages ne peuvent pas être affichés.';
+    });
+  };
+  back.addEventListener('click', () => {
+    counts.clear();
+    back.hidden = true;
+    legend.hidden = true;
+    countStatus.textContent = '';
+    map.setView([46.6, 2.4], 6);
+    map.getContainer().focus();
+  });
+
   for (const type of ['region', 'city']) {
     map.createPane(type).style.zIndex = type === 'city' ? '420' : '410';
   }
@@ -86,7 +111,7 @@ export async function loadOverview(map: L.Map): Promise<void> {
   // Also provides keyboard access and map links when an individual contour fails.
   const list = element('ul', null, 'map-list');
   for (const entry of Object.values(config.maps))
-    list.append(mapContent(entry));
+    list.append(mapContent(entry, select));
   availableMaps.replaceChildren(list);
 
   const results = await Promise.allSettled(
@@ -104,7 +129,7 @@ export async function loadOverview(map: L.Map): Promise<void> {
       layer.addTo(map);
       layer.eachLayer((polygon) => {
         if (!(polygon instanceof L.Polygon)) return;
-        polygon.bindPopup(() => popupContent(config, boundary), {
+        polygon.bindPopup(() => popupContent(config, boundary, select), {
           maxWidth: 350,
         });
         const path = polygon.getElement();

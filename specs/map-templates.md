@@ -333,12 +333,14 @@ one map is available, the popup may display that map directly. A missing `uri`
 must not produce a broken link. Initial interaction must not load count layers
 or transition to a count view.
 
-### Subsequent release: count layers on demand
+### Count layers on demand
 
-The initial public configuration must retain the map-specific source/type
-selections and boundary bounds needed for this interaction. In the subsequent
-release, selecting a map must transition and zoom to its referenced boundary's
-bounds, then load only that map's declared datasource/type GeoJSON using the
+Implemented in the webapp through explicit **Afficher les comptages** controls;
+opening a territory popup alone still loads no counts.
+
+The public configuration retains map-specific source/type selections and
+boundary bounds. Selecting a map must transition and zoom to its referenced
+boundary's bounds, then load only that map's declared datasource/type GeoJSON using the
 existing public layer URL contract. A Region outline with several available
 maps must offer a selection before loading a map; geographic containment must
 not implicitly combine their datasource selections.

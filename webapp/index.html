@@ -21,6 +21,18 @@
         <span><i class="city-key" aria-hidden="true"></i> Villes</span>
         <span><i class="region-key" aria-hidden="true"></i> Régions</span>
       </div>
+      <div class="count-controls">
+        <p id="count-status" role="status"></p>
+        <button id="show-overview" type="button" hidden>
+          Retour aux territoires
+        </button>
+      </div>
+      <div id="count-legend" class="count-legend" hidden>
+        <span><i class="low-count" aria-hidden="true"></i> ≤ 1 000/j</span>
+        <span><i class="medium-count" aria-hidden="true"></i> ≤ 5 000/j</span>
+        <span><i class="high-count" aria-hidden="true"></i> &gt; 5 000/j</span>
+        <span>Vélos : petits cercles en pointillés</span>
+      </div>
     </header>
     <main id="map" aria-label="Carte interactive de France" tabindex="0">
       <noscript
