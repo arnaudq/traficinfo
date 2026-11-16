@@ -80,6 +80,8 @@ public final class ONISRAccidentParser implements AccidentParser {
       Map<String, Integer> columns = new LinkedHashMap<>();
       for (int index = 0; index < headers.length; index++) {
         String key = headers[index].trim().toLowerCase(Locale.ROOT);
+        // The publisher names this column Accident_Id in the 2022 characteristics file.
+        if (key.equals("accident_id")) key = "num_acc";
         if (key.isEmpty() || columns.putIfAbsent(key, index) != null) {
           throw new IOException("Blank or duplicate ONISR column: " + headers[index]);
         }

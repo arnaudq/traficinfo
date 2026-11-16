@@ -7,7 +7,7 @@ describes characteristics, locations, vehicles and users, joined by `Num_Acc`.
 The characteristics parser reads accident records. The participant parser joins
 the modern usagers files for involved people and their injury severity. The vehicle
 parser joins the modern vehicles files for vehicle categories and motorization.
-The manual function currently selects the 2023, 2024 and 2025 publications through
+The manual function currently selects the 2022, 2023, 2024 and 2025 publications through
 `ONISRYearInputs.configured()`.
 
 ## API and model
@@ -146,7 +146,9 @@ raw file.
 
 The parser accepts comma- and semicolon-separated headers, quoted fields, an
 optional UTF-8 BOM, decimal commas or points, and whitespace around values.
-Column matching is case-insensitive. File encoding defaults to Latin-1 for
+Column matching is case-insensitive. The 2022 characteristics column `Accident_Id`
+is accepted as the accident identifier in place of `Num_Acc`; companion files
+continue to use `Num_Acc`. Original header names remain in `sourceFields`. File encoding defaults to Latin-1 for
 comma-separated historical files and UTF-8 for semicolon-separated files. Use
 `parseAccidents(file, charset)` or the reader overload for re-encoded files.
 
