@@ -1,7 +1,7 @@
 # TraficInfo webapp
 
-Static boundary overview centered on metropolitan France, with OpenStreetMap
-France's `osmfr` tiles. City boundaries have a solid outline and light fill;
+Static boundary overview centered on metropolitan France, with Jawg tiles
+served through the TraficInfo API Gateway. City boundaries have a solid outline and light fill;
 Region boundaries have an unfilled dashed outline. Click a City or Region
 outline to open its available maps, or use the keyboard-accessible map list.
 For France, Cities correspond to EPCI and Regions to départements.
@@ -85,6 +85,7 @@ are retained for a subsequent release that loads counts for a selected map.
 - `index.html`: page structure and application entry point.
 - `src/main.ts`: imports styles and starts the application.
 - `src/map.ts`: creates the Leaflet map and base layer.
+- `src/config.ts`: public basemap URL, zoom limits and provider attribution.
 - `src/overview.ts`: loads overview layers, popups and the accessible map list.
 - `src/territories.ts`: boundary URLs, map relationships and geometry validation.
 - `src/types.ts`: shared map, boundary, public configuration and GeoJSON types.
@@ -181,7 +182,12 @@ the licence texts or checking out another commit.
 Boundary attribution is displayed on the map. `dsconfig.json` is used only for
 build-time reference validation and is not published to the website.
 
-Keep the visible map attribution and follow the provider's
-[usage policy](https://www.openstreetmap.fr/usage/).
-Tile URL and zoom levels follow the
-[OpenStreetMap France tile documentation](https://wiki.openstreetmap.org/wiki/FR:Serveurs/tile.openstreetmap.fr).
+The basemap URL in `src/config.ts` uses the public tile template from
+`tofu -chdir=infra/environments/dev output -raw tile_url_template` (run from the
+repository root). The gateway chooses the Jawg style and injects its access
+token; no Jawg token belongs in the webapp configuration or build output. If
+the gateway is replaced, update this public URL and rebuild the webapp.
+
+Keep the visible Jawg Maps and OpenStreetMap attribution. See
+[Jawg's Leaflet integration](https://www.jawg.io/docs/integration/leaflet/)
+for provider attribution requirements.
