@@ -27,3 +27,28 @@ variable "function_objects_policy_id" {
   description = "Existing application functions Object Storage policy to adopt."
   type        = string
 }
+
+variable "jawg_access_token" {
+  description = "Jawg token supplied through private settings or TF_VAR_jawg_access_token; stored in state."
+  type        = string
+  sensitive   = true
+  nullable    = false
+}
+
+variable "jawg_style" {
+  description = "Jawg style used by the tile proxy."
+  type        = string
+  default     = "jawg-light"
+}
+
+variable "tile_requests_per_second" {
+  description = "Maximum tile requests per second per client IP."
+  type        = number
+  default     = 50
+}
+
+variable "tile_allowed_origins" {
+  description = "Allowed browser CORS origins for the public tile proxy."
+  type        = list(string)
+  default     = ["*"]
+}

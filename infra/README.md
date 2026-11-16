@@ -10,17 +10,15 @@ is performed with OpenTofu. Commit each environment's `.terraform.lock.hcl`.
 Private deployment settings select the existing compartment, region, and public
 subnet. This configuration references that network without managing it. The
 subnet must allow stateful TCP 443 ingress and have Internet routing and upstream
-egress. The gateway's display name may reuse a deleted gateway's name; its OCID
-and hostname will be new. OCI gateway display names do not need to be unique.
+egress.
 
-The first apply creates one gateway and adopts the existing functions Object
-Storage policy through the [policies module](modules/policies/oci/README.md).
+The first apply creates the [edge resources](modules/edge/oci/README.md) and adopts
+the existing functions Object Storage policy through the
+[policies module](modules/policies/oci/README.md).
 That policy excludes the configured state bucket from application functions'
 access. Subsequent plans should show no changes unless configuration or
 infrastructure has changed. Keep `state_bucket_name` in the private dev variables
 consistent with the bucket in the private dev backend settings.
-The deleted gateway is not imported. No API routes or Jawg credentials are
-included in this first step. See the [module README](modules/edge/oci/README.md).
 
 ## Private deployment settings
 
@@ -52,7 +50,8 @@ For a new workstation, copy and fill these examples in the private directory.
 Use permissions `0700` for that directory and `0600` for its files. Back up the
 private settings separately; Git does not preserve them. Actual `.tfvars` and
 `.tfbackend` files under `infra/` are also ignored as a secondary safeguard.
-Neither variable file should contain authentication keys or passwords.
+Keep OCI authentication keys and passwords in their existing credential stores.
+Component-specific settings are documented in each module's README.
 
 ## Authentication and commands
 
