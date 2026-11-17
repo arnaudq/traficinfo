@@ -787,7 +787,7 @@ Map<String, ONISRAccidentProcessor.Statistics> refreshed = processor.refresh();
 `processor.importYears(ONISRYearInputs.configured())` imports all configured annual
 publications and refreshes the combined output once after the last year. Each
 `ONISRYearInputs` record holds the year and the characteristics, usagers and
-vehicles object names. The immutable configured list currently contains 2022,
+vehicles object names. The immutable configured list currently contains 2021, 2022,
 2023, 2024 and 2025; extend that list to add another annual publication.
 
 The default regional IDs are `30`, `34` and `76`. For ONISR these map to French
@@ -870,6 +870,7 @@ selects these annual publications in `onisrinfo`:
 
 | Year | Characteristics | Participants | Vehicles |
 | --- | --- | --- | --- |
+| 2021 | `caract-2021.csv` | `usagers-2021.csv` | `vehicules-2021.csv` |
 | 2022 | `caract-2022.csv` | `usagers-2022.csv` | `vehicules-2022.csv` |
 | 2023 | `caract-2023.csv` | `usagers-2023.csv` | `vehicules-2023.csv` |
 | 2024 | `caract-2024.csv` | `usagers-2024.csv` | `vehicules-2024.csv` |
@@ -879,7 +880,7 @@ Regional IDs remain **30, 34, 76**. Object names are case-sensitive. Other uploa
 CSVs are not selected, and request payloads cannot override filenames or years.
 ONISR is not added to `dsconfig.json`.
 
-An empty request, `{}` or `{"action":"import"}` imports **2022, 2023, 2024 and 2025**, then
+An empty request, `{}` or `{"action":"import"}` imports **2021, 2022, 2023, 2024 and 2025**, then
 rebuilds the combined regional output once. `{"action":"refresh"}` only rebuilds
 output using stored regional records and current OSM mappings, without reading
 any raw CSVs. The handler returns `OK` and logs regional statistics on success;
@@ -953,7 +954,7 @@ from the datasource ID. OSM refresh receives
 Invocation resolves the deployed function and calls it synchronously. Retrieval
 and GeoJSON send only `datasourceId`; normal preprocessing does the same and
 also accepts an inactive `datasetId` for archive imports. OSM sends `{"mode":"manual"}`.
-Accident invocation sends `{}` for the configured 2022–2025 imports or `{"action":"refresh"}`
+Accident invocation sends `{}` for the configured 2021–2025 imports or `{"action":"refresh"}`
 for rebuilding stored output.
 Retrieval's client timeout is the maximum configured source runtime plus 60
 seconds; preprocessing, GeoJSON, OSM and accidents use 360 seconds. Missing functions and OCI errors

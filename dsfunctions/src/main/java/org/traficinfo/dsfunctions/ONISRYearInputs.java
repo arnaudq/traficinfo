@@ -5,6 +5,7 @@ import java.util.List;
 /** One annual ONISR publication and its corresponding objects in onisrinfo. */
 public record ONISRYearInputs(int year, String accidentObject, String participantsObject, String vehiclesObject) {
     private static final List<ONISRYearInputs> CONFIGURED = List.of(
+            new ONISRYearInputs(2021, "caract-2021.csv", "usagers-2021.csv", "vehicules-2021.csv"),
             new ONISRYearInputs(2022, "caract-2022.csv", "usagers-2022.csv", "vehicules-2022.csv"),
             new ONISRYearInputs(2023, "caract-2023.csv", "usagers-2023.csv", "vehicules-2023.csv"),
             new ONISRYearInputs(2024, "caract-2024.csv", "usagers-2024.csv", "vehicules-2024.csv"),
