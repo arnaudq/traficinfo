@@ -66,8 +66,18 @@ Counts use green (≤1,000/day), blue (≤5,000/day), or red (>5,000/day)
 circles. Bicycle circles are smaller, lighter and dashed. Hover for a count label;
 click a circle or focus it and press Enter/Space for source, counter ID, year,
 average and the published compact history. Vehicle popups include available
-speed fields. Advanced filters, clustering and full history charts are not yet
-implemented.
+speed fields.
+
+Nearby points cluster within a 50-pixel radius, across datasources but separately
+for vehicles (slate) and bicycles (purple, dashed). Cluster size increases with
+point count; its number counts mapped points, not unique physical sites or
+summed traffic volumes. Hover for a label and click or press Enter to zoom in.
+At maximum zoom, clicking spreads overlapping points so each popup stays
+accessible. Lines and polygons retain their original geometry and do not cluster.
+Clusters remain active at all zoom levels to keep coincident points accessible.
+Advanced filters and full history charts are not yet implemented; downloaded
+GeoJSON stays independent of the rendered groups so future filters can rebuild
+clusters from matching points without downloading again.
 
 Switching maps removes previous counts; **Retour aux territoires** unloads them
 and restores the France view. Contours remain independently available. Successful
@@ -107,7 +117,8 @@ drive the on-demand count view.
 - `src/config.ts`: public basemap URL, zoom limits and provider attribution.
 - `src/overview.ts`: loads overview layers and connects map selection controls.
 - `src/count-data.ts`: framework-independent layer URLs, validation and download cache.
-- `src/count-map.ts`: Leaflet count layers, marker styling and counter popups.
+- `src/count-map.ts`: Leaflet count-layer lifecycle and counter popups.
+- `src/count-clusters.ts`: population-specific clustering and point icons.
 - `src/dom.ts`: shared text-only HTML element creation.
 - `src/territories.ts`: boundary URLs, map relationships and geometry validation.
 - `src/types.ts`: shared map, boundary, public configuration and GeoJSON types.
@@ -190,8 +201,8 @@ the website. The licences page also links to a source archive at that revision,
 the source of the installed Leaflet version, and the complete licence texts.
 
 The Vite plugin in `build/legal-notices.ts` reads the root `LICENSE` and the
-installed Leaflet package's `LICENSE`. It publishes them as
-`licenses/AGPL-3.0.txt` and `licenses/Leaflet.txt` during development and copies
+installed Leaflet package's `LICENSE` and Leaflet.markercluster's `MIT-LICENCE.txt`. It publishes them as
+`licenses/AGPL-3.0.txt`, `licenses/Leaflet.txt` and `licenses/Leaflet.markercluster.txt` during development and copies
 them into `dist/` on each build. Do not maintain separate handwritten copies.
 Git must be available when starting the development server or building the site.
 

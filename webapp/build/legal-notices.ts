@@ -26,6 +26,16 @@ export function legalNotices(): Plugin {
       contents: readFileSync(new URL('../../LICENSE', import.meta.url), 'utf8'),
     },
     {
+      path: 'licenses/Leaflet.markercluster.txt',
+      contents: readFileSync(
+        new URL(
+          '../node_modules/leaflet.markercluster/MIT-LICENCE.txt',
+          import.meta.url,
+        ),
+        'utf8',
+      ),
+    },
+    {
       path: 'licenses/Leaflet.txt',
       contents: readFileSync(
         new URL('../node_modules/leaflet/LICENSE', import.meta.url),

@@ -353,6 +353,21 @@ zone selector. A map attached directly to a Region follows this same behavior.
 If automatic selection while panning is added later, boundary bounds can identify
 candidate territories before loading their geometry or counts.
 
+### Count clustering
+
+The count view clusters nearby point markers within 50 screen pixels. Vehicles
+and bicycles have separate groups, each combining the selected datasources.
+Clusters show the number of mapped points, with increasing sizes below 10,
+below 100 and from 100 points. Vehicle clusters are slate; bicycle clusters are
+purple with dashed borders, distinct from individual traffic-volume colours.
+Hover shows the point count and population; click zooms to the group's bounds.
+Clustering remains enabled through maximum zoom, where overlapping points can
+be spread apart (spiderfy). No coverage outline is shown on hover. Individual
+points retain their popups and keyboard access. Non-point geometry remains
+unclustered. Switching maps or returning to overview clears both groups.
+Downloaded GeoJSON remains separate from rendering so later filters can rebuild
+clusters from the matching points; filter controls are outside this change.
+
 ### Initial release acceptance criteria
 
 1. The registry declares all six boundaries in the scope table, with the correct

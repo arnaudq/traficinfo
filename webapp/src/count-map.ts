@@ -1,4 +1,5 @@
 import L from 'leaflet';
+import { createCountClusters, counterIcon } from './count-clusters.ts';
 import { countLayers, createCountLoader } from './count-data.ts';
 import type { CountLayer, CounterProperties } from './count-data.ts';
 import { element } from './dom.ts';
@@ -55,6 +56,10 @@ export function createCountMap(
 ) {
   const load = createCountLoader();
   const layers = L.layerGroup().addTo(map);
+  const clusters = {
+    VEHICULES: createCountClusters('VEHICULES').addTo(map),
+    BICYCLES: createCountClusters('BICYCLES').addTo(map),
+  };
   let revision = 0;
   map.createPane('counts').style.zIndex = '450';
 
@@ -62,6 +67,7 @@ export function createCountMap(
     revision += 1;
     map.closePopup();
     layers.clearLayers();
+    for (const group of Object.values(clusters)) group.clearLayers();
   }
 
   async function select(selected: PublicMap) {
@@ -90,14 +96,13 @@ export function createCountMap(
             weight: 4,
           }),
           pointToLayer: (feature, position) =>
-            L.circleMarker(position, {
+            L.marker(position, {
               pane: 'counts',
-              radius: definition.population === 'BICYCLES' ? 6 : 8,
-              color: countColor(feature.properties),
-              weight: 2,
-              dashArray:
-                definition.population === 'BICYCLES' ? '2 2' : undefined,
-              fillOpacity: definition.population === 'BICYCLES' ? 0.35 : 0.8,
+              icon: counterIcon(
+                definition.population,
+                countColor(feature.properties),
+              ),
+              keyboard: true,
             }),
           onEachFeature(feature, counter) {
             counter.bindPopup(
@@ -109,23 +114,37 @@ export function createCountMap(
             const label = `${population} : ${String(feature.properties.name ?? feature.properties.moyenne_jour_annuelle ?? 'Comptage')}`;
             counter.bindTooltip(element('span', label));
             counter.on('add', () => {
-              if (!(counter instanceof L.Path)) return;
+              if (!(counter instanceof L.Path || counter instanceof L.Marker))
+                return;
               const path = counter.getElement();
-              if (!path) return;
+              if (!(path instanceof HTMLElement || path instanceof SVGElement))
+                return;
               path.setAttribute('tabindex', '0');
               path.setAttribute('role', 'button');
               path.setAttribute('aria-label', label);
-              path.addEventListener('keydown', (event) => {
+              path.onkeydown = (event) => {
                 const key = (event as KeyboardEvent).key;
-                if (key === 'Enter' || key === ' ') {
+                if (
+                  key === ' ' ||
+                  (key === 'Enter' && counter instanceof L.Path)
+                ) {
                   event.preventDefault();
                   counter.openPopup();
                 }
-              });
+              };
             });
           },
         });
-        layers.addLayer(layer);
+        // Only point markers are clustered; lines and polygons keep their geometry.
+        // The loader retains the original data independently for future filtering.
+        const points: L.Marker[] = [];
+        function collect(counter: L.Layer) {
+          if (counter instanceof L.Marker) points.push(counter);
+          else if (counter instanceof L.LayerGroup) counter.eachLayer(collect);
+          else layers.addLayer(counter);
+        }
+        layer.eachLayer(collect);
+        clusters[definition.population].addLayers(points);
         count += data.features.length;
       }),
     );
