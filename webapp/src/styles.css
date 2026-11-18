@@ -277,18 +277,25 @@ a {
 }
 
 .count-marker > span {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
   height: 100%;
-  border: 2px solid;
+  border: 2px solid #fff;
   border-radius: 50%;
-  background-clip: padding-box;
-  opacity: 0.8;
+  box-shadow: 0 1px 4px #0005;
 }
 
-.bicycle-marker > span {
-  border-style: dashed;
-  opacity: 0.5;
+.count-marker img {
+  width: 24px;
+  height: 24px;
+  filter: invert(1);
+}
+
+.count-legend .population-key {
+  width: 24px;
+  height: 24px;
 }
 
 .count-cluster {
@@ -325,10 +332,4 @@ a {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
-}
-
-.count-legend .cluster-key {
-  width: 18px;
-  height: 18px;
-  border: 2px solid #fff;
 }

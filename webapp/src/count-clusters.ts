@@ -1,4 +1,6 @@
 import L from 'leaflet';
+import carIconUrl from './icons/car.svg';
+import bicycleIconUrl from './icons/bicycle.svg';
 import 'leaflet.markercluster';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import { element } from './dom.ts';
@@ -43,16 +45,19 @@ export function createCountClusters(
   return group;
 }
 
-/** DOM markers retain the count-circle appearance and support clustering/spiderfy. */
+/** Original uMap pictograms on traffic-volume coloured markers. */
 export function counterIcon(population: Population, color: string): L.DivIcon {
-  const circle = element('span');
-  circle.style.borderColor = color;
-  circle.style.backgroundColor = color;
-  circle.setAttribute('aria-hidden', 'true');
-  const bicycles = population === 'BICYCLES';
+  const background = element('span');
+  background.style.backgroundColor = color;
+  background.setAttribute('aria-hidden', 'true');
+  const pictogram = element('img');
+  pictogram.src = population === 'BICYCLES' ? bicycleIconUrl : carIconUrl;
+  pictogram.alt = '';
+  pictogram.draggable = false;
+  background.append(pictogram);
   return L.divIcon({
-    html: circle,
-    className: `count-marker${bicycles ? ' bicycle-marker' : ''}`,
-    iconSize: bicycles ? [12, 12] : [16, 16],
+    html: background,
+    className: 'count-marker',
+    iconSize: [28, 28],
   });
 }

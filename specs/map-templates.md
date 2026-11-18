@@ -363,7 +363,8 @@ purple with dashed borders, distinct from individual traffic-volume colours.
 Hover shows the point count and population; click zooms to the group's bounds.
 Clustering remains enabled through maximum zoom, where overlapping points can
 be spread apart (spiderfy). No coverage outline is shown on hover. Individual
-points retain their popups and keyboard access. Non-point geometry remains
+points use the original uMap car/bicycle SVG pictograms on traffic-volume
+coloured circular backgrounds and retain their popups and keyboard access. Non-point geometry remains
 unclustered. Switching maps or returning to overview clears both groups.
 Downloaded GeoJSON remains separate from rendering so later filters can rebuild
 clusters from the matching points; filter controls are outside this change.

@@ -63,7 +63,7 @@ layers. Departmental sources remain complete layers; counts are not clipped to
 the selected city boundary.
 
 Counts use green (≤1,000/day), blue (≤5,000/day), or red (>5,000/day)
-circles. Bicycle circles are smaller, lighter and dashed. Hover for a count label;
+markers bearing the original uMap car or bicycle SVG pictogram. Hover for a count label;
 click a circle or focus it and press Enter/Space for source, counter ID, year,
 average and the published compact history. Vehicle popups include available
 speed fields.
@@ -119,6 +119,11 @@ drive the on-demand count view.
 - `src/count-data.ts`: framework-independent layer URLs, validation and download cache.
 - `src/count-map.ts`: Leaflet count-layer lifecycle and counter popups.
 - `src/count-clusters.ts`: population-specific clustering and point icons.
+- `src/icons/`: the original car and bicycle Osmic pictograms, downloaded from
+  <https://umap.openstreetmap.fr/uploads/pictogram/car.svg> and
+  <https://umap.openstreetmap.fr/uploads/pictogram/bicycle.svg>. uMap's
+  <https://umap.openstreetmap.fr/en/pictogram/json/> attributes both to Osmic.
+  Vite bundles them locally; marker icons require no requests to uMap.
 - `src/dom.ts`: shared text-only HTML element creation.
 - `src/territories.ts`: boundary URLs, map relationships and geometry validation.
 - `src/types.ts`: shared map, boundary, public configuration and GeoJSON types.
