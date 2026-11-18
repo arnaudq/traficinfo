@@ -601,7 +601,7 @@ class OciScriptsTest(unittest.TestCase):
                     self.state['writes'] = []
                     self.save()
                 self.deploy()
-                self.assertEqual(len(self.state['writes']), 6)
+                self.assertEqual(len(self.state['writes']), 7)
                 functions = {f['display-name']: f for f in self.state['functions']}
                 self.assertEqual({'NAMESPACE': 'testnamespace'}, functions['BoundaryFunction']['config'])
                 self.assertEqual({}, functions['BoundaryFunction']['defined-tags'])
@@ -649,6 +649,21 @@ class OciScriptsTest(unittest.TestCase):
             self.assertEqual(call[call.index('--function-id') + 1], function['id'])
             self.assertEqual(call[call.index('--read-timeout') + 1], '360')
             self.assertEqual(json.loads(call[call.index('--body') + 1]), body)
+
+    def test_accident_publication_deployment_and_invocation(self):
+        self.env['BUCKETNAME_OUT'] = 'public-output'
+        for _ in range(2):
+            self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main accident-publication')
+            function = next(f for f in self.state['functions'] if f['display-name'] == 'AccidentPublicationFunction')
+            self.assertEqual(function['config'], {'NAMESPACE': 'testnamespace', 'BUCKETNAME_OUT': 'public-output'})
+            self.assertEqual(function['defined-tags'], {})
+            self.assertEqual(function['timeout-in-seconds'], 300)
+        self.config_file.unlink()
+        self.script('invoke.sh', 'accident-publication')
+        call = self.state['calls'][-1]
+        self.assertEqual(call[call.index('--function-id') + 1], function['id'])
+        self.assertEqual(json.loads(call[call.index('--body') + 1]), {})
+        self.assertEqual(call[call.index('--read-timeout') + 1], '360')
 
     def test_osm_report_uses_bucket_override_and_handler(self):
         self.env['BUCKETNAME_OSM'] = 'custom-osminfo'

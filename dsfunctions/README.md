@@ -863,6 +863,108 @@ are not a transaction. A later manual import or refresh can finish a failed run;
 there are no immediate retries or added locks. The returned statistics report
 total, matched and unmatched accidents and distinct ways per regional ID.
 
+## Public accident GeoJSON and summaries
+
+`AccidentPublicationFunction` reads the bundled `accidentsConfig.json`, independently
+of datasource import configuration. Each entry selects the source bucket and ID:
+
+```json
+[
+  {"id": "ONISR_DPT30", "sourceBucket": "onisrinfo"},
+  {"id": "ONISR_DPT34", "sourceBucket": "onisrinfo"},
+  {"id": "ONISR_DPT76", "sourceBucket": "onisrinfo"}
+]
+```
+
+For each entry, it reads `<id>_Accidents.json` from `sourceBucket` and writes
+`<id>_Accidents.geojson` (`application/geo+json`) and
+`<id>_Accidents_Summary.json` (`application/json`) to the public output bucket
+(default `traficinfo`). IDs must be unique across the list because they define
+public output names. Add a provider by adding an entry and redeploying the
+function; there are no ONISR bucket names, region lists or ID prefixes in the
+publication code.
+
+The input is the common way-to-accident JSON projection: accident ID, ISO date
+and nullable time, coordinates, OSM way assignment, regional/municipality IDs,
+participants with roles and injury severity, and vehicles with shared type enums.
+Provider-specific fields such as BAAC source columns and category codes are
+ignored. Rendering uses `Accident`, `AccidentParticipant` and `AccidentVehicle`,
+not ONISR models. Accident/participant/vehicle IDs need not be numeric or French.
+
+Both use the shared storage client's gzip handling. The function performs no OSM
+requests, does not reread CSVs and does not change private source records. Deploy
+and invoke manually after initializing the shared environment:
+
+```sh
+./scripts/deploy-functions.sh accident-publication
+./scripts/invoke.sh accident-publication
+```
+
+Run publication again after accident imports or after a cache refresh followed by
+`./scripts/invoke.sh accidents refresh`. There is no automatic event trigger or
+schedule. No-argument deployment includes the publication function. It uses a
+300-second runtime timeout, a 360-second invocation timeout, `NAMESPACE`, and
+`BUCKETNAME_OUT` (default `traficinfo`). Resource principals default to enabled;
+the function needs read access to every configured `sourceBucket` and object-write access to the
+output bucket. It returns `OK` on success and fails the invocation on errors.
+
+### GeoJSON contract
+
+Each accident is one Point feature at its source longitude/latitude, with its
+accident ID as the feature ID. Properties are `accidentId`, `date`, nullable
+`time`, `year`, `regionalId`, nullable `municipalityId`, numeric `osmWayId`, and
+`participantCounts`. Source CSV columns, participant/vehicle IDs, sex and birth
+years are not copied into this public projection. `participantCounts` has the
+same category/severity grid used by the summary below.
+
+### Summary contract (schemaVersion 1)
+
+The top-level fields are `schemaVersion`, `sourceId` and `years`. Totals cover
+exactly the provided way-grouped source, not unmapped accidents in other private objects.
+Current import completeness must be assessed separately.
+
+`years[year]` contains:
+
+```json
+{
+  "accidentCount": 1,
+  "participantCounts": {
+    "PEDESTRIAN": {"UNINJURED": 0, "KILLED": 1, "HOSPITALIZED": 0, "LIGHTLY_INJURED": 0, "UNKNOWN": 0},
+    "CYCLIST": {"UNINJURED": 0, "KILLED": 0, "HOSPITALIZED": 0, "LIGHTLY_INJURED": 0, "UNKNOWN": 0},
+    "MOTORIZED_VEHICLE_OCCUPANT": {"UNINJURED": 1, "KILLED": 0, "HOSPITALIZED": 0, "LIGHTLY_INJURED": 0, "UNKNOWN": 0},
+    "PERSONAL_MOBILITY": {"UNINJURED": 0, "KILLED": 0, "HOSPITALIZED": 0, "LIGHTLY_INJURED": 0, "UNKNOWN": 0},
+    "OTHER": {"UNINJURED": 0, "KILLED": 0, "HOSPITALIZED": 0, "LIGHTLY_INJURED": 0, "UNKNOWN": 0},
+    "UNKNOWN": {"UNINJURED": 0, "KILLED": 0, "HOSPITALIZED": 0, "LIGHTLY_INJURED": 0, "UNKNOWN": 0}
+  }
+}
+```
+
+Every grid contains explicit zeroes. Only observed years are emitted.
+An empty source produces an empty FeatureCollection and an empty `years` object.
+`accidentCount` counts distinct accidents once; the grid counts individual people,
+including uninjured people. Casualties can be calculated as killed + hospitalized
++ lightly injured; unknown severity stays separate. Empty participant lists do
+not imply that an accident had no casualties; they mean no participant records
+were present in the source accident.
+
+Classification uses pedestrian role first: the referenced vehicle may be the one
+that struck the pedestrian. Drivers and passengers are combined. Bicycles and
+electric bicycles are `CYCLIST`; powered and unpowered personal mobility are
+`PERSONAL_MOBILITY`; cars, motorcycles, motor scooters, commercial vehicles,
+buses, coaches, trains, trams, quadricycles, three-wheelers, agricultural and
+special vehicles are `MOTORIZED_VEHICLE_OCCUPANT`. Other known vehicle categories
+use `OTHER`. Unknown roles, missing vehicle references and unknown vehicle types
+use `UNKNOWN`. Classification uses the vehicle category, not fuel: an electric
+car is not a cyclist. A person contributes to exactly one category/severity cell.
+
+The pure `AccidentPublication` renderer is shared by `AccidentPublicationPublisher` and
+its tests. Before writing a region's outputs, it validates the complete source:
+positive way IDs, consistent way assignments, unique accident IDs, dates,
+geometry, and unique participant/vehicle IDs within each accident. Missing or
+invalid input fails before either output for that region is replaced. Storage
+write errors propagate. The two output writes and different regions are not a
+transaction; a later invocation can finish publication after a partial failure.
+
 ## Manual ONISR accident function
 
 `ONISRAccidentFunction` wraps the local processor. `ONISRYearInputs.configured()`
@@ -931,7 +1033,8 @@ After `source ./scripts/setup.sh`, use the scripts from the repository root:
 
 Retrieval, preprocessing and GeoJSON deploy once as `DataSourceFunction`,
 `PreprocessingFunction` and `GeoJsonFunction`. No-argument deployment includes
-these three functions, `OSMInfoFunction` and `ONISRAccidentFunction`. Adding a retrieval source requires
+these three functions, `OSMInfoFunction`, `ONISRAccidentFunction`,
+`AccidentPublicationFunction` and `BoundaryFunction`. Adding a retrieval source requires
 configuration, redeployment and schedule setup. New GeoJSON sources require parser
 and `GeoJsonDataSource` registration, followed by redeployment; no per-source
 handler or deployment entry is needed.

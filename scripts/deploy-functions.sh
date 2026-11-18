@@ -21,11 +21,12 @@ functions=(
   'PreprocessingFunction|preprocess|org.traficinfo.dsfunctions.PreprocessingFunction::handleRequest'
   'GeoJsonFunction|geojson|org.traficinfo.dsfunctions.GeoJsonFunction::handleRequest'
   'ONISRAccidentFunction|accidents|org.traficinfo.dsfunctions.ONISRAccidentFunction::handleRequest'
+  'AccidentPublicationFunction|accident-publication|org.traficinfo.dsfunctions.AccidentPublicationFunction::handleRequest'
   'BoundaryFunction|boundaries|org.traficinfo.dsfunctions.BoundaryFunction::handleRequest'
 )
 
 usage() {
-  printf 'Usage: %s [ds | preprocess | geojson | osm | accidents | boundaries]\n' "$0" >&2
+  printf 'Usage: %s [ds | preprocess | geojson | osm | accidents | accident-publication | boundaries]\n' "$0" >&2
 }
 
 select_functions() {
@@ -48,6 +49,10 @@ select_functions() {
     accidents)
       if [ "$#" -ne 1 ]; then usage; return 1; fi
       functions=('ONISRAccidentFunction|accidents|org.traficinfo.dsfunctions.ONISRAccidentFunction::handleRequest')
+      ;;
+    accident-publication)
+      if [ "$#" -ne 1 ]; then usage; return 1; fi
+      functions=('AccidentPublicationFunction|accident-publication|org.traficinfo.dsfunctions.AccidentPublicationFunction::handleRequest')
       ;;
     boundaries)
       if [ "$#" -ne 1 ]; then usage; return 1; fi
@@ -90,6 +95,10 @@ validate_jar() {
     printf 'The fat JAR does not contain bundled mapconfig.json.\n' >&2
     return 1
   fi
+  if ! jar tf "$jar_file" | grep -Fx 'accidentsConfig.json' >/dev/null; then
+    printf 'The fat JAR does not contain bundled accidentsConfig.json.\n' >&2
+    return 1
+  fi
   jar_bytes="$(wc -c < "$jar_file" | tr -d '[:space:]')"
   if [ "$jar_bytes" -gt 25000000 ]; then
     printf 'Direct archive upload is limited to 25 MB; this JAR is %s bytes.\n' "$jar_bytes" >&2
@@ -122,6 +131,11 @@ build_function_config() {
   fi
   if [ "$type" = ds ] || [ "$type" = preprocess ] || [ "$type" = boundaries ]; then
     jq -cn --arg namespace "$namespace" '{NAMESPACE: $namespace}'
+    return
+  fi
+  if [ "$type" = accident-publication ]; then
+    validate_bucket_name "$output_bucket" BUCKETNAME_OUT || return
+    jq -cn --arg namespace "$namespace" --arg output "$output_bucket" '{NAMESPACE: $namespace, BUCKETNAME_OUT: $output}'
     return
   fi
   if [ "$type" = accidents ]; then
@@ -276,7 +290,7 @@ main() {
     defined_tags+=("$tags")
     timeout=''
     if [ "$type" = ds ]; then timeout="$(jq -r '[.[] | .datasets[.activeDatasetId].timeoutSeconds // 30] | max' <<< "$sources")"; fi
-    if [ "$type" = preprocess ] || [ "$type" = geojson ] || [ "$type" = accidents ] || [ "$type" = boundaries ]; then timeout=300; fi
+    if [ "$type" = preprocess ] || [ "$type" = geojson ] || [ "$type" = accidents ] || [ "$type" = boundaries ] || [ "$type" = accident-publication ]; then timeout=300; fi
     timeouts+=("$timeout")
   done
   application_id="$(resolve_application_id)"

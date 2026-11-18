@@ -84,6 +84,7 @@
                 <directory>${project.basedir}/..</directory>
                 <includes>
                     <include>mapconfig.json</include>
+                    <include>accidentsConfig.json</include>
                 </includes>
             </resource>
         </resources>
