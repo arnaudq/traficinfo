@@ -1,4 +1,5 @@
 /.idea
+*.iml
 target
 
 # Webapp dependencies, build output and local configuration
