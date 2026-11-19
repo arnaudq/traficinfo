@@ -5,7 +5,7 @@ set -euo pipefail
 source "${TRAFICINFO_ROOT:?Run source ./scripts/setup.sh first}/scripts/oci-common.sh"
 
 usage() {
-  printf 'Usage: %s <ds|geojson> <data-source-id>\n       %s preprocess <data-source-id> [archive-dataset-id]\n       %s osm\n       %s accidents [refresh]\n       %s boundaries\n       %s accident-publication\n' "$0" "$0" "$0" "$0" "$0" "$0" >&2
+  printf 'Usage: %s <ds|geojson> <data-source-id>\n       %s preprocess <data-source-id> [archive-dataset-id]\n       %s osm\n       %s accidents [refresh]\n       %s boundaries [epci-code]\n       %s accident-publication\n' "$0" "$0" "$0" "$0" "$0" "$0" >&2
 }
 
 main() {
@@ -39,9 +39,10 @@ main() {
       invocation_options+=(--read-timeout 360)
       ;;
     boundaries)
-      if [ "$#" -ne 1 ]; then usage; return 1; fi
+      if [ "$#" -gt 2 ] || { [ "$#" -eq 2 ] && [[ ! "$2" =~ ^[0-9]{9}$ ]]; }; then usage; return 1; fi
       function_name=BoundaryFunction
       body='{}'
+      if [ "$#" -eq 2 ]; then body="$(jq -cn --arg code "$2" '{epciCode: $code}')"; fi
       invocation_options+=(--read-timeout 360)
       ;;
     accidents)

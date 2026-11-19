@@ -7,43 +7,66 @@ from each request and loads the source settings from the bundled configuration.
 ## Boundary refresh
 
 `org.traficinfo.dsfunctions.BoundaryFunction::handleRequest` is an on-demand
-function accepting `{}`. It reads the bundled root `mapconfig.json`, publishes
-all departements from the official collection and the configured EPCI boundaries
-in the public bucket identified by `geoJsonBaseUrl`. Maven bundles the root registry directly;
-configuration changes require rebuilding and redeploying the function.
+function. Without a selection it processes all departements from the official
+collection and the EPCI boundaries in bundled `mapconfig.json`. An `epciCode`
+request processes only that EPCI, without reading or downloading the departement
+dataset or processing other EPCI boundaries. Maven bundles the root registry
+directly; configuration changes require rebuilding and redeploying the function.
+The destination bucket comes from `geoJsonBaseUrl`.
+
+| Request field | Default | Meaning |
+| --- | --- | --- |
+| `epciCode` | Absent | Optional nine-digit string, for example `"243500139"` for Rennes Métropole. Uses the configured `geoJsonPath`, or `boundaries/epcis/<code>.geojson` for an EPCI absent from the registry. |
+
+For example, `{}` processes the default scope, while
+`{"epciCode":"243500139"}` selects Rennes. Freshness is fixed at three calendar
+months in UTC; a date exactly at the cutoff is still fresh.
 
 | Boundary ID scheme | Source URL |
 | --- | --- |
 | `departement:<id>` | `https://etalab-datasets.geo.data.gouv.fr/contours-administratifs/latest/geojson/departements-100m.geojson`, publishing every feature separately using `properties.code` as `<id>` |
 | `epci:<id>` | `https://geo.api.gouv.fr/epcis/<id>?format=geojson&geometry=contour` |
 
-The département API endpoint returns metadata rather than contours. Download the
-official département FeatureCollection once per invocation and publish every
-departement to `boundaries/departements/<id>.geojson`. For departements already
-in `mapconfig.json`, honor their configured `geoJsonPath`. Publishing additional
-departements does not add them to the registry or the webapp overview; the
-registry still determines which boundaries the client displays. EPCI responses
-are individual GeoJSON Features, downloaded only for configured EPCI boundaries.
-Each selected feature must have the expected source identifier and a nonempty
-WGS84 Polygon or MultiPolygon. The function adds
-`properties.boundaryId`, preserving the source properties and geometry, and
-uploads with `Content-Type: application/geo+json` using the shared gzip storage
-client. It publishes `boundaries/attribution.json` after all boundary uploads.
-The attribution records source URLs, download time and licence. Département
-files record their 100 m simplification; EPCI simplification and release dates
-are null because the source does not expose those values.
+Freshness uses Object Storage custom metadata, without origin-change requests
+or ETags:
 
-Each invocation downloads and overwrites all departements and configured EPCI boundaries. There are
-no origin-change checks, storage reads, immediate retries, schedules or event
-triggers. A download, validation or upload failure stops the invocation and is
-reported as a function failure. Earlier successful uploads remain published;
-rerun manually to refresh the complete set.
+| Object | Metadata / behavior |
+| --- | --- |
+| Individual boundary | `downloaded-at` is the ISO-8601 UTC origin fetch timestamp; `source-url` identifies the source and `boundary-id` identifies the territory. An EPCI is downloaded only if its object is missing, its timestamp is absent/invalid, or the timestamp is older than the limit. |
+| `boundaries/departements.geojson` | Full original national FeatureCollection, with `downloaded-at` and `source-url`. Its timestamp determines whether to fetch the national source again. |
+| Derived departement files | Use the original collection's fetch timestamp. A fresh stored collection can regenerate missing or stale individual files without downloading the origin. When the collection is refreshed, all departement files are republished. |
+
+The departement API endpoint returns metadata rather than contours. Download the
+official collection at most once per invocation when stale or missing, publish
+every departement to `boundaries/departements/<id>.geojson`, and store the full
+original collection after those uploads. For departements already configured,
+honor their `geoJsonPath`. The registry still determines which boundaries the
+client displays; publishing more departements or an explicitly selected EPCI
+does not add them to the webapp configuration.
+
+Each selected feature must have the expected source identifier and a nonempty
+WGS84 Polygon or MultiPolygon. The function adds `properties.boundaryId`,
+preserves source geometry/properties, and uploads with
+`Content-Type: application/geo+json` using the shared gzip storage client.
+
+After changed boundary uploads, merge their entries into
+`boundaries/attribution.json`, preserving other entries. Each updated entry
+records its own `downloadedAt`; the top-level `updatedAt` is the attribution
+update time, not a common download timestamp. `departementDataset` describes
+the stored original collection. Departement entries record 100 m simplification;
+EPCI simplification and release dates remain unknown. A completely fresh run
+leaves attribution unchanged.
+
+There are no immediate retries, schedules or event triggers. A download,
+validation or upload failure stops the invocation and is reported as a function
+failure. Earlier successful uploads remain published; rerun manually to finish.
 
 After `source ./scripts/setup.sh`:
 
 ```sh
 ./scripts/deploy-functions.sh boundaries
 ./scripts/invoke.sh boundaries
+./scripts/invoke.sh boundaries 243500139
 ```
 
 Deployment sets `NAMESPACE` from the shared setup, clears schedule tags and uses

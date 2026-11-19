@@ -8,8 +8,13 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.ByteArrayInputStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.Clock;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -21,11 +26,11 @@ public class BoundaryFunctionTest {
     private static final ObjectMapper JSON = new ObjectMapper();
 
     @Test
-    public void publishesAllDepartementsAndConfiguredEpcisOnEveryInvocation() throws Exception {
+    public void publishesMissingBoundariesThenSkipsFreshDownloads() throws Exception {
         Probe probe = configured();
         assertEquals("OK", probe.handleRequest("{}"));
         assertEquals(5, probe.downloads.size());
-        assertEquals(10, probe.objects.size());
+        assertEquals(11, probe.objects.size());
         assertEquals(List.of("ns/traficinfo"), probe.clients);
         assertEquals(1, probe.downloads.stream().filter(BoundaryFunction.DEPARTEMENTS_URL::equals).count());
         assertTrue(probe.downloads.contains(URI.create("https://geo.api.gouv.fr/epcis/243400017?format=geojson&geometry=contour")));
@@ -42,10 +47,98 @@ public class BoundaryFunctionTest {
         JsonNode attribution = JSON.readTree(probe.objects.get("boundaries/attribution.json"));
         assertEquals(9, attribution.path("files").size());
         assertEquals("ODbL-1.0", attribution.path("licence").asText());
+        assertEquals(probe.clock.current.toString(), probe.metadata.get("boundaries/epcis/243500139.geojson").get("downloaded-at"));
+        assertEquals(probe.clock.current.toString(), probe.metadata.get(BoundaryFunction.DEPARTEMENTS_OBJECT).get("downloaded-at"));
+        JsonNode source = JSON.readTree(probe.objects.get(BoundaryFunction.DEPARTEMENTS_OBJECT));
+        assertEquals("FeatureCollection", source.path("type").asText());
+        assertFalse(source.path("features").get(0).path("properties").has("boundaryId"));
         assertEquals("OK", probe.handleRequest("{}"));
-        assertEquals(10, probe.downloads.size());
-        assertEquals(20, probe.writes);
+        assertEquals(5, probe.downloads.size());
+        assertEquals(11, probe.writes);
         assertEquals(2, probe.closed);
+    }
+
+    @Test
+    public void selectedEpciNeverProcessesDepartementsOrOtherEpcis() throws Exception {
+        Probe probe = configured();
+        assertEquals("OK", probe.handleRequest("{\"epciCode\":\"243500139\"}"));
+        assertEquals(List.of(URI.create("https://geo.api.gouv.fr/epcis/243500139?format=geojson&geometry=contour")), probe.downloads);
+        assertEquals(List.of("boundaries/epcis/243500139.geojson", "boundaries/attribution.json"), List.copyOf(probe.objects.keySet()));
+        assertFalse(probe.heads.contains(BoundaryFunction.DEPARTEMENTS_OBJECT));
+        assertEquals(1, JSON.readTree(probe.objects.get("boundaries/attribution.json")).path("files").size());
+        probe.handleRequest("{\"epciCode\":\"243500139\"}");
+        assertEquals(1, probe.downloads.size());
+        assertEquals(2, probe.writes);
+    }
+
+    @Test
+    public void acceptsAnExplicitEpciOutsideTheRegistry() {
+        Probe probe = configured();
+        probe.handleRequest("{\"epciCode\":\"200000001\"}");
+        assertTrue(probe.objects.containsKey("boundaries/epcis/200000001.geojson"));
+        assertEquals(1, probe.downloads.size());
+    }
+
+    @Test
+    public void calendarMonthExpiryPreservesUnselectedAttribution() throws Exception {
+        Probe probe = configured();
+        probe.handleRequest("{}");
+        Instant original = probe.clock.current;
+        byte[] other = probe.objects.get("boundaries/epcis/243400017.geojson");
+        probe.clock.current = Instant.parse("2027-02-19T12:00:00Z");
+        probe.handleRequest("{\"epciCode\":\"243500139\"}");
+        assertEquals(5, probe.downloads.size()); // Exactly three months is still fresh.
+        probe.clock.current = probe.clock.current.plusNanos(1);
+        probe.handleRequest("{\"epciCode\":\"243500139\"}");
+        assertEquals(6, probe.downloads.size());
+        assertEquals(probe.clock.current.toString(), probe.metadata.get("boundaries/epcis/243500139.geojson").get("downloaded-at"));
+        assertArrayEquals(other, probe.objects.get("boundaries/epcis/243400017.geojson"));
+        JsonNode attribution = JSON.readTree(probe.objects.get("boundaries/attribution.json"));
+        assertEquals(9, attribution.path("files").size());
+        for (JsonNode entry : attribution.get("files")) {
+            assertEquals(entry.path("boundaryId").asText().equals("epci:243500139") ? probe.clock.current.toString() : original.toString(),
+                    entry.path("downloadedAt").asText());
+        }
+    }
+
+    @Test
+    public void missingOrUnusableFetchMetadataTriggersADownload() {
+        Probe probe = configured();
+        probe.handleRequest("{\"epciCode\":\"243500139\"}");
+        String path = "boundaries/epcis/243500139.geojson";
+        probe.metadata.get(path).remove("downloaded-at");
+        probe.handleRequest("{\"epciCode\":\"243500139\"}");
+        probe.metadata.get(path).put("downloaded-at", "invalid");
+        probe.handleRequest("{\"epciCode\":\"243500139\"}");
+        probe.objects.remove(path);
+        probe.handleRequest("{\"epciCode\":\"243500139\"}");
+        assertEquals(4, probe.downloads.size());
+    }
+
+    @Test
+    public void repairsMissingDepartementFromFreshOriginalWithoutRedownloading() {
+        Probe probe = configured();
+        probe.handleRequest("{}");
+        Instant original = probe.clock.current;
+        probe.clock.current = Instant.parse("2026-12-19T12:00:00Z");
+        probe.objects.remove("boundaries/departements/34.geojson");
+        probe.handleRequest("{}");
+        assertEquals(5, probe.downloads.size());
+        assertEquals(original.toString(), probe.metadata.get("boundaries/departements/34.geojson").get("downloaded-at"));
+        assertTrue(probe.reads.contains(BoundaryFunction.DEPARTEMENTS_OBJECT));
+        assertEquals(13, probe.writes); // Repaired outline and merged attribution.
+    }
+
+    @Test
+    public void staleOriginalDatasetRefreshesAllDepartements() {
+        Probe probe = configured();
+        probe.handleRequest("{}");
+        probe.clock.current = Instant.parse("2027-06-19T12:00:00Z");
+        probe.handleRequest("{}");
+        assertEquals(10, probe.downloads.size());
+        assertEquals(22, probe.writes);
+        assertEquals(probe.clock.current.toString(), probe.metadata.get(BoundaryFunction.DEPARTEMENTS_OBJECT).get("downloaded-at"));
+        assertEquals(probe.clock.current.toString(), probe.metadata.get("boundaries/departements/75.geojson").get("downloaded-at"));
     }
 
     @Test
@@ -80,7 +173,9 @@ public class BoundaryFunctionTest {
     @Test
     public void invalidRequestsDoNotCreateClients() {
         Probe probe = configured();
-        for (String input : new String[]{null, "", "null", "[]", "{} {}", "{\"boundaryId\":\"epci:243400017\"}"}) {
+        for (String input : new String[]{null, "", "null", "[]", "{} {}", "{\"boundaryId\":\"epci:243400017\"}",
+                "{\"epciCode\":243500139}", "{\"epciCode\":\"REN\"}", "{\"epciCode\":null}",
+                "{\"maxAgeMonths\":3}"}) {
             assertThrows(IllegalArgumentException.class, () -> probe.handleRequest(input));
         }
         assertTrue(probe.clients.isEmpty());
@@ -149,10 +244,31 @@ public class BoundaryFunctionTest {
         return probe;
     }
 
+    private static class TestClock extends Clock {
+        Instant current = Instant.parse("2026-11-19T12:00:00Z");
+
+        @Override public Instant instant() { return current; }
+        @Override public ZoneId getZone() { return ZoneOffset.UTC; }
+        @Override public Clock withZone(ZoneId zone) { return Clock.fixed(current, zone); }
+    }
+
     public static class Probe extends BoundaryFunction {
         final List<URI> downloads = new ArrayList<>();
         final List<String> clients = new ArrayList<>();
         final Map<String, byte[]> objects = new LinkedHashMap<>();
+        final Map<String, Map<String, String>> metadata = new LinkedHashMap<>();
+        final List<String> heads = new ArrayList<>();
+        final List<String> reads = new ArrayList<>();
+        final TestClock clock;
+
+        public Probe() {
+            this(new TestClock());
+        }
+
+        private Probe(TestClock clock) {
+            super(clock);
+            this.clock = clock;
+        }
         int writes;
         int closed;
         String response;
@@ -183,7 +299,17 @@ public class BoundaryFunctionTest {
                     if (failUpload) throw new IOException("Upload failed");
                     assertEquals(name.endsWith(".geojson") ? "application/geo+json" : "application/json", contentType);
                     objects.put(name, input.readAllBytes());
+                    Probe.this.metadata.put(name, new LinkedHashMap<>(metadata.getMetadata()));
                     writes++;
+                }
+                @Override public OOSResourceMetadata getResourceMetadata(String name) {
+                    heads.add(name);
+                    return objects.containsKey(name) ? new OOSResourceMetadata(new LinkedHashMap<>(metadata.get(name))) : null;
+                }
+                @Override public InputStream getResource(String name) throws IOException {
+                    reads.add(name);
+                    if (!objects.containsKey(name)) throw new IOException("Missing object: " + name);
+                    return new ByteArrayInputStream(objects.get(name));
                 }
                 @Override public void close() { closed++; }
             };

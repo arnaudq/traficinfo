@@ -620,7 +620,18 @@ class OciScriptsTest(unittest.TestCase):
         self.assertEqual('ocid1.fnfunc.BoundaryFunction', call[call.index('--function-id') + 1])
         self.assertEqual({}, json.loads(call[call.index('--body') + 1]))
         self.assertEqual('360', call[call.index('--read-timeout') + 1])
+        self.script('invoke.sh', 'boundaries', '243500139')
+        call = self.state['calls'][-1]
+        self.assertEqual({'epciCode': '243500139'}, json.loads(call[call.index('--body') + 1]))
         self.script('invoke.sh', 'boundaries', 'MMM', success=False)
+
+    def test_invalid_boundary_arguments_do_not_call_oci(self):
+        for args in [('invalid',), ('123',), ('243500139', '243400017'),
+                     ('--max-age-months', '3'), ('243500139', '--max-age-months', '0'),
+                     ('--unknown',)]:
+            with self.subTest(args=args):
+                self.script('invoke.sh', 'boundaries', *args, success=False)
+        self.assertNotIn('calls', self.state)
 
     def test_invoke_osm_without_data_source_config(self):
         self.config_file.unlink()

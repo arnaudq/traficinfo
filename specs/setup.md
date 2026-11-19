@@ -311,9 +311,10 @@ the boundary function after setup:
 ./scripts/invoke.sh boundaries
 ```
 
-The function bundles `mapconfig.json` and overwrites all departements and the
-configured EPCI boundaries in the public bucket on each invocation. It has no
-schedule or event trigger.
+The function bundles `mapconfig.json` and refreshes missing or stale departements
+and configured EPCI boundaries in the public bucket (fixed three-month limit).
+Use `./scripts/invoke.sh boundaries 243500139` to select only Rennes Métropole,
+with no schedule or event trigger.
 See [boundary refresh](../dsfunctions/README.md#boundary-refresh) for the source
 mapping and publication behavior.
 

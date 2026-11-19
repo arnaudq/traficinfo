@@ -14,10 +14,12 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -31,10 +33,22 @@ public class BoundaryFunction {
     private static final Pattern ID = Pattern.compile("(departement|epci):([A-Za-z0-9]+)");
     static final URI DEPARTEMENTS_URL = URI.create("https://etalab-datasets.geo.data.gouv.fr/"
             + "contours-administratifs/latest/geojson/departements-100m.geojson");
+    static final String DEPARTEMENTS_OBJECT = "boundaries/departements.geojson";
+    private static final String ATTRIBUTION_OBJECT = "boundaries/attribution.json";
+    private static final int MAX_AGE_MONTHS = 3;
+    private final Clock clock;
     private List<Boundary> boundaries;
     private String bucket;
     private String namespace;
     private boolean principal;
+
+    public BoundaryFunction() {
+        this(Clock.systemUTC());
+    }
+
+    BoundaryFunction(Clock clock) {
+        this.clock = clock;
+    }
 
     protected JsonNode loadMapConfig() throws IOException {
         try (InputStream input = getClass().getResourceAsStream("/mapconfig.json")) {
@@ -110,55 +124,162 @@ public class BoundaryFunction {
         }
     }
 
-    public String handleRequest(String input) {
-        if (boundaries == null) throw new IllegalStateException("Boundary function has not been configured");
+    private static Request readRequest(String input) {
         try {
             JsonNode request = JSON.readTree(input == null ? "" : input);
-            if (request == null || !request.isObject() || !request.isEmpty()) {
-                throw new IllegalArgumentException("Expected {} for a manual boundary refresh");
-            }
-        } catch (IOException invalid) {
-            throw new IllegalArgumentException("Expected {} for a manual boundary refresh", invalid);
-        }
-        var attribution = JSON.createObjectNode();
-        attribution.put("downloadedAt", Instant.now().toString());
-        attribution.put("source", "https://www.data.gouv.fr/datasets/contours-administratifs");
-        attribution.put("licence", "ODbL-1.0");
-        attribution.put("attribution", "IGN ADMIN EXPRESS; data.gouv.fr / API Découpage administratif");
-        // No common release date or simplification level is exposed by these sources.
-        attribution.putNull("releaseDate");
-        attribution.putNull("simplificationMetres");
-        var files = attribution.putArray("files");
-        var downloads = new HashMap<URI, JsonNode>();
-        try (ObjectStoreClient storage = createObjectStoreClient(principal, namespace, bucket)) {
-            LOG.info("Downloading all departement boundaries from {}", DEPARTEMENTS_URL);
-            JsonNode departements = JSON.readTree(download(DEPARTEMENTS_URL));
-            downloads.put(DEPARTEMENTS_URL, departements);
-            for (Boundary boundary : publicationBoundaries(departements)) {
-                if (!downloads.containsKey(boundary.url())) {
-                    LOG.info("Downloading boundary source {}", boundary.url());
-                    downloads.put(boundary.url(), JSON.readTree(download(boundary.url())));
+            if (request == null || !request.isObject()) throw new IllegalArgumentException("Expected a boundary request object");
+            var fields = request.fieldNames();
+            while (fields.hasNext()) {
+                String field = fields.next();
+                if (!field.equals("epciCode")) {
+                    throw new IllegalArgumentException("Unknown boundary request field: " + field);
                 }
-                byte[] feature = prepareFeature(boundary, downloads.get(boundary.url()));
-                var metadata = new OOSResourceMetadata();
-                metadata.getMetadata().put("boundary-id", boundary.id());
-                metadata.getMetadata().put("source-url", boundary.url().toString());
-                storage.putResource(boundary.path(), "application/geo+json", metadata,
-                        new ByteArrayInputStream(feature));
-                var file = files.addObject().put("boundaryId", boundary.id()).put("geoJsonPath", boundary.path())
-                        .put("sourceUrl", boundary.url().toString());
-                if (boundary.url().equals(DEPARTEMENTS_URL)) file.put("simplificationMetres", 100);
-                else file.putNull("simplificationMetres");
-                LOG.info("Published boundary {} to {}/{}", boundary.id(), bucket, boundary.path());
             }
-            storage.putResource("boundaries/attribution.json", "application/json", new OOSResourceMetadata(),
-                    new ByteArrayInputStream(JSON.writeValueAsBytes(attribution)));
+            String epciCode = null;
+            if (request.has("epciCode")) {
+                JsonNode code = request.get("epciCode");
+                if (!code.isTextual() || !code.asText().matches("[0-9]{9}")) {
+                    throw new IllegalArgumentException("epciCode must be a nine-digit string");
+                }
+                epciCode = code.asText();
+            }
+            return new Request(epciCode);
+        } catch (IOException invalid) {
+            throw new IllegalArgumentException("Expected {} or {\"epciCode\":\"...\"}", invalid);
+        }
+    }
+
+    public String handleRequest(String input) {
+        if (boundaries == null) throw new IllegalStateException("Boundary function has not been configured");
+        Request request = readRequest(input);
+        Instant fetchedAt = clock.instant();
+        Instant cutoff = fetchedAt.atZone(ZoneOffset.UTC).minusMonths(MAX_AGE_MONTHS).toInstant();
+        List<ObjectNode> updates = new ArrayList<>();
+        try (ObjectStoreClient storage = createObjectStoreClient(principal, namespace, bucket)) {
+            ObjectNode dataset = request.epciCode() == null
+                    ? refreshDepartements(storage, cutoff, fetchedAt, updates) : null;
+            List<Boundary> selected = request.epciCode() == null
+                    ? boundaries.stream().filter(boundary -> boundary.id().startsWith("epci:")).toList()
+                    : List.of(epciBoundary(request.epciCode()));
+            for (Boundary boundary : selected) {
+                if (fresh(fetchDate(storage.getResourceMetadata(boundary.path())), cutoff)) {
+                    LOG.info("Boundary {} is fresh; skipping download", boundary.id());
+                    continue;
+                }
+                LOG.info("Downloading boundary {} from {}", boundary.id(), boundary.url());
+                byte[] feature = prepareFeature(boundary, download(boundary.url()));
+                updates.add(publishBoundary(storage, boundary, feature, fetchedAt));
+            }
+            if (!updates.isEmpty()) updateAttribution(storage, updates, dataset, fetchedAt);
             return "OK";
         } catch (IOException | RuntimeException failure) {
             LOG.error("Boundary refresh failed", failure);
             throw new IllegalStateException("Boundary refresh failed", failure);
         }
     }
+
+    private Boundary epciBoundary(String code) {
+        String id = "epci:" + code;
+        return boundaries.stream().filter(boundary -> boundary.id().equals(id)).findFirst()
+                .orElseGet(() -> new Boundary(id, code, "boundaries/epcis/" + code + ".geojson",
+                        URI.create("https://geo.api.gouv.fr/epcis/" + code + "?format=geojson&geometry=contour")));
+    }
+
+    private static Instant fetchDate(OOSResourceMetadata metadata) {
+        if (metadata == null) return null;
+        String value = metadata.getMetadata().get("downloaded-at");
+        if (value == null) return null;
+        try {
+            return Instant.parse(value);
+        } catch (DateTimeParseException invalid) {
+            return null;
+        }
+    }
+
+    private static boolean fresh(Instant fetchedAt, Instant cutoff) {
+        return fetchedAt != null && !fetchedAt.isBefore(cutoff);
+    }
+
+    private static OOSResourceMetadata metadata(URI source, Instant fetchedAt) {
+        var metadata = new OOSResourceMetadata();
+        metadata.getMetadata().put("source-url", source.toString());
+        metadata.getMetadata().put("downloaded-at", fetchedAt.toString());
+        return metadata;
+    }
+
+    private ObjectNode refreshDepartements(ObjectStoreClient storage, Instant cutoff,
+                                           Instant now, List<ObjectNode> updates) throws IOException {
+        Instant fetchedAt = fetchDate(storage.getResourceMetadata(DEPARTEMENTS_OBJECT));
+        boolean download = !fresh(fetchedAt, cutoff);
+        byte[] bytes;
+        if (download) {
+            LOG.info("Downloading all departement boundaries from {}", DEPARTEMENTS_URL);
+            bytes = download(DEPARTEMENTS_URL);
+            fetchedAt = now;
+        } else {
+            LOG.info("Using fresh departement dataset from {}", DEPARTEMENTS_OBJECT);
+            try (InputStream input = storage.getResource(DEPARTEMENTS_OBJECT)) {
+                bytes = input.readAllBytes();
+            }
+        }
+        JsonNode departements = JSON.readTree(bytes);
+        for (Boundary boundary : publicationBoundaries(departements)) {
+            if (!boundary.url().equals(DEPARTEMENTS_URL)) continue;
+            if (!download && fresh(fetchDate(storage.getResourceMetadata(boundary.path())), cutoff)) continue;
+            updates.add(publishBoundary(storage, boundary, prepareFeature(boundary, departements), fetchedAt));
+        }
+        if (download) {
+            storage.putResource(DEPARTEMENTS_OBJECT, "application/geo+json", metadata(DEPARTEMENTS_URL, fetchedAt),
+                    new ByteArrayInputStream(bytes));
+        }
+        return JSON.createObjectNode().put("geoJsonPath", DEPARTEMENTS_OBJECT)
+                .put("sourceUrl", DEPARTEMENTS_URL.toString()).put("downloadedAt", fetchedAt.toString())
+                .put("simplificationMetres", 100);
+    }
+
+    private ObjectNode publishBoundary(ObjectStoreClient storage, Boundary boundary, byte[] feature,
+                                       Instant fetchedAt) throws IOException {
+        var metadata = metadata(boundary.url(), fetchedAt);
+        metadata.getMetadata().put("boundary-id", boundary.id());
+        storage.putResource(boundary.path(), "application/geo+json", metadata, new ByteArrayInputStream(feature));
+        LOG.info("Published boundary {} to {}/{}", boundary.id(), bucket, boundary.path());
+        var file = JSON.createObjectNode().put("boundaryId", boundary.id()).put("geoJsonPath", boundary.path())
+                .put("sourceUrl", boundary.url().toString()).put("downloadedAt", fetchedAt.toString());
+        if (boundary.url().equals(DEPARTEMENTS_URL)) file.put("simplificationMetres", 100);
+        else file.putNull("simplificationMetres");
+        return file;
+    }
+
+    private static void updateAttribution(ObjectStoreClient storage, List<ObjectNode> updates,
+                                           ObjectNode dataset, Instant now) throws IOException {
+        ObjectNode attribution;
+        if (storage.getResourceMetadata(ATTRIBUTION_OBJECT) == null) {
+            attribution = JSON.createObjectNode();
+            attribution.put("source", "https://www.data.gouv.fr/datasets/contours-administratifs");
+            attribution.put("licence", "ODbL-1.0");
+            attribution.put("attribution", "IGN ADMIN EXPRESS; data.gouv.fr / API Découpage administratif");
+            attribution.putNull("releaseDate");
+            attribution.putNull("simplificationMetres");
+        } else {
+            try (InputStream input = storage.getResource(ATTRIBUTION_OBJECT)) {
+                JsonNode existing = JSON.readTree(input);
+                if (!(existing instanceof ObjectNode object)) throw new IOException("Invalid boundary attribution object");
+                attribution = object;
+            }
+        }
+        var entries = new LinkedHashMap<String, JsonNode>();
+        for (JsonNode entry : attribution.path("files")) entries.put(entry.path("geoJsonPath").asText(), entry);
+        for (ObjectNode update : updates) entries.put(update.path("geoJsonPath").asText(), update);
+        var files = attribution.putArray("files");
+        entries.values().forEach(files::add);
+        attribution.remove("downloadedAt");
+        attribution.put("updatedAt", now.toString());
+        if (dataset != null) attribution.set("departementDataset", dataset);
+        storage.putResource(ATTRIBUTION_OBJECT, "application/json", new OOSResourceMetadata(),
+                new ByteArrayInputStream(JSON.writeValueAsBytes(attribution)));
+    }
+
+    record Request(String epciCode) {}
 
     static byte[] prepareFeature(Boundary boundary, byte[] bytes) throws IOException {
         return prepareFeature(boundary, JSON.readTree(bytes));

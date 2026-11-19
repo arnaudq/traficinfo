@@ -239,6 +239,7 @@ boundaries/epcis/200023414.geojson
 boundaries/departements/34.geojson
 boundaries/departements/30.geojson
 boundaries/departements/76.geojson
+boundaries/departements.geojson
 boundaries/attribution.json
 ```
 
@@ -249,13 +250,16 @@ dataset is marked ODbL; preserve its applicable attribution and licence metadata
 ### On-demand boundary publication
 
 `BoundaryFunction` must read the bundled root `mapconfig.json` and publish all
-departements plus the configured EPCI boundaries on each manual invocation.
+departements plus the configured EPCI boundaries by default. An optional
+`epciCode` request must restrict processing to that EPCI alone, using its
+configured path or `boundaries/epcis/<code>.geojson` when absent from the registry.
+The code must be a nine-digit string.
 Select the source by identifier
 scheme:
 
 | Scheme | Source and selection |
 | --- | --- |
-| `departement:` | Download the official [100 m département FeatureCollection](https://etalab-datasets.geo.data.gouv.fr/contours-administratifs/latest/geojson/departements-100m.geojson) once per invocation and publish every feature separately, using `properties.code` as the identifier suffix. |
+| `departement:` | Download the official [100 m département FeatureCollection](https://etalab-datasets.geo.data.gouv.fr/contours-administratifs/latest/geojson/departements-100m.geojson) only when the stored original is missing or stale, and publish every feature separately, using `properties.code` as the identifier suffix. Store the full original as `boundaries/departements.geojson`. |
 | `epci:` | Download `https://geo.api.gouv.fr/epcis/<id>?format=geojson&geometry=contour`, using the identifier suffix as `<id>`. |
 
 Upload each validated Feature to its configured `geoJsonPath`, or to
@@ -263,10 +267,26 @@ Upload each validated Feature to its configured `geoJsonPath`, or to
 in the bucket identified by `geoJsonBaseUrl`, adding
 `properties.boundaryId` while retaining the source geometry and properties.
 
-The function must overwrite existing objects without checking whether the
-origin has changed. It must not have a schedule or event trigger. A failure must
+The function must use `downloaded-at` custom object metadata to avoid downloading
+fresh sources. The maximum age is fixed at three calendar months in UTC.
+Objects with missing/invalid fetch timestamps must be fetched again. A timestamp
+exactly at the cutoff remains fresh. EPCI-only requests must not process the
+national departement dataset or other EPCI boundaries.
+
+The original national object's fetch timestamp must determine collection
+freshness. When fresh, reuse its stored bytes to regenerate missing or stale
+departement outputs, retaining the original fetch date. When refreshed, republish
+all departement outputs and store the full original collection with its fetch
+timestamp. Individual boundary metadata must include `boundary-id`, `source-url`
+and `downloaded-at`; the original collection requires the latter two.
+
+There must be no conditional origin requests or ETag comparisons. The function
+must not have a schedule or event trigger. A failure must
 stop the invocation without immediate retries; earlier successful uploads may
-remain published. Publish attribution after all boundary uploads. Publication
+remain published. Merge updated attribution entries after successful boundary
+uploads, preserving unselected entries and their dates. Each file entry must
+record its own `downloadedAt`; `updatedAt` records attribution publication time.
+A completely fresh invocation must leave attribution unchanged. Publication
 must not add entries to `mapconfig.json`: its configured boundaries continue to
 determine which territories the webapp displays.
 Record source URLs and download time, plus 100 m simplification on département
