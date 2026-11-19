@@ -790,7 +790,7 @@ publications and refreshes the combined output once after the last year. Each
 vehicles object names. The immutable configured list currently contains 2021, 2022,
 2023, 2024 and 2025; extend that list to add another annual publication.
 
-The default regional IDs are `30`, `34` and `76`. For ONISR these map to French
+The default regional IDs are `30`, `34`, `35` and `76`. For ONISR these map to French
 department codes. A third constructor argument can select another nonempty set
 of normalized IDs. The CSV object name is explicit and may include a prefix;
 raw inputs are never changed by the processor. The shared storage client decodes
@@ -872,6 +872,7 @@ of datasource import configuration. Each entry selects the source bucket and ID:
 [
   {"id": "ONISR_DPT30", "sourceBucket": "onisrinfo"},
   {"id": "ONISR_DPT34", "sourceBucket": "onisrinfo"},
+  {"id": "ONISR_DPT35", "sourceBucket": "onisrinfo"},
   {"id": "ONISR_DPT76", "sourceBucket": "onisrinfo"}
 ]
 ```
@@ -978,9 +979,18 @@ selects these annual publications in `onisrinfo`:
 | 2024 | `caract-2024.csv` | `usagers-2024.csv` | `vehicules-2024.csv` |
 | 2025 | `caract-2025.csv` | `usagers-2025.csv` | `vehicules-2025.csv` |
 
-Regional IDs remain **30, 34, 76**. Object names are case-sensitive. Other uploaded
+Regional IDs remain **30, 34, 35, 76**. Object names are case-sensitive. Other uploaded
 CSVs are not selected, and request payloads cannot override filenames or years.
 ONISR is not added to `dsconfig.json`.
+
+DPT35 (Ille-et-Vilaine) uses `ONISR_DPT35` for yearly records, OSM requests,
+combined accidents and public output. To activate this addition, redeploy the
+accident import, accident publication and boundary functions. Run the accident
+import before publication so the new configured input exists. After the hourly
+OSM refresh, refresh accidents and publish again to include resolved locations.
+Refresh boundaries before rebuilding the webapp so its new department outline
+is available. The generated `map-templates/DPT35.umap` is ready for uMap import
+once `ONISR_DPT35_Accidents.geojson` has been published.
 
 An empty request, `{}` or `{"action":"import"}` imports **2021, 2022, 2023, 2024 and 2025**, then
 rebuilds the combined regional output once. `{"action":"refresh"}` only rebuilds

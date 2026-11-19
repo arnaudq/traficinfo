@@ -7,7 +7,8 @@ import static org.junit.Assert.*;
 
 public class AccidentsConfigTest {
     @Test public void loadsBundledSourcesAndRejectsAmbiguousOrInvalidPublicationTargets() throws Exception {
-        assertEquals(3, AccidentsConfig.bundled().size());
+        assertEquals(java.util.List.of("ONISR_DPT30", "ONISR_DPT34", "ONISR_DPT35", "ONISR_DPT76"),
+                AccidentsConfig.bundled().stream().map(AccidentsConfig.Source::id).toList());
         for (String input : new String[]{"null", "{}", "[null]", "[] {}",
                 "[{\"id\":\"A\",\"sourceBucket\":\"bucket\"},{\"id\":\"A\",\"sourceBucket\":\"other\"}]",
                 "[{\"id\":\"../A\",\"sourceBucket\":\"bucket\"}]",

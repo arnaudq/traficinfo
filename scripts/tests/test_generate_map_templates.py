@@ -47,7 +47,8 @@ class MapGenerationTest(unittest.TestCase):
         for map_id, expected in (
                 ("MMM", [("MMM", "VEHICULES"), ("MMM", "BICYCLES"), ("ONISR_DPT34", "ACCIDENTS"), ("DPT34", "VEHICULES")]),
                 ("NIM", [("NIM", "VEHICULES"), ("DPT30", "VEHICULES"), ("ONISR_DPT30", "ACCIDENTS")]),
-                ("MRN", [("MRN", "VEHICULES"), ("MRN", "BICYCLES"), ("ONISR_DPT76", "ACCIDENTS"), ("DPT76", "VEHICULES")])):
+                ("MRN", [("MRN", "VEHICULES"), ("MRN", "BICYCLES"), ("ONISR_DPT76", "ACCIDENTS"), ("DPT76", "VEHICULES")]),
+                ("DPT35", [("ONISR_DPT35", "ACCIDENTS")])):
             entry = self.config["maps"][map_id]
             result = json.loads(GENERATOR.generate(entry, self.config, self.sources, base, layer, bicycle))
             self.assertEqual(result["geometry"]["coordinates"], entry["center"])
@@ -64,8 +65,8 @@ class MapGenerationTest(unittest.TestCase):
                 self.assertEqual(generated["rank"], len(expected) - 1 - rank)
                 self.assertEqual(generated["features"], [])
                 if population == "ACCIDENTS":
-                    self.assertEqual(rank, 2)
-                    self.assertFalse(generated["properties"]["displayOnLoad"])
+                    self.assertEqual(rank, 0 if map_id == "DPT35" else 2)
+                    self.assertEqual(generated["properties"]["displayOnLoad"], map_id == "DPT35")
                     self.assertTrue(generated["properties"]["remoteData"]["url"].endswith(f"/{source_id}_Accidents.geojson"))
                     self.assertIn("{accidentId}", generated["properties"]["popupContentTemplate"])
                     self.assertNotIn("moyenne_jour_annuelle", generated["properties"]["popupContentTemplate"])

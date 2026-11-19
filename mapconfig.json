@@ -40,6 +40,12 @@
       "name": "Métropole Rouen Normandie",
       "parentId": "departement:76",
       "geoJsonPath": "boundaries/epcis/200023414.geojson"
+    },
+    "departement:35": {
+      "boundaryId": "departement:35",
+      "type": "region",
+      "name": "Ille-et-Vilaine",
+      "geoJsonPath": "boundaries/departements/35.geojson"
     }
   },
   "maps": {
@@ -140,6 +146,30 @@
           ]
         }
       ]
+    },
+    "DPT35": {
+      "id": "DPT35",
+      "name": "Accidents - Ille-et-Vilaine",
+      "description": "Accidents corporels de la circulation en Ille-et-Vilaine issus des données ONISR.",
+      "boundaryId": "departement:35",
+      "center": [
+        -1.68,
+        48.17
+      ],
+      "zoom": 9,
+      "dataSources": [
+        {
+          "id": "ONISR_DPT35",
+          "types": [
+            "ACCIDENTS"
+          ]
+        }
+      ],
+      "layerProperties": {
+        "ONISR_DPT35": {
+          "displayOnLoad": true
+        }
+      }
     }
   }
 }

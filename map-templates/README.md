@@ -1,9 +1,10 @@
 # uMap templates
 
-`MMM.umap`, `NIM.umap`, and `MRN.umap` are generated, importable uMap files.
+`MMM.umap`, `NIM.umap`, `MRN.umap`, and `DPT35.umap` are generated, importable uMap files.
 MMM combines `MMM` and `DPT34`; NIM combines `NIM` and `DPT30`; MRN includes
 vehicle and bicycle counts from `MRN` plus vehicle counts from `DPT76`.
-Its initial center uses the Quai Jean
+DPT35 covers Ille-et-Vilaine and includes ONISR_DPT35 accidents.
+MRN's initial center uses the Quai Jean
 Moulin counter coordinates in `parsers/src/test/resources/MRNSample.csv`, at
 zoom 11. A map ID is independent of
 its data source IDs, so `MMM` can name both a map and a source.
@@ -75,7 +76,8 @@ ONISR_DPT30 and MRN ONISR_DPT76. These sources reference public
 `<id>_Accidents.geojson`, independently of dsconfig.json. They use separate orange
 clustered layers and accident-specific popups with ID, date/time, year and OSM
 way ID. Counts keep their existing icons, popups and source registry validation.
-The accident layer is third in each map's layer list and hidden on initial load.
+The accident layer is third in the MMM, NIM and MRN layer lists and hidden on
+initial load. DPT35 selects ONISR_DPT35, visible on initial load.
 Use the uMap layer selector to show it. The shared count
 filters refer to count properties; accident year is the `year` property.
 Publish the referenced accident files, regenerate the templates, and import

@@ -445,7 +445,7 @@ or remove an existing review outcome.
 ### Accident caches
 
 The accident processor uses separate departmental prefixes
-`ONISR_DPT30`, `ONISR_DPT34`, and `ONISR_DPT76`, distinct from traffic-count
+`ONISR_DPT30`, `ONISR_DPT34`, `ONISR_DPT35`, and `ONISR_DPT76`, distinct from traffic-count
 prefixes. The same object ownership applies to this request producer;
 for example, `ONISR_DPT30_OSMRequests.json`, `ONISR_DPT30_OSMWayMapping.json`,
 and `ONISR_DPT30_OSMInfo.json`. Mapping keys identify accidents rather than

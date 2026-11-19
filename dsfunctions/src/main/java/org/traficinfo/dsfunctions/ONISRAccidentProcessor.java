@@ -37,7 +37,7 @@ public final class ONISRAccidentProcessor {
 
     /** Clients target onisrinfo and osminfo respectively; ownership stays with the caller. */
     public ONISRAccidentProcessor(ObjectStoreClient accidentStore, ObjectStoreClient osmStore) {
-        this(accidentStore, osmStore, Set.of("30", "34", "76"));
+        this(accidentStore, osmStore, Set.of("30", "34", "35", "76"));
     }
 
     public ONISRAccidentProcessor(ObjectStoreClient accidentStore, ObjectStoreClient osmStore, Set<String> regionalIds) {

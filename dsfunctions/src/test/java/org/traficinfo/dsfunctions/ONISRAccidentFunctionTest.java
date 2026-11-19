@@ -65,9 +65,39 @@ public class ONISRAccidentFunctionTest {
         assertEquals("CAR", first.get(0).get("vehicles").get(0).get("type").asText());
         assertEquals("FEMALE", first.get(0).get("participants").get(0).get("sex").asText());
         assertFalse(probe.accidentStore.objects.containsKey("data/ONISR_DPT34/2020.json"));
-        assertEquals(3, probe.accidentStore.writes.stream().filter(name -> name.endsWith("_Accidents.json")).count());
+        assertEquals(4, probe.accidentStore.writes.stream().filter(name -> name.endsWith("_Accidents.json")).count());
         assertEquals(List.of(2021, 2022, 2023, 2024, 2025), ONISRYearInputs.configured().stream().map(ONISRYearInputs::year).toList());
         assertTrue(probe.osmStore.objects.containsKey("ONISR_DPT34_OSMRequests.json"));
+    }
+
+    @Test
+    public void importsIlleEtVilaineAndRefreshesItsAccidentsWithOsmAssignments() throws Exception {
+        Probe probe = configured(Map.of("NAMESPACE", "namespace"));
+        for (ONISRYearInputs year : ONISRYearInputs.configured()) {
+            source(probe, year.year());
+            String characteristics = new String(probe.accidentStore.objects.get(year.accidentObject()),
+                    StandardCharsets.UTF_8);
+            probe.accidentStore.text(year.accidentObject(), characteristics
+                    .replace(";34;34172;", ";35;35238;").replace("43,6;3,8", "48,1;-1,7"));
+        }
+        assertEquals("OK", probe.handleRequest("{}"));
+        for (ONISRYearInputs year : ONISRYearInputs.configured()) {
+            JsonNode records = JSON.readTree(probe.accidentStore.objects.get(
+                    "data/ONISR_DPT35/" + year.year() + ".json"));
+            assertEquals(1, records.size());
+            assertEquals("35", records.get(0).get("regionalId").asText());
+            assertEquals("FEMALE", records.get(0).get("participants").get(0).get("sex").asText());
+            assertEquals("CAR", records.get(0).get("vehicles").get(0).get("type").asText());
+            assertEquals(0, JSON.readTree(probe.accidentStore.objects.get(
+                    "data/ONISR_DPT34/" + year.year() + ".json")).size());
+        }
+        JsonNode requests = JSON.readTree(probe.osmStore.objects.get("ONISR_DPT35_OSMRequests.json"));
+        assertTrue(requests.get("reverseLookups").has("202500000001"));
+        probe.osmStore.text("ONISR_DPT35_OSMWayMapping.json",
+                "{\"202500000001\":{\"osmWayId\":123,\"status\":\"MATCHED\"}}");
+        assertEquals("OK", probe.handleRequest("{\"action\":\"refresh\"}"));
+        JsonNode output = JSON.readTree(probe.accidentStore.objects.get("ONISR_DPT35_Accidents.json"));
+        assertEquals("202500000001", output.get("123").get(0).get("accidentId").asText());
     }
 
     @Test

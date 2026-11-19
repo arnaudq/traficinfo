@@ -398,7 +398,9 @@ clusters from the matching points; filter controls are outside this change.
 ## Accident selections
 
 Accident layers default to `displayOnLoad: false`. The configured selections
-place the accident layer third in each current uMap's displayed layer list.
+place the accident layer third in MMM, NIM and MRN's displayed layer lists.
+DPT35 covers Ille-et-Vilaine using `departement:35`. Its ONISR_DPT35 accident
+layer overrides `displayOnLoad` to true.
 
 `dataSources` accepts `{"id":"ONISR_DPT34","types":["ACCIDENTS"]}`. ACCIDENTS
 is a publication type and cannot be combined with VEHICULES/BICYCLES in one

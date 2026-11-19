@@ -235,7 +235,7 @@ for provider attribution requirements.
 Map selections may use `{"id":"ONISR_DPT34","types":["ACCIDENTS"]}` alongside
 count selections. Accident IDs refer to public `<id>_Accidents.geojson` files,
 independently of the count datasource registry. MMM selects ONISR_DPT34, NIM
-ONISR_DPT30, and MRN ONISR_DPT76. A source cannot mix ACCIDENTS with count
+ONISR_DPT30, MRN ONISR_DPT76, and DPT35 ONISR_DPT35. A source cannot mix ACCIDENTS with count
 populations. The public registry preserves this selection for the browser.
 
 Accidents use separate fatal/non-fatal clusters and exclamation-mark icons, with dark red for

@@ -48,11 +48,13 @@ public class AccidentPublicationFunctionTest {
         new FunctionConfigurer().configure(context);
         Probe probe = (Probe) context.getInvokeInstance().orElseThrow();
         var codec = new ONISRAccidentJson();
-        for(String region:List.of("30","34","76")) probe.input.objects.put("ONISR_DPT"+region+"_Accidents.json",codec.writeByWay(Map.of()));
+        for(String region:List.of("30","34","35","76")) probe.input.objects.put("ONISR_DPT"+region+"_Accidents.json",codec.writeByWay(Map.of()));
         probe.input.objects.put("ONISR_DPT34_Accidents.json",codec.writeByWay(Map.of(77L,List.of(AccidentPublicationTest.accident(2025,1,77)))));
         assertEquals("OK",probe.handleRequest("{}"));
-        assertEquals(List.of("false/namespace/public-output","false/namespace/onisrinfo","false/namespace/onisrinfo","false/namespace/onisrinfo"),probe.connections);
-        assertEquals(6,probe.output.objects.size());
+        assertEquals(List.of("false/namespace/public-output","false/namespace/onisrinfo","false/namespace/onisrinfo","false/namespace/onisrinfo","false/namespace/onisrinfo"),probe.connections);
+        assertEquals(8,probe.output.objects.size());
+        assertTrue(probe.output.objects.containsKey("ONISR_DPT35_Accidents.geojson"));
+        assertTrue(probe.output.objects.containsKey("ONISR_DPT35_Accidents_Summary.json"));
         assertTrue(probe.input.closed && probe.output.closed);
         probe.input.objects.remove("ONISR_DPT30_Accidents.json");
         try {probe.handleRequest("{}");fail("Missing source must fail invocation");}

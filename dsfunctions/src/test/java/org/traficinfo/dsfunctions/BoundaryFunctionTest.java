@@ -25,7 +25,7 @@ public class BoundaryFunctionTest {
         Probe probe = configured();
         assertEquals("OK", probe.handleRequest("{}"));
         assertEquals(4, probe.downloads.size());
-        assertEquals(8, probe.objects.size());
+        assertEquals(9, probe.objects.size());
         assertEquals(List.of("ns/traficinfo"), probe.clients);
         assertEquals(1, probe.downloads.stream().filter(BoundaryFunction.DEPARTEMENTS_URL::equals).count());
         assertTrue(probe.downloads.contains(URI.create("https://geo.api.gouv.fr/epcis/243400017?format=geojson&geometry=contour")));
@@ -39,11 +39,11 @@ public class BoundaryFunctionTest {
         JsonNode paris = JSON.readTree(probe.objects.get("boundaries/departements/75.geojson"));
         assertEquals("departement:75", paris.path("properties").path("boundaryId").asText());
         JsonNode attribution = JSON.readTree(probe.objects.get("boundaries/attribution.json"));
-        assertEquals(7, attribution.path("files").size());
+        assertEquals(8, attribution.path("files").size());
         assertEquals("ODbL-1.0", attribution.path("licence").asText());
         assertEquals("OK", probe.handleRequest("{}"));
         assertEquals(8, probe.downloads.size());
-        assertEquals(16, probe.writes);
+        assertEquals(18, probe.writes);
         assertEquals(2, probe.closed);
     }
 
@@ -163,7 +163,10 @@ public class BoundaryFunctionTest {
             if (failDownload) throw new IOException("Download failed");
             if (response == null && url.equals(BoundaryFunction.DEPARTEMENTS_URL)) {
                 try (InputStream input = getClass().getResourceAsStream("/boundaries/departements-100m.geojson")) {
-                    return input.readAllBytes();
+                    var departments = (com.fasterxml.jackson.databind.node.ObjectNode) JSON.readTree(input);
+                    ((com.fasterxml.jackson.databind.node.ArrayNode) departments.get("features"))
+                            .add(JSON.readTree(feature("35")));
+                    return JSON.writeValueAsBytes(departments);
                 }
             }
             String code = url.getPath().substring(url.getPath().lastIndexOf('/') + 1);
