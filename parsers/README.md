@@ -50,6 +50,33 @@ and `/uploads/pictogram/bicycle.svg`) per population.
 The model also supports `PIETONS_VELOS` (mixed pedestrian and bicycle counts)
 and `UNKNOWN`; these remain excluded by the export's existing type filter.
 
+## Counter identity and measurement identity
+
+`Comptage.getCodeCentrale()` identifies a source-specific counter/site across
+years and is the grouping key for GeoJSON features, annual history and OSM
+assignments. A single counter can have several measurements per year. A
+measurement's source-specific channel/direction stays separate when the publisher
+provides one:
+
+| Source | Counter/site grouping key | Measurement key |
+| --- | --- | --- |
+| MMM | Publisher `code_centrale` | Counter code + year + `codeCanal` |
+| REN | `REN_` + publisher `code_rm` | Counter code + year + `sens` |
+| MRN | `MRN_` + complete publisher `Id_SIG` | Counter code + year |
+
+MRN retains the complete publisher ID, including any direction suffix; the
+integration does not infer which different source IDs describe one physical
+site. `directionType` describes directional coverage (one direction, both or
+unknown), and is not a unique channel identifier: opposite directions can both
+be UNIDIRECTIONAL.
+
+Shared GeoJSON publication groups by counter code. It selects the latest
+eligible year, then the greatest daily count in that year. It does not sum
+channels or require a bidirectional row. V85 and mean speed are independently
+the maximum positive values among eligible rows in the selected year. Annual
+history selects one count per year. Preprocessing preserves individual records;
+use source-aware comparison to distinguish their channels/directions.
+
 ## Comparing data-source snapshots
 
 Run the test-source main class `org.traficinfo.parsers.ComptageDiffProgram`
@@ -74,8 +101,8 @@ accepted. The optional output path is the fifth argument and defaults to
 the program uses its configured MRN snapshot filenames in Downloads.
 
 `ComptageDiffer.diff(source, before, after)` selects the matching key automatically:
-MMM uses central code, year and channel code; the other sources use central code
-and year. Records must belong to the selected source. Duplicate keys log a
+MMM uses counter code, year and channel code; REN uses counter code, year and
+`sens`; the other sources use counter code and year. Records must belong to the selected source. Duplicate keys log a
 warning and retain the first record. `ComptageDiffer.IGNORED_FIELDS` currently
 contains only `altStreetName`; changes to that field alone produce no diff.
 The full source objects retain the field when other changes are reported.

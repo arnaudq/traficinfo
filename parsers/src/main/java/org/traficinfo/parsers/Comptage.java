@@ -18,6 +18,11 @@ public interface Comptage extends GeographicRecord {
 
   void setCityName(String name);
 
+  /**
+   * Source-specific counter/site identifier used to group map features and history across years.
+   * Multiple annual or directional measurements may share this ID. When the source provides
+   * separate station and channel fields, the channel stays outside this grouping key.
+   */
   String getCodeCentrale();
 
   void setCodeCentrale(String codeCentrale);

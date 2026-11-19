@@ -1156,8 +1156,14 @@ Preprocessing stores immutable yearly records and publishes `REN_Manifest.json`
 last. Active-input events select shared preprocessing; manifest events select
 shared GeoJSON publication, including after archive imports. Output uses
 `REN_TraficInfo.geojson` and the shared empty `REN_TraficInfo_BICYCLES.geojson`.
-The REN map selects the vehicle output. The existing rolling map history window still
-applies. OSM requests and caches use the `REN_` prefix. See the
+The REN map selects the vehicle output. REN counter IDs are station-only
+(`REN_<code_rm>`); `sens` identifies measurements within each station/year.
+Preprocessing retains every direction, while shared GeoJSON grouping produces
+one feature per station using the latest year and greatest daily count. There
+is no REN-specific combined-direction filter. Speed maxima and annual history
+follow the shared rules documented in the [parsers README](../parsers/README.md#counter-identity-and-measurement-identity).
+The existing rolling map history window still applies. OSM requests and caches
+use the `REN_` prefix. See the
 [parser README](../parsers/src/main/java/org/traficinfo/parsers/ren/README.md) for
 station/direction identity, measurement duration and nullable source fields.
 

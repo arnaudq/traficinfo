@@ -49,20 +49,38 @@ street/city names, so these are not inferred from station codes.
 
 ## Identity and directional coverage
 
-A counter ID is `REN_<encoded code_rm>__<encoded sens>`. Both components use
-UTF-8 form URL encoding (`URLEncoder`), preserving distinct station/direction
-pairs across years without relying on technical export IDs. For example,
-`REN_V9O35.3__Nord-Sud+%2F+Ouest-Est`. The display name is the original station
-code and direction label, with optional ID-based display overrides.
+A counter/site ID is `REN_<code_rm>`, with the trimmed publisher code preserved
+verbatim, for example `REN_RM435.W`. It identifies the station across years and
+measurement directions, and is the shared GeoJSON grouping and OSM cache key.
+`stationCode` retains the original `code_rm`; `sens` remains a separate source
+field. A measurement is uniquely identified by `(codeCentrale, annee, sens)`.
+Duplicate measurements fail parsing. Several measurements with the same counter
+ID and year are valid when their `sens` differs. Source-aware snapshot comparison
+uses `sens` as its discriminator, like MMM uses `codeCanal`.
 
 `Sens cumulés` maps to BIDIRECTIONAL; `Nord-Sud / Ouest-Est` and
 `Sud-Nord / Est-Ouest` map to UNIDIRECTIONAL. The observed `Voie 1` and `Voie 2`
 labels and future unknown labels map to UNKNOWN because their coverage is not
-documented precisely enough to infer it. Each station/direction has its own
-history and output point. Combined and directional counts overlap in coverage;
-they must not be summed as independent traffic volumes. Duplicate
-station/year/direction records fail parsing rather than silently replacing one
-measurement. Changes to coordinates remain source data rather than new IDs.
+documented precisely enough to infer it. `directionType` describes coverage,
+while `sens` identifies the particular measurement direction or channel.
+
+Preprocessing preserves all annual/directional records. GeoJSON uses the shared
+selection rules used by MMM and MRN:
+
+- Group by `codeCentrale`, producing one point and history per counter/site.
+- Select the latest eligible year and the row with the highest daily average
+  for that year. Do not sum directions, and do not require or explicitly prefer
+  `Sens cumulés`. A directional-only station remains eligible.
+- Take the maximum positive V85 and mean speed independently across the eligible
+  rows in that selected year, even when another row supplies the daily count.
+  These are channel maxima, rather than recalculated combined-traffic speeds.
+- Select one daily count per year for history using the same descending count
+  ordering. Existing population, date, count-range and geometry rules apply.
+
+Combined and directional records therefore share a map feature without losing
+measurement identity in storage or comparisons. The default display description
+is the station code plus the selected row's `sens`; a display override keyed by
+station ID applies to every measurement for that station.
 
 ## Measures
 

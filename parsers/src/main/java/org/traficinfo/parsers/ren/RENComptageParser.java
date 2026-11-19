@@ -17,6 +17,8 @@ import java.util.*;
 /** Reads the Rennes Opendatasoft semicolon CSV export, including latitude/longitude. */
 public final class RENComptageParser implements ComptageParser {
   public static final String COUNTER_PREFIX = "REN_";
+  private record MeasurementKey(String station, int year, String direction) {}
+
   private static final List<String> REQUIRED_HEADERS = List.of(
       "code_rm", "annee", "sens", "geo_point_2d", "nb_semaines", "tmja_tv");
 
@@ -32,7 +34,7 @@ public final class RENComptageParser implements ComptageParser {
     CSVReader csv = new CSVReaderBuilder(reader)
         .withCSVParser(new CSVParserBuilder().withSeparator(';').build()).build();
     List<RENComptage> records = new ArrayList<>();
-    Set<String> ids = new HashSet<>();
+    Set<MeasurementKey> ids = new HashSet<>();
     try {
       String[] headers = csv.readNext();
       if (headers == null) throw new IOException("Missing REN CSV header");
@@ -52,9 +54,9 @@ public final class RENComptageParser implements ComptageParser {
         if (station == null || sens == null || year == null || year <= 0 || year > 9999) {
           throw new IOException("Missing or invalid REN station, direction or year");
         }
-        String id = COUNTER_PREFIX + java.net.URLEncoder.encode(station, StandardCharsets.UTF_8)
-            + "__" + java.net.URLEncoder.encode(sens, StandardCharsets.UTF_8);
-        if (!ids.add(id + "/" + year)) throw new IOException("Duplicate REN station/year/direction: " + id + "/" + year);
+        String id = COUNTER_PREFIX + station;
+        MeasurementKey key = new MeasurementKey(station, year, sens);
+        if (!ids.add(key)) throw new IOException("Duplicate REN station/year/direction: " + key);
         RENComptage count = new RENComptage();
         count.setStationCode(station);
         count.setSens(sens);

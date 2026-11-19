@@ -30,14 +30,15 @@ public class RENComptageParserTest {
     var counts = parser.parseComptages(new StringReader(sample()));
     assertEquals(10, counts.size());
     RENComptage first = counts.get(0);
-    assertEquals("REN_V9O35.3__Nord-Sud+%2F+Ouest-Est", first.getCodeCentrale());
+    assertEquals("REN_V9O35.3", first.getCodeCentrale());
     assertEquals(2017, first.getAnnee());
     assertEquals("V9O35.3", first.getStationCode());
     assertEquals("V9O35.3 - Nord-Sud / Ouest-Est", first.getDisplayName());
     assertEquals(Comptage.DirectionType.UNIDIRECTIONAL, first.getDirectionType());
     assertEquals(Comptage.DirectionType.BIDIRECTIONAL, counts.get(2).getDirectionType());
     assertEquals(Comptage.DirectionType.UNKNOWN, counts.get(6).getDirectionType());
-    assertNotEquals(first.getCodeCentrale(), counts.get(2).getCodeCentrale());
+    assertEquals(first.getCodeCentrale(), counts.get(2).getCodeCentrale());
+    assertNotEquals(first.getSens(), counts.get(2).getSens());
     assertEquals(first.getCodeCentrale(), counts.get(5).getCodeCentrale());
     assertEquals(Double.valueOf(0.1), first.getNbSemaines());
     assertEquals(Double.valueOf(17.5), first.getVMoyenneTv());
@@ -73,7 +74,7 @@ public class RENComptageParserTest {
   @Test public void supportsFilesBomOverridesAndCallerOwnedReaders() throws Exception {
     var path = Files.createTempFile("ren-", ".csv");
     var names = new Properties();
-    names.put("REN_V9O35.3__Nord-Sud+%2F+Ouest-Est", "Comptage rennais");
+    names.put("REN_V9O35.3", "Comptage rennais");
     try {
       Files.writeString(path, "\uFEFF" + sample());
       assertEquals("Comptage rennais", parser.parseComptages(path.toFile(), names).get(0).getDisplayName());
@@ -99,23 +100,63 @@ public class RENComptageParserTest {
     assertTrue(parser.parseComptages(new StringReader(csv(java.util.Collections.singletonList(rows().get(0))))).isEmpty());
   }
 
-  @Test public void registryComparisonAndSharedGeoJsonKeepDirectionalCountersSeparate() throws Exception {
+  @Test public void measurementComparisonSeparatesDirectionsAndMapGroupsByStation() throws Exception {
     assertSame(GeoJsonParser.DataSource.REN, GeoJsonParser.DataSource.fromId("ren"));
     var counts = parser.parseComptages(new StringReader(sample()));
     var changed = parser.parseComptages(new StringReader(sample()));
     changed.get(0).setMoyenneJourAnnuelle(100);
     assertEquals(1, ComptageDiffer.diff(GeoJsonParser.DataSource.REN, counts, changed).size());
+    // Both changed measurements are unidirectional, but their source sens values differ.
+    changed.get(4).setMoyenneJourAnnuelle(400);
+    var differences = ComptageDiffer.diff(GeoJsonParser.DataSource.REN, counts, changed);
+    assertEquals(2, differences.size());
+    assertSame(counts.get(0), differences.get(0).before());
+    assertSame(counts.get(4), differences.get(1).before());
     // Keep fixture years relevant to the shared rolling output window.
     counts.forEach(c -> c.setAnnee(c.getAnnee() == 2016 ? java.time.Year.now().getValue() - 1 : java.time.Year.now().getValue()));
     var out = new StringWriter();
     GeoJsonParser.writeGeoJson(GeoJsonParser.DataSource.REN, counts, new org.geojson.FeatureCollection(), out, wayId -> null);
     var features = json.readTree(out.toString()).get("features");
-    assertEquals(6, features.size());
+    assertEquals(4, features.size());
     var ids = new java.util.HashSet<String>();
     for (var f : features) {
       assertEquals("REN", f.at("/properties/data_source").asText());
-      assertTrue(ids.add(f.at("/properties/code_centrale").asText()));
+      String id = f.at("/properties/code_centrale").asText();
+      assertTrue(ids.add(id));
+      if (id.equals("REN_V9O35.3")) {
+        assertEquals(359, f.at("/properties/moyenne_jour_annuelle").asInt());
+        assertEquals("30", f.at("/properties/v85_speed").asText());
+        assertEquals("23", f.at("/properties/mean_speed").asText());
+        assertTrue(f.at("/properties/moyenne_annuelle_history").asText().startsWith("359 ("));
+      }
     }
+    assertEquals(java.util.Set.of("REN_V9O35.3", "REN_V1U35.3", "REN_V1U35.2", "REN_MB235.6"), ids);
+  }
+
+  @Test public void sharedSelectionUsesLatestYearAndDirectionSpeedsWithoutRequiringACombinedRow() throws Exception {
+    var counts = parser.parseComptages(new StringReader(sample())).stream()
+        .filter(c -> "V9O35.3".equals(c.getStationCode())).toList();
+    int year = java.time.Year.now().getValue();
+    counts.forEach(c -> c.setAnnee(c.getAnnee() == 2016 ? year - 1 : year));
+    counts.get(0).setV85Speed(70);
+    counts.get(0).setMeanSpeed(45);
+    var out = new StringWriter();
+    GeoJsonParser.writeGeoJson(GeoJsonParser.DataSource.REN, counts,
+        new org.geojson.FeatureCollection(), out, way -> null);
+    var features = json.readTree(out.toString()).get("features");
+    assertEquals(1, features.size());
+    assertEquals(359, features.get(0).at("/properties/moyenne_jour_annuelle").asInt());
+    assertEquals("70", features.get(0).at("/properties/v85_speed").asText());
+    assertEquals("45", features.get(0).at("/properties/mean_speed").asText());
+    var directional = counts.stream().filter(c -> !"Sens cumulés".equals(c.getSens())).toList();
+    out = new StringWriter();
+    GeoJsonParser.writeGeoJson(GeoJsonParser.DataSource.REN, directional,
+        new org.geojson.FeatureCollection(), out, way -> null);
+    features = json.readTree(out.toString()).get("features");
+    assertEquals(1, features.size());
+    assertEquals("REN_V9O35.3", features.get(0).at("/properties/code_centrale").asText());
+    assertEquals(year, features.get(0).at("/properties/annee").asInt());
+    assertEquals(353, features.get(0).at("/properties/moyenne_jour_annuelle").asInt());
   }
 
   private java.util.List<String[]> rows() throws Exception {

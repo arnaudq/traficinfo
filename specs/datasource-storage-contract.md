@@ -69,6 +69,31 @@ datasource and settings from the bundled configuration. Its existing publisher
 parses, validates and compares output, retaining an unchanged manifest. A second
 event rule watches `<id>_Manifest.json` and invokes GeoJSON generation.
 
+## Counter and measurement semantics
+
+`codeCentrale` is the source-specific counter/site identifier shared by its
+measurements across years. GeoJSON groups by this identifier to produce one
+feature and annual history; OSM assignment and request caches use the same key.
+It is not a unique yearly-record identifier. When a source supplies station and
+channel separately, keep the channel outside `codeCentrale`.
+
+Measurement identity is source-specific. MMM uses `(codeCentrale, annee,
+codeCanal)`; REN uses `(codeCentrale, annee, sens)` with station-only IDs such as
+`REN_RM435.W`. MRN keeps its full prefixed `Id_SIG` as the counter key and uses
+year to identify its annual record. Publisher IDs can distinguish campaigns or
+directional sites; do not merge different IDs just because they share a location.
+`directionType` classifies coverage and cannot distinguish opposite unidirectional
+channels. Source-aware comparisons use the source's measurement key.
+
+Yearly arrays retain all source measurements, including several directions for
+the same station/year. Their `recordCount` counts measurements, while GeoJSON
+feature counts count grouped counter/sites. Shared map selection uses the latest
+eligible year and greatest daily count within that year. It does not sum
+channels or explicitly prefer combined directions. Speed properties use the
+maximum positive V85 and mean values independently within the selected year;
+history retains one daily count per year. Source parsers determine the meaning
+and directional coverage of each supplied measure.
+
 ## Objects
 
 Object names are relative to the datasource's configured input bucket. Use the

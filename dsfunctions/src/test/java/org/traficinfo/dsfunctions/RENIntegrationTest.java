@@ -58,9 +58,14 @@ public class RENIntegrationTest {
         assertEquals("REN_Manifest.json", source.publications().getLast());
         var restored = new ManifestComptageReader(source).read("REN");
         assertEquals(expected, restored.size());
+        assertEquals("2", manifest.years().get(2026).parserVersion());
+        assertTrue(restored.stream().allMatch(c -> !c.getCodeCentrale().contains("__")));
+        assertTrue(restored.stream().map(c -> c.getCodeCentrale() + "/" + c.getAnnee()).distinct().count()
+                < restored.size());
         RENComptage first = (RENComptage) restored.getFirst();
         assertEquals(parsed.stream().filter(c -> c.getCodeCentrale().equals(first.getCodeCentrale())
-                && c.getAnnee() == first.getAnnee()).findFirst().orElseThrow(), first);
+                && c.getAnnee() == first.getAnnee() && c.getSens().equals(first.getSens()))
+                .findFirst().orElseThrow(), first);
         var output = new PreprocessingPublisherTest.Store();
         var osm = new PreprocessingPublisherTest.Store();
         osm.objects.put("REN_OSMInfo.json", JSON.writeValueAsBytes(Map.of("123", Map.of(

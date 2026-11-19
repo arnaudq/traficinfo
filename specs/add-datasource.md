@@ -68,6 +68,12 @@ display-name overrides. Register the source ID, parser and model class in
 selection by the comparison tools.
 
 Keep a prefixed counter ID, explicit observation year and nullable source measures.
+Separate counter/site identity (the GeoJSON and OSM grouping key) from measurement
+identity (counter + year + source channel/direction where applicable). When the
+publisher supplies station and channel fields separately, retain the channel as
+a separate field rather than appending it to the counter ID; MMM and REN follow
+this convention. Preserve complete publisher IDs such as MRN's `Id_SIG` without
+inventing cross-ID station merges. See the [shared identity semantics](datasource-storage-contract.md#counter-and-measurement-semantics).
 The shared integer daily-average getter can return 0 for a missing measure, but
 retain a nullable getter to distinguish missing from measured zero. Use WGS84
 geometry in longitude, latitude order. Keep unlocated records with null geometry;
