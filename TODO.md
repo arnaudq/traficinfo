@@ -76,8 +76,6 @@ Annuaire at https://trafic-routier.data.cerema.fr/acces-aux-donnees-de-trafic-ro
 
 Données nationales: https://transport.data.gouv.fr/datasets/etat-de-circulation-en-temps-reel-sur-le-reseau-national-routier-non-concede
 
-Infractions routières: https://www.data.gouv.fr/datasets/jeux-de-donnees-des-vitesses-relevees-par-les-voitures-radars-a-conduite-externalisee
-
 API Avatar: https://avatar.cerema.fr/documentation
 
 Telraam: https://telraam.net/api/segments/snapshot/traffic
