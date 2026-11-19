@@ -24,11 +24,12 @@ public class BoundaryFunctionTest {
     public void publishesAllDepartementsAndConfiguredEpcisOnEveryInvocation() throws Exception {
         Probe probe = configured();
         assertEquals("OK", probe.handleRequest("{}"));
-        assertEquals(4, probe.downloads.size());
-        assertEquals(9, probe.objects.size());
+        assertEquals(5, probe.downloads.size());
+        assertEquals(10, probe.objects.size());
         assertEquals(List.of("ns/traficinfo"), probe.clients);
         assertEquals(1, probe.downloads.stream().filter(BoundaryFunction.DEPARTEMENTS_URL::equals).count());
         assertTrue(probe.downloads.contains(URI.create("https://geo.api.gouv.fr/epcis/243400017?format=geojson&geometry=contour")));
+        assertTrue(probe.downloads.contains(URI.create("https://geo.api.gouv.fr/epcis/243500139?format=geojson&geometry=contour")));
         JsonNode config = probe.loadMapConfig();
         for (JsonNode definition : config.get("boundaries")) {
             JsonNode feature = JSON.readTree(probe.objects.get(definition.get("geoJsonPath").asText()));
@@ -39,11 +40,11 @@ public class BoundaryFunctionTest {
         JsonNode paris = JSON.readTree(probe.objects.get("boundaries/departements/75.geojson"));
         assertEquals("departement:75", paris.path("properties").path("boundaryId").asText());
         JsonNode attribution = JSON.readTree(probe.objects.get("boundaries/attribution.json"));
-        assertEquals(8, attribution.path("files").size());
+        assertEquals(9, attribution.path("files").size());
         assertEquals("ODbL-1.0", attribution.path("licence").asText());
         assertEquals("OK", probe.handleRequest("{}"));
-        assertEquals(8, probe.downloads.size());
-        assertEquals(18, probe.writes);
+        assertEquals(10, probe.downloads.size());
+        assertEquals(20, probe.writes);
         assertEquals(2, probe.closed);
     }
 

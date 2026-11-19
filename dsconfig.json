@@ -224,5 +224,79 @@
         ]
       }
     }
+  },
+  "REN": {
+    "id": "REN",
+    "name": "Comptages véhicules - Rennes Métropole",
+    "schedule": "Daily",
+    "scheduleClock": "BYHOUR=16;BYMINUTE=0;BYSECOND=0",
+    "geoJsonEnabled": true,
+    "eventObject": "REN_Manifest.json",
+    "activeDatasetId": "current",
+    "datasets": {
+      "ren-2021-2025": {
+        "years": [
+          2021,
+          2022,
+          2023,
+          2024,
+          2025
+        ],
+        "datasetInfoUrl": "https://data.rennesmetropole.fr/explore/dataset/comptages-routiers-station/",
+        "inputs": [
+          {
+            "url": "https://data.rennesmetropole.fr/api/explore/v2.1/catalog/datasets/comptages-routiers-station/exports/csv?where=annee+%3E%3D+2021+AND+annee+%3C%3D+2025&use_labels=false&delimiter=%3B",
+            "objectName": "REN_Comptage_2021-2025.csv",
+            "contentType": "text/csv"
+          }
+        ]
+      },
+      "ren-2016-2020": {
+        "years": [
+          2016,
+          2017,
+          2018,
+          2019,
+          2020
+        ],
+        "datasetInfoUrl": "https://data.rennesmetropole.fr/explore/dataset/comptages-routiers-station/",
+        "inputs": [
+          {
+            "url": "https://data.rennesmetropole.fr/api/explore/v2.1/catalog/datasets/comptages-routiers-station/exports/csv?where=annee+%3E%3D+2016+AND+annee+%3C%3D+2020&use_labels=false&delimiter=%3B",
+            "objectName": "REN_Comptage_2016-2020.csv",
+            "contentType": "text/csv"
+          }
+        ]
+      },
+      "ren-2011-2015": {
+        "years": [
+          2011,
+          2012,
+          2013,
+          2014,
+          2015
+        ],
+        "datasetInfoUrl": "https://data.rennesmetropole.fr/explore/dataset/comptages-routiers-station/",
+        "inputs": [
+          {
+            "url": "https://data.rennesmetropole.fr/api/explore/v2.1/catalog/datasets/comptages-routiers-station/exports/csv?where=annee+%3E%3D+2011+AND+annee+%3C%3D+2015&use_labels=false&delimiter=%3B",
+            "objectName": "REN_Comptage_2011-2015.csv",
+            "contentType": "text/csv"
+          }
+        ]
+      },
+      "current": {
+        "years": [
+          2026
+        ],
+        "datasetInfoUrl": "https://data.rennesmetropole.fr/explore/dataset/comptages-routiers-station/",
+        "inputs": [
+          {
+            "url": "https://data.rennesmetropole.fr/api/explore/v2.1/catalog/datasets/comptages-routiers-station/exports/csv?where=annee%3E%3D2026&use_labels=false&delimiter=%3B",
+            "contentType": "text/csv"
+          }
+        ]
+      }
+    }
   }
 }

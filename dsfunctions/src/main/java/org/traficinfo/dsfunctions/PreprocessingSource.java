@@ -14,6 +14,8 @@ enum PreprocessingSource {
     DPT30(GeoJsonParser.DataSource.DPT30, ',',
             List.of("id_tmja", "annee", "tmja_tous_vehicules")),
     DPT76(GeoJsonParser.DataSource.DPT76, "application/geo+json"),
+    REN(GeoJsonParser.DataSource.REN, ';',
+            List.of("code_rm", "annee", "sens", "geo_point_2d", "nb_semaines", "tmja_tv")),
     DPT34(GeoJsonParser.DataSource.DPT34, ';',
             List.of("Identifiant du compteur", "Année", "mja_tv_tcj")),
     MRN(GeoJsonParser.DataSource.MRN, ';',

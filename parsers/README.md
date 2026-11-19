@@ -59,7 +59,8 @@ with these arguments:
 datasource before.csv after.csv [2020,2022,2024 [output.json]]
 ```
 
-The first argument selects the parser: `MMM`, `DPT34`, `DPT30`, `MRN`, or `NIM`.
+The first argument selects the parser: `MMM`, `DPT34`, `DPT30`, `DPT76`, `MRN`, `NIM`, or `REN`.
+DPT76 accepts GeoJSON files; REN uses semicolon CSV with coordinates. See the [Rennes source contract](src/main/java/org/traficinfo/parsers/ren/README.md).
 IDs are case-insensitive; enum names such as `M3MV2` also work. For example:
 
 ```text

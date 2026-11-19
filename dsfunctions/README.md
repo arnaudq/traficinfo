@@ -989,8 +989,8 @@ accident import, accident publication and boundary functions. Run the accident
 import before publication so the new configured input exists. After the hourly
 OSM refresh, refresh accidents and publish again to include resolved locations.
 Refresh boundaries before rebuilding the webapp so its new department outline
-is available. The generated `map-templates/DPT35.umap` is ready for uMap import
-once `ONISR_DPT35_Accidents.geojson` has been published.
+is available. The generated `map-templates/REN.umap` is ready for uMap import
+once `REN_TraficInfo.geojson` and `ONISR_DPT35_Accidents.geojson` have been published.
 
 An empty request, `{}` or `{"action":"import"}` imports **2021, 2022, 2023, 2024 and 2025**, then
 rebuilds the combined regional output once. `{"action":"refresh"}` only rebuilds
@@ -1094,3 +1094,52 @@ continues processing other caches before throwing if any cache failed.
 Recoverable OSM HTTP lookup failures keep their retry behavior. Set up email
 alerts using `scripts/setup-function-alerts.sh` as described in the
 [setup specification](../specs/setup.md#function-failure-emails).
+
+## Rennes Métropole counts
+
+`REN` uses the shared retrieval, preprocessing and GeoJSON handlers. Its active
+`current` dataset downloads `REN_Comptage.csv` from the publisher's semicolon CSV
+export with `annee >= 2026`, daily at 16:00 UTC. Its explicit processing scope is
+`[2026]`; add subsequent years as they are published. The default input bucket is
+`dsren`.
+
+Historical inputs are configured separately:
+
+| Dataset ID | Years | CSV object in `dsren` |
+| --- | --- | --- |
+| `ren-2021-2025` | 2021–2025 | `REN_Comptage_2021-2025.csv` |
+| `ren-2016-2020` | 2016–2020 | `REN_Comptage_2016-2020.csv` |
+| `ren-2011-2015` | 2011–2015 | `REN_Comptage_2011-2015.csv` |
+
+Each archive URL selects exactly its five-year period. Upload the historical
+CSVs under these exact names in `dsren` after creating the configured bucket.
+Deploy the updated shared preprocessing function before importing, since its
+bundled configuration resolves the dataset IDs. Import starting with 2021–2025:
+
+```sh
+./scripts/invoke.sh preprocess REN ren-2021-2025
+./scripts/invoke.sh preprocess REN ren-2016-2020
+./scripts/invoke.sh preprocess REN ren-2011-2015
+./scripts/invoke.sh geojson REN
+```
+
+Archive preprocessing reads the uploaded files without downloading or modifying
+them. It retains `activeDatasetId: current` in the manifest and preserves other
+periods. No current CSV is needed to import archives. Scheduled retrieval keeps
+selecting `REN_Comptage.csv`; historical input uploads do not match its event
+rule. All configured observations start in 2011.
+
+Preprocessing stores immutable yearly records and publishes `REN_Manifest.json`
+last. Active-input events select shared preprocessing; manifest events select
+shared GeoJSON publication, including after archive imports. Output uses
+`REN_TraficInfo.geojson` and the shared empty `REN_TraficInfo_BICYCLES.geojson`.
+The REN map selects the vehicle output. The existing rolling map history window still
+applies. OSM requests and caches use the `REN_` prefix. See the
+[parser README](../parsers/src/main/java/org/traficinfo/parsers/ren/README.md) for
+station/direction identity, measurement duration and nullable source fields.
+
+To activate ongoing retrieval, redeploy the shared retrieval/preprocessing/GeoJSON
+functions, reconcile events and schedules, and invoke `ds REN`, `preprocess REN`,
+then `geojson REN` with `scripts/invoke.sh`. Rebuild the webapp or import the
+regenerated REN uMap template after the public output exists. Popup branding
+uses `REN_Logo.png` in the public output bucket when that asset is supplied.

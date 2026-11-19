@@ -46,6 +46,13 @@
       "type": "region",
       "name": "Ille-et-Vilaine",
       "geoJsonPath": "boundaries/departements/35.geojson"
+    },
+    "epci:243500139": {
+      "boundaryId": "epci:243500139",
+      "type": "city",
+      "name": "Rennes Métropole",
+      "parentId": "departement:35",
+      "geoJsonPath": "boundaries/epcis/243500139.geojson"
     }
   },
   "maps": {
@@ -147,29 +154,30 @@
         }
       ]
     },
-    "DPT35": {
-      "id": "DPT35",
-      "name": "Accidents - Ille-et-Vilaine",
-      "description": "Accidents corporels de la circulation en Ille-et-Vilaine issus des données ONISR.",
-      "boundaryId": "departement:35",
+    "REN": {
+      "id": "REN",
+      "name": "Comptages véhicules - Rennes Métropole",
+      "description": "Comptages de véhicules issus des données de Rennes Métropole et accidents corporels de la circulation en Ille-et-Vilaine issus des données ONISR.",
+      "boundaryId": "epci:243500139",
       "center": [
         -1.68,
-        48.17
+        48.1119
       ],
-      "zoom": 9,
+      "zoom": 11,
       "dataSources": [
+        {
+          "id": "REN",
+          "types": [
+            "VEHICULES"
+          ]
+        },
         {
           "id": "ONISR_DPT35",
           "types": [
             "ACCIDENTS"
           ]
         }
-      ],
-      "layerProperties": {
-        "ONISR_DPT35": {
-          "displayOnLoad": true
-        }
-      }
+      ]
     }
   }
 }

@@ -1,9 +1,10 @@
 # uMap templates
 
-`MMM.umap`, `NIM.umap`, `MRN.umap`, and `DPT35.umap` are generated, importable uMap files.
+`MMM.umap`, `NIM.umap`, `MRN.umap`, and `REN.umap` are generated, importable uMap files.
 MMM combines `MMM` and `DPT34`; NIM combines `NIM` and `DPT30`; MRN includes
 vehicle and bicycle counts from `MRN` plus vehicle counts from `DPT76`.
-DPT35 covers Ille-et-Vilaine and includes ONISR_DPT35 accidents.
+REN covers Rennes Métropole, within Ille-et-Vilaine, and combines Rennes vehicle
+counts with departmental ONISR_DPT35 accidents.
 MRN's initial center uses the Quai Jean
 Moulin counter coordinates in `parsers/src/test/resources/MRNSample.csv`, at
 zoom 11. A map ID is independent of
@@ -54,7 +55,7 @@ Vehicles use
 `<sourceId>_TraficInfo_BICYCLES.geojson` and a popup showing daily counts and
 history without speed fields. Publish the files referenced by the selected
 layers before importing the templates. MMM and MRN include vehicles and bicycles;
-DPT34, NIM, DPT30 and DPT76 include only vehicles.
+DPT34, NIM, DPT30, DPT76 and REN include only vehicles.
 Layers use `"type": "Cluster"` by default, with uMap's default clustering
 radius. Set `layerProperties.<sourceId>.type` to `"Default"` in a map's
 configuration to disable clustering for that layer, or use
@@ -77,7 +78,7 @@ ONISR_DPT30 and MRN ONISR_DPT76. These sources reference public
 clustered layers and accident-specific popups with ID, date/time, year and OSM
 way ID. Counts keep their existing icons, popups and source registry validation.
 The accident layer is third in the MMM, NIM and MRN layer lists and hidden on
-initial load. DPT35 selects ONISR_DPT35, visible on initial load.
+initial load. REN selects ONISR_DPT35 as its second layer, also hidden initially.
 Use the uMap layer selector to show it. The shared count
 filters refer to count properties; accident year is the `year` property.
 Publish the referenced accident files, regenerate the templates, and import

@@ -4,7 +4,7 @@
     "type": "Point",
     "coordinates": [
       -1.68,
-      48.17
+      48.1119
     ]
   },
   "properties": {
@@ -86,7 +86,7 @@
       "url_template": "https://tile.jawg.io/light/{z}/{x}/{y}.png?api-key=community"
     },
     "captionBar": false,
-    "description": "Accidents corporels de la circulation en Ille-et-Vilaine issus des données ONISR.\n\nLe label apparaissant au survol de la souris sur un compteur indique la dernière moyenne journalière annuelle connue. Si la valeur est suivie d'une double flèche, elle indique un comptage dans les 2 sens cumulés.\n\nEn cliquant sur un compteur, on obtient plus de détails sur la mesure.\n\nLe code couleur du compteur correspond à moins de 1000 véhicules/jour (vert), entre 1000 et 5000 véhicules/jour (violet), plus de 5000 véhicules/jour (rouge).\n\nPour filtrer les compteurs (année, nombre de véhicules/jour, vitesse pratiquée,...), cliquez sur \"Explorateur de données\" et choisissez \"Filtres\".",
+    "description": "Comptages de véhicules issus des données de Rennes Métropole et accidents corporels de la circulation en Ille-et-Vilaine issus des données ONISR.\n\nLe label apparaissant au survol de la souris sur un compteur indique la dernière moyenne journalière annuelle connue. Si la valeur est suivie d'une double flèche, elle indique un comptage dans les 2 sens cumulés.\n\nEn cliquant sur un compteur, on obtient plus de détails sur la mesure.\n\nLe code couleur du compteur correspond à moins de 1000 véhicules/jour (vert), entre 1000 et 5000 véhicules/jour (violet), plus de 5000 véhicules/jour (rouge).\n\nPour filtrer les compteurs (année, nombre de véhicules/jour, vitesse pratiquée,...), cliquez sur \"Explorateur de données\" et choisissez \"Filtres\".",
     "limitBounds": {},
     "moreControl": true,
     "zoomControl": true,
@@ -100,12 +100,12 @@
     "displayPopupFooter": false,
     "popupContentTemplate": "# {name}\n{description}\nAnnée: {annee}\nMoyenne jour annuelle: {moyenne_jour_annuelle}\nMoyenne heure de pointe matin: {moyenne_pointe_matin}\nMoyenne heure de pointe soir: {moyenne_pointe_soir}\nLimitation de vitesse (km/h): {maximum_speed}\nVitesse pratiquee V85 (km/h): {v85_speed}\nVitesse moyenne (km/h): {mean_speed}\n\nHistorique des moyennes: {moyenne_annuelle_history}\n\n{{https://objectstorage.eu-frankfurt-1.oraclecloud.com/n/frivwhhfdcjn/b/traficinfo/o/{data_source}_Logo.png|200}}\nGID: {code_centrale}",
     "permanentCreditBackground": true,
-    "name": "Accidents - Ille-et-Vilaine",
+    "name": "Comptages véhicules - Rennes Métropole",
     "center": [
       -1.68,
-      48.17
+      48.1119
     ],
-    "zoom": 9
+    "zoom": 11
   },
   "layers": [
     {
@@ -134,7 +134,7 @@
         "filters": [],
         "browsable": true,
         "inCaption": true,
-        "displayOnLoad": true,
+        "displayOnLoad": false,
         "name": "Accidents - ONISR_DPT35",
         "description": "Accidents corporels de la circulation — ONISR",
         "color": "#c2410c",
@@ -147,6 +147,82 @@
         }
       },
       "rank": 0
+    },
+    {
+      "type": "FeatureCollection",
+      "features": [],
+      "properties": {
+        "type": "Cluster",
+        "fields": [
+          {
+            "key": "type",
+            "type": "String"
+          },
+          {
+            "key": "code_centrale",
+            "type": "String"
+          },
+          {
+            "key": "name",
+            "type": "String"
+          },
+          {
+            "key": "description",
+            "type": "Text"
+          },
+          {
+            "key": "annee",
+            "type": "Number"
+          },
+          {
+            "key": "moyenne_jour_annuelle",
+            "type": "Number"
+          },
+          {
+            "key": "moyenne_pointe_matin",
+            "type": "String"
+          },
+          {
+            "key": "moyenne_pointe_soir",
+            "type": "String"
+          },
+          {
+            "key": "moyenne_annuelle_history",
+            "type": "String"
+          },
+          {
+            "key": "v85_speed",
+            "type": "Number"
+          },
+          {
+            "key": "mean_speed",
+            "type": "Number"
+          },
+          {
+            "key": "maximum_speed",
+            "type": "Number"
+          },
+          {
+            "key": "bicycle_contraflow_allowed",
+            "type": "Boolean"
+          },
+          {
+            "key": "data_source",
+            "type": "String"
+          }
+        ],
+        "filters": [],
+        "browsable": true,
+        "inCaption": true,
+        "displayOnLoad": true,
+        "name": "Comptages véhicules - Rennes Métropole",
+        "description": "Comptages basés sur les données de [[https://data.rennesmetropole.fr/explore/dataset/comptages-routiers-station/ | Comptages véhicules - Rennes Métropole]]\n\nMise à jour quotidienne",
+        "remoteData": {
+          "url": "https://objectstorage.eu-frankfurt-1.oraclecloud.com/n/frivwhhfdcjn/b/traficinfo/o/REN_TraficInfo.geojson",
+          "format": "geojson"
+        }
+      },
+      "rank": 1
     }
   ]
 }

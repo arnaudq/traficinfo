@@ -102,7 +102,7 @@ from the dashboard to verify that the imported filter persists.
 ## Webapp territory boundaries
 
 This section specifies the required boundary configuration, publication and
-webapp behavior. The initial release must display the three City boundaries
+webapp behavior. The webapp must display the City boundaries
 and their containing Region boundaries listed below, with popups providing
 access to published uMaps. Displaying count layers in the webapp is a subsequent
 release, specified separately below.
@@ -211,6 +211,7 @@ For the initial French coverage, the application concepts map as follows:
 | MMM | Montpellier Méditerranée Métropole | `epci:243400017` | Hérault | `departement:34` |
 | NIM | Communauté d'agglomération de Nîmes Métropole | `epci:243000643` | Gard | `departement:30` |
 | MRN | Métropole Rouen Normandie | `epci:200023414` | Seine-Maritime | `departement:76` |
+| REN | Rennes Métropole | `epci:243500139` | Ille-et-Vilaine | `departement:35` |
 
 An administrative outline does not imply that every road inside has counts.
 
@@ -399,8 +400,9 @@ clusters from the matching points; filter controls are outside this change.
 
 Accident layers default to `displayOnLoad: false`. The configured selections
 place the accident layer third in MMM, NIM and MRN's displayed layer lists.
-DPT35 covers Ille-et-Vilaine using `departement:35`. Its ONISR_DPT35 accident
-layer overrides `displayOnLoad` to true.
+REN covers Rennes Métropole using `epci:243500139`, with parent region
+`departement:35`. It selects REN vehicle counts and ONISR_DPT35 accidents. The
+accident layer is second and uses the default hidden initial state.
 
 `dataSources` accepts `{"id":"ONISR_DPT34","types":["ACCIDENTS"]}`. ACCIDENTS
 is a publication type and cannot be combined with VEHICULES/BICYCLES in one

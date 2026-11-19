@@ -9,6 +9,7 @@ public enum GeoJsonDataSource {
     DPT30(GeoJsonParser.DataSource.DPT30),
     DPT76(GeoJsonParser.DataSource.DPT76),
     DPT34(GeoJsonParser.DataSource.DPT34),
+    REN(GeoJsonParser.DataSource.REN),
     MRN(GeoJsonParser.DataSource.MRN),
     NIM(GeoJsonParser.DataSource.NIM);
 

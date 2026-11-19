@@ -154,7 +154,7 @@ class OciScriptsTest(unittest.TestCase):
             'buckets': [{'name': name, 'compartment-id': 'ocid1.compartment.test',
                          'storage-tier': 'Standard', 'object-events-enabled': True,
                          'public-access-type': 'NoPublicAccess'}
-                        for name in ['ds3mbucket', 'dsdpt34', 'dsdpt30', 'dsmrn', 'dsnim', 'dsdpt76', 'traficinfo', 'osminfo']],
+                        for name in ['ds3mbucket', 'dsdpt34', 'dsdpt30', 'dsmrn', 'dsnim', 'dsdpt76', 'dsren', 'traficinfo', 'osminfo']],
             'rules': [], 'schedules': []}
         self.save()
 
@@ -332,6 +332,60 @@ class OciScriptsTest(unittest.TestCase):
             self.config_file.write_text(json.dumps(config))
             self.deploy(success=False)
             self.assertNotIn('calls', self.state)
+
+    def test_ren_csv_pipeline_settings_events_and_daily_schedule(self):
+        config = json.loads(self.config_file.read_text())
+        self.config_file.write_text(json.dumps({'REN': config['REN']}))
+        source = json.loads(self.common('get_data_source REN').stdout)
+        settings = json.loads(self.common('preprocessing_settings "$(get_data_source REN)"').stdout)
+        self.assertEqual(source['inputBucket'], 'dsren')
+        self.assertEqual(settings['years'], [2026])
+        self.assertEqual(settings['source']['inputs'][0]['objectName'], 'REN_Comptage.csv')
+        self.assertEqual(settings['source']['inputs'][0]['contentType'], 'text/csv')
+        self.assertIn('where=annee%3E%3D2026', settings['source']['inputs'][0]['url'])
+        self.state['buckets'] = [b for b in self.state['buckets'] if b['name'] != 'dsren']
+        self.save()
+        self.script('setup-buckets.sh')
+        self.assertTrue(next(b for b in self.state['buckets'] if b['name'] == 'dsren')['object-events-enabled'])
+        for function in ['ds', 'preprocess', 'geojson']:
+            self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main ' + function)
+            self.script('invoke.sh', function, 'REN')
+        self.script('setup-events.sh')
+        rules = {r['display-name']: json.loads(r['condition']) for r in self.state['rules']}
+        self.assertEqual(rules['RENRetrievalToPreprocessing']['data']['resourceName'], ['REN_Comptage.csv'])
+        self.assertEqual(rules['RENComptageCsvToGeoJson']['data']['resourceName'], ['REN_Manifest.json'])
+        for rule in rules.values():
+            self.assertEqual(rule['data']['additionalDetails']['bucketName'], ['dsren'])
+        self.script('setup-schedules.sh')
+        schedule = next(s for s in self.state['schedules'] if s['display-name'] == 'RENRetrieval')
+        self.assertEqual(schedule['recurrence-details'], 'FREQ=DAILY;BYHOUR=16;BYMINUTE=0;BYSECOND=0')
+        writes = list(self.state['writes'])
+        self.script('setup-events.sh')
+        self.script('setup-schedules.sh')
+        self.assertEqual(self.state['writes'], writes)
+
+    def test_ren_five_year_archives_select_period_files_without_changing_current(self):
+        from urllib.parse import parse_qs, urlsplit
+        config = json.loads(self.config_file.read_text())
+        self.config_file.write_text(json.dumps({'REN': config['REN']}))
+        for start, end in [(2021, 2025), (2016, 2020), (2011, 2015)]:
+            dataset = f'ren-{start}-{end}'
+            settings = json.loads(self.common(
+                f'archive_preprocessing_settings "$(get_data_source REN)" {dataset}').stdout)
+            self.assertEqual(settings['years'], list(range(start, end + 1)))
+            self.assertEqual(settings['source']['datasetId'], dataset)
+            source_input = settings['source']['inputs'][0]
+            self.assertEqual(source_input['objectName'], f'REN_Comptage_{start}-{end}.csv')
+            self.assertEqual(parse_qs(urlsplit(source_input['url']).query)['where'],
+                             [f'annee >= {start} AND annee <= {end}'])
+            self.script('invoke.sh', 'preprocess', 'REN', dataset)
+            call = self.state['calls'][-1]
+            self.assertEqual(json.loads(call[call.index('--body') + 1]),
+                             {'datasourceId': 'REN', 'datasetId': dataset})
+        source = json.loads(self.common('get_data_source REN').stdout)
+        self.assertEqual(source['activeDatasetId'], 'current')
+        settings = json.loads(self.common('data_source_settings "$(get_data_source REN)"').stdout)
+        self.assertEqual(settings['inputs'][0]['objectName'], 'REN_Comptage.csv')
 
     def test_dpt76_geojson_retrieval_deployment_and_manifest_event_routing(self):
         config = json.loads(self.config_file.read_text())
@@ -732,7 +786,7 @@ class OciScriptsTest(unittest.TestCase):
         self.assertEqual(conditions['MRNComptageCsvToGeoJson']['data']['additionalDetails']['bucketName'],
                          ['dsmrn'])
         self.script('setup-schedules.sh')
-        self.assertEqual(len(self.state['schedules']), 7)
+        self.assertEqual(len(self.state['schedules']), 8)
         schedules = {s['display-name']: s for s in self.state['schedules']}
         self.assertEqual(schedules['Hourly']['recurrence-details'], 'FREQ=HOURLY;BYMINUTE=0;BYSECOND=0')
         self.assertEqual(schedules['Hourly']['local-time-zone'], 'UTC')

@@ -34,6 +34,17 @@ public class SharedDataSourceFunctionTest {
     }
 
     @Test
+    public void retrievesRennesCsvFromConfiguredEndpointAndBucket() {
+        Probe probe = configured(Map.of("NAMESPACE", "testns"));
+        assertEquals("OK", probe.handleRequest("{\"datasourceId\":\"REN\"}"));
+        assertEquals(List.of("testns/dsren"), probe.buckets);
+        assertEquals(List.of("REN:REN_Comptage.csv"), probe.writes);
+        assertTrue(probe.requests.getFirst().toString().contains("where=annee%3E%3D2026"));
+        assertEquals(1, probe.storageClosed);
+        assertEquals(1, probe.httpClosed);
+    }
+
+    @Test
     public void unconfiguredHandlerCannotPublish() {
         Probe probe = new Probe();
         try {
@@ -83,7 +94,7 @@ public class SharedDataSourceFunctionTest {
     @Test
     public void bundleMatchesExistingRetrievalSettingsForEverySource() {
         DataSourceRegistry registry = DataSourceRegistry.bundled();
-        for (String id : List.of("MMM", "MRN", "DPT30", "DPT34", "DPT76", "NIM")) {
+        for (String id : List.of("MMM", "MRN", "DPT30", "DPT34", "DPT76", "NIM", "REN")) {
             assertEquals(DataSourceTestSettings.settings(id), registry.source(id).settings());
         }
     }
