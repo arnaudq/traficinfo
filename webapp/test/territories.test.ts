@@ -180,3 +180,17 @@ test('registry validation rejects broken references, unsupported fields and inva
     assert.throws(() => validateRegistry(config, sources));
   }
 });
+
+test('accident datasets are public map selections independent of the count registry', () => {
+  const sources = { SOURCE: { id: 'SOURCE' } };
+  const config = registry();
+  config.maps.A.dataSources.push({ id: 'ONISR_DPT34', types: ['ACCIDENTS'] });
+  validateRegistry(config, sources);
+  config.maps.A.dataSources.push({ id: 'ONISR_DPT34', types: ['ACCIDENTS'] });
+  assert.throws(() => validateRegistry(config, sources));
+  config.maps.A.dataSources.pop();
+  Object.assign(config.maps.A.dataSources.at(-1)!, {
+    types: ['ACCIDENTS', 'BICYCLES'],
+  });
+  assert.throws(() => validateRegistry(config, sources));
+});

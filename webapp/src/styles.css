@@ -333,3 +333,25 @@ a {
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+.accident-cluster {
+  background: #ffedd5;
+  color: #9a3412;
+  border: 3px solid #ea580c;
+}
+.fatal-accident-cluster {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #991b1b;
+}
+.accident-marker > span {
+  border-radius: 4px;
+  font-size: 22px;
+  font-weight: 800;
+  color: white;
+  text-align: center;
+}
+.accident-key {
+  color: #ea580c;
+  font-size: 20px;
+}

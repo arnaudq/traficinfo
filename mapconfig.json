@@ -46,7 +46,7 @@
     "MMM": {
       "id": "MMM",
       "name": "Comptage véhicules - Montpellier",
-      "description": "Carte basée sur les données de la métropole de Montpellier et du département de l'Hérault.",
+      "description": "Carte basée sur les données de la métropole de Montpellier et du département de l'Hérault. Accidents corporels issus des données ONISR.",
       "boundaryId": "epci:243400017",
       "center": [
         3.88401,
@@ -62,6 +62,12 @@
           ]
         },
         {
+          "id": "ONISR_DPT34",
+          "types": [
+            "ACCIDENTS"
+          ]
+        },
+        {
           "id": "DPT34",
           "types": [
             "VEHICULES"
@@ -73,7 +79,7 @@
     "NIM": {
       "id": "NIM",
       "name": "Comptage véhicules - Nîmes",
-      "description": "Carte basée sur les données de Nîmes Métropole et du département du Gard.",
+      "description": "Carte basée sur les données de Nîmes Métropole et du département du Gard. Accidents corporels issus des données ONISR.",
       "boundaryId": "epci:243000643",
       "center": [
         4.341316223144532,
@@ -92,6 +98,12 @@
           "types": [
             "VEHICULES"
           ]
+        },
+        {
+          "id": "ONISR_DPT30",
+          "types": [
+            "ACCIDENTS"
+          ]
         }
       ],
       "uri": "http://umap.openstreetmap.fr/en/map/comptage-vehicules-nimes_1478574"
@@ -100,7 +112,7 @@
       "id": "MRN",
       "name": "Comptages véhicules et vélos - Métropole Rouen Normandie",
       "uri": "https://umap.openstreetmap.fr/en/map/comptage-vehicules-rouen_1475742",
-      "description": "Carte basée sur les données de comptage de véhicules et de vélos de la Métropole Rouen Normandie et de véhicules du département de la Seine-Maritime.",
+      "description": "Carte basée sur les données de comptage de véhicules et de vélos de la Métropole Rouen Normandie et de véhicules du département de la Seine-Maritime. Accidents corporels issus des données ONISR.",
       "boundaryId": "epci:200023414",
       "center": [
         1.09266,
@@ -113,6 +125,12 @@
           "types": [
             "VEHICULES",
             "BICYCLES"
+          ]
+        },
+        {
+          "id": "ONISR_DPT76",
+          "types": [
+            "ACCIDENTS"
           ]
         },
         {

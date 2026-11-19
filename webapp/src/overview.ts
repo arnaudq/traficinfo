@@ -24,7 +24,7 @@ function mapContent(
 ): HTMLLIElement {
   const item = element('li', null, 'map-entry');
   item.append(element('h3', map.name), element('p', map.description));
-  const open = element('button', 'Afficher les comptages');
+  const open = element('button', 'Afficher la carte');
   open.type = 'button';
   open.addEventListener('click', () => select(map));
   item.append(open);
@@ -88,7 +88,8 @@ export async function loadOverview(map: L.Map): Promise<void> {
     document.querySelector('details.available-maps')?.removeAttribute('open');
     void counts.select(selected).catch((error: unknown) => {
       console.error(error);
-      countStatus.textContent = 'Les comptages ne peuvent pas être affichés.';
+      countStatus.textContent =
+        'Les données de la carte ne peuvent pas être affichées.';
     });
   };
   back.addEventListener('click', () => {

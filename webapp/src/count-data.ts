@@ -6,18 +6,26 @@ export type CountData = FeatureCollection<Geometry, CounterProperties>;
 
 export interface CountLayer {
   sourceId: string;
-  population: Population;
+  population: Population | 'ACCIDENTS';
   url: string;
 }
 
 export function countLayers(base: string, map: PublicMap): CountLayer[] {
-  return map.dataSources.flatMap((source) =>
-    source.types.map((population) => ({
+  return map.dataSources.flatMap((source): CountLayer[] => {
+    if (source.types.includes('ACCIDENTS'))
+      return [
+        {
+          sourceId: source.id,
+          population: 'ACCIDENTS',
+          url: `${base.replace(/\/$/, '')}/${encodeURIComponent(source.id)}_Accidents.geojson`,
+        },
+      ];
+    return source.types.map((population) => ({
       sourceId: source.id,
       population,
       url: `${base.replace(/\/$/, '')}/${encodeURIComponent(source.id)}_TraficInfo${population === 'BICYCLES' ? '_BICYCLES' : ''}.geojson`,
-    })),
-  );
+    }));
+  });
 }
 
 function object(value: unknown): value is Record<string, unknown> {

@@ -89,3 +89,16 @@ test('HTTP and invalid-data failures can be retried', async () => {
   assert.deepEqual(await load('counts'), data);
   assert.equal(requests, 3);
 });
+
+test('accident selections use the published accident URL rather than count objects', () => {
+  const map = {
+    dataSources: [{ id: 'ONISR_DPT34', types: ['ACCIDENTS'] }],
+  } as PublicMap;
+  assert.deepEqual(countLayers('https://example.org/o/', map), [
+    {
+      sourceId: 'ONISR_DPT34',
+      population: 'ACCIDENTS',
+      url: 'https://example.org/o/ONISR_DPT34_Accidents.geojson',
+    },
+  ]);
+});

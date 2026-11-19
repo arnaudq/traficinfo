@@ -154,6 +154,22 @@ export function validateRegistry(
         object(selection) && text(selection.id),
         `Invalid selection: ${id}`,
       );
+      if (
+        Array.isArray(selection.types) &&
+        selection.types.includes('ACCIDENTS')
+      ) {
+        ensure(
+          /^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(selection.id) &&
+            selection.types.length === 1 &&
+            !selected.has(selection.id) &&
+            Object.keys(selection).every((key) =>
+              ['id', 'types'].includes(key),
+            ),
+          `Invalid accident datasource: ${id}/${selection.id}`,
+        );
+        selected.add(selection.id);
+        continue;
+      }
       const source = sources[selection.id];
       ensure(
         object(source) &&

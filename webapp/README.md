@@ -57,7 +57,7 @@ map references a boundary and selects its datasources; City boundaries reference
 their containing Region. A Region popup lists its child City maps and any map
 attached directly to the Region. Maps without a published `uri` have no uMap link.
 The client initially loads contours only, without traffic-count GeoJSON.
-Choose **Afficher les comptages** in a territory popup or the available-map list
+Choose **Afficher la carte** in a territory popup or the available-map list
 to zoom to the selected boundary and load its configured source/population
 layers. Departmental sources remain complete layers; counts are not clipped to
 the selected city boundary.
@@ -229,3 +229,28 @@ the gateway is replaced, update this public URL and rebuild the webapp.
 Keep the visible Jawg Maps and OpenStreetMap attribution. See
 [Jawg's Leaflet integration](https://www.jawg.io/docs/integration/leaflet/)
 for provider attribution requirements.
+
+## Accident layers
+
+Map selections may use `{"id":"ONISR_DPT34","types":["ACCIDENTS"]}` alongside
+count selections. Accident IDs refer to public `<id>_Accidents.geojson` files,
+independently of the count datasource registry. MMM selects ONISR_DPT34, NIM
+ONISR_DPT30, and MRN ONISR_DPT76. A source cannot mix ACCIDENTS with count
+populations. The public registry preserves this selection for the browser.
+
+Accidents use separate fatal/non-fatal clusters and exclamation-mark icons, with dark red for
+recorded deaths, light orange for recorded injuries, and grey when neither is recorded.
+Hovering an accident shows “Accident : x tués, x blessés”; the injured total
+combines hospitalized and lightly injured participants across all categories.
+Popups show accident ID, date/time, year, way ID and recorded participant totals
+by injury severity. The layer control offers **Accidents mortels** (enabled by
+default) and **Accidents non mortels** (disabled by default), alongside
+vehicle-count and bicycle-count layers. Fatal accidents have at least one
+recorded `KILLED` participant; all others, including unknown severity, belong
+to the non-fatal layer. Both groups use the same downloaded GeoJSON; switching
+visibility does not download it again. Visibility choices persist when switching
+maps during the page session. Departmental accident data, like
+count data, remains complete and is not clipped to the selected city boundary.
+
+Publish the accident GeoJSON with the accident-publication function before
+using the layers. Rebuild/deploy the webapp to apply mapconfig.json changes.

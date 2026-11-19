@@ -114,9 +114,10 @@ def validate(config, sources):
             require(nonempty(source_id), f"{map_id}: missing data source ID")
             types = selection["types"]
             require(isinstance(types, list) and types
-                    and all(isinstance(t, str) and t in ("VEHICULES", "BICYCLES") for t in types)
+                    and all(isinstance(t, str) and t in ("VEHICULES", "BICYCLES", "ACCIDENTS") for t in types)
                     and len(types) == len(set(types)),
-                    f"{map_id}: {source_id} types must be distinct VEHICULES or BICYCLES values")
+                    f"{map_id}: {source_id} types must be distinct VEHICULES, BICYCLES or ACCIDENTS values")
+            require("ACCIDENTS" not in types or types == ["ACCIDENTS"], f"{map_id}: accident source cannot select count populations")
             ids.append(source_id)
         require(len(ids) == len(set(ids)), f"{map_id}: dataSources must contain distinct source IDs")
         if "uri" in entry:
@@ -130,6 +131,8 @@ def validate(config, sources):
         for source_id in ids:
             require(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", source_id),
                     f"{map_id}: invalid data source ID {source_id}")
+            if any(item["id"] == source_id and item.get("types") == ["ACCIDENTS"] for item in selections):
+                continue
             source = sources.get(source_id)
             require(isinstance(source, dict) and source.get("id") == source_id,
                     f"{map_id}: unknown or mismatched data source {source_id}")
@@ -171,6 +174,18 @@ def generate(entry, config, sources, map_template, layer_template, bicycle_templ
                  "Weekly": "hebdomadaire", "Monthly": "mensuelle"}
     for selection in entry["dataSources"]:
         source_id = selection["id"]
+        if selection.get("types") == ["ACCIDENTS"]:
+            layer = deepcopy(layer_template)
+            layer["properties"].update(
+                name=f"Accidents - {source_id}", description="Accidents corporels de la circulation — ONISR",
+                color="#c2410c", iconClass="Circle", iconUrl="", displayOnLoad=False,
+                popupContentTemplate="# Accident {accidentId}\nDate : {date} {time}\nAnnée : {year}\nVoie OSM : {osmWayId}",
+                fields=[{"key": key, "type": kind} for key, kind in
+                        [("accidentId", "String"), ("date", "String"), ("year", "Number"), ("osmWayId", "Number")]],
+                remoteData={"url": f"{config['geoJsonBaseUrl'].rstrip('/')}/{source_id}_Accidents.geojson", "format": "geojson"})
+            merge(layer["properties"], entry.get("layerProperties", {}).get(source_id, {}))
+            result["layers"].append(layer)
+            continue
         source = sources[source_id]
         dataset = source["datasets"][source["activeDatasetId"]]
         description = ("Comptages basés sur les données de "

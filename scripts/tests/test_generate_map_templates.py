@@ -45,8 +45,9 @@ class MapGenerationTest(unittest.TestCase):
         bicycle = GENERATOR.read_json(ROOT / "map-templates/templates/bicycle-layer.json")
         GENERATOR.validate(self.config, self.sources)
         for map_id, expected in (
-                ("MMM", [("MMM", "VEHICULES"), ("MMM", "BICYCLES"), ("DPT34", "VEHICULES")]),
-                ("NIM", [("NIM", "VEHICULES"), ("DPT30", "VEHICULES")])):
+                ("MMM", [("MMM", "VEHICULES"), ("MMM", "BICYCLES"), ("ONISR_DPT34", "ACCIDENTS"), ("DPT34", "VEHICULES")]),
+                ("NIM", [("NIM", "VEHICULES"), ("DPT30", "VEHICULES"), ("ONISR_DPT30", "ACCIDENTS")]),
+                ("MRN", [("MRN", "VEHICULES"), ("MRN", "BICYCLES"), ("ONISR_DPT76", "ACCIDENTS"), ("DPT76", "VEHICULES")])):
             entry = self.config["maps"][map_id]
             result = json.loads(GENERATOR.generate(entry, self.config, self.sources, base, layer, bicycle))
             self.assertEqual(result["geometry"]["coordinates"], entry["center"])
@@ -62,6 +63,14 @@ class MapGenerationTest(unittest.TestCase):
                 generated = list(reversed(result["layers"]))[rank]
                 self.assertEqual(generated["rank"], len(expected) - 1 - rank)
                 self.assertEqual(generated["features"], [])
+                if population == "ACCIDENTS":
+                    self.assertEqual(rank, 2)
+                    self.assertFalse(generated["properties"]["displayOnLoad"])
+                    self.assertTrue(generated["properties"]["remoteData"]["url"].endswith(f"/{source_id}_Accidents.geojson"))
+                    self.assertIn("{accidentId}", generated["properties"]["popupContentTemplate"])
+                    self.assertNotIn("moyenne_jour_annuelle", generated["properties"]["popupContentTemplate"])
+                    self.assertEqual(generated["properties"]["color"], "#c2410c")
+                    continue
                 suffix = "_BICYCLES" if population == "BICYCLES" else ""
                 self.assertTrue(generated["properties"]["remoteData"]["url"].endswith(
                     f"/{source_id}_TraficInfo{suffix}.geojson"))
@@ -109,6 +118,7 @@ class MapGenerationTest(unittest.TestCase):
 
     def test_invalid_configurations_are_rejected(self):
         mutations = [
+            lambda e: e.update(dataSources=[{"id": "ONISR_DPT34", "types": ["ACCIDENTS", "VEHICULES"]}]),
             lambda e: e.update(dataSources=[{"id": "UNKNOWN", "types": ["VEHICULES"]}]),
             lambda e: e.update(dataSources=[{"id": "NIM", "types": ["VEHICULES"]},
                                             {"id": "NIM", "types": ["BICYCLES"]}]),

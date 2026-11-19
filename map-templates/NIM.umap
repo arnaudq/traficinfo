@@ -86,7 +86,7 @@
       "url_template": "https://tile.jawg.io/light/{z}/{x}/{y}.png?api-key=community"
     },
     "captionBar": false,
-    "description": "Carte basée sur les données de Nîmes Métropole et du département du Gard.\n\nLe label apparaissant au survol de la souris sur un compteur indique la dernière moyenne journalière annuelle connue. Si la valeur est suivie d'une double flèche, elle indique un comptage dans les 2 sens cumulés.\n\nEn cliquant sur un compteur, on obtient plus de détails sur la mesure.\n\nLe code couleur du compteur correspond à moins de 1000 véhicules/jour (vert), entre 1000 et 5000 véhicules/jour (violet), plus de 5000 véhicules/jour (rouge).\n\nPour filtrer les compteurs (année, nombre de véhicules/jour, vitesse pratiquée,...), cliquez sur \"Explorateur de données\" et choisissez \"Filtres\".",
+    "description": "Carte basée sur les données de Nîmes Métropole et du département du Gard. Accidents corporels issus des données ONISR.\n\nLe label apparaissant au survol de la souris sur un compteur indique la dernière moyenne journalière annuelle connue. Si la valeur est suivie d'une double flèche, elle indique un comptage dans les 2 sens cumulés.\n\nEn cliquant sur un compteur, on obtient plus de détails sur la mesure.\n\nLe code couleur du compteur correspond à moins de 1000 véhicules/jour (vert), entre 1000 et 5000 véhicules/jour (violet), plus de 5000 véhicules/jour (rouge).\n\nPour filtrer les compteurs (année, nombre de véhicules/jour, vitesse pratiquée,...), cliquez sur \"Explorateur de données\" et choisissez \"Filtres\".",
     "limitBounds": {},
     "moreControl": true,
     "zoomControl": true,
@@ -109,6 +109,46 @@
   },
   "uri": "http://umap.openstreetmap.fr/en/map/comptage-vehicules-nimes_1478574",
   "layers": [
+    {
+      "type": "FeatureCollection",
+      "features": [],
+      "properties": {
+        "type": "Cluster",
+        "fields": [
+          {
+            "key": "accidentId",
+            "type": "String"
+          },
+          {
+            "key": "date",
+            "type": "String"
+          },
+          {
+            "key": "year",
+            "type": "Number"
+          },
+          {
+            "key": "osmWayId",
+            "type": "Number"
+          }
+        ],
+        "filters": [],
+        "browsable": true,
+        "inCaption": true,
+        "displayOnLoad": false,
+        "name": "Accidents - ONISR_DPT30",
+        "description": "Accidents corporels de la circulation — ONISR",
+        "color": "#c2410c",
+        "iconClass": "Circle",
+        "iconUrl": "",
+        "popupContentTemplate": "# Accident {accidentId}\nDate : {date} {time}\nAnnée : {year}\nVoie OSM : {osmWayId}",
+        "remoteData": {
+          "url": "https://objectstorage.eu-frankfurt-1.oraclecloud.com/n/frivwhhfdcjn/b/traficinfo/o/ONISR_DPT30_Accidents.geojson",
+          "format": "geojson"
+        }
+      },
+      "rank": 0
+    },
     {
       "type": "FeatureCollection",
       "features": [],
@@ -183,7 +223,7 @@
           "format": "geojson"
         }
       },
-      "rank": 0
+      "rank": 1
     },
     {
       "type": "FeatureCollection",
@@ -259,7 +299,7 @@
           "format": "geojson"
         }
       },
-      "rank": 1
+      "rank": 2
     }
   ]
 }

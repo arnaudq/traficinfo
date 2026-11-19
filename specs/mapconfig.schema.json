@@ -93,17 +93,38 @@
                     "type": "string",
                     "enum": [
                       "VEHICULES",
-                      "BICYCLES"
+                      "BICYCLES",
+                      "ACCIDENTS"
                     ]
                   },
                   "minItems": 1,
                   "uniqueItems": true
                 }
-              }
+              },
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "types": {
+                        "contains": {
+                          "const": "ACCIDENTS"
+                        }
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "types": {
+                        "maxItems": 1
+                      }
+                    }
+                  }
+                }
+              ]
             },
             "minItems": 1,
             "uniqueItems": true,
-            "description": "Ordered sources from dsconfig.json with an ordered list of populations; one remote layer per selected type. Source IDs must be distinct."
+            "description": "Ordered source selections. Counts use VEHICULES/BICYCLES from dsconfig.json; ACCIDENTS selects an independent public <id>_Accidents.geojson publication. IDs must be distinct."
           },
           "uri": {
             "type": "string",

@@ -14,7 +14,7 @@ export type Boundary = BoundaryFields &
 
 export interface DataSourceSelection {
   id: string;
-  types: Population[];
+  types: (Population | 'ACCIDENTS')[];
 }
 
 export interface MapDefinition {

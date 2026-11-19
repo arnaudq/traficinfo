@@ -66,3 +66,17 @@ each changed file is replaced atomically.
 
 See the [configuration specification](../specs/map-templates.md) and
 [JSON Schema](../specs/mapconfig.schema.json) for adding maps and overrides.
+
+## Accident layers
+
+Each map also selects its departmental accident publication with, for example,
+`{"id":"ONISR_DPT34","types":["ACCIDENTS"]}`. MMM uses ONISR_DPT34, NIM
+ONISR_DPT30 and MRN ONISR_DPT76. These sources reference public
+`<id>_Accidents.geojson`, independently of dsconfig.json. They use separate orange
+clustered layers and accident-specific popups with ID, date/time, year and OSM
+way ID. Counts keep their existing icons, popups and source registry validation.
+The accident layer is third in each map's layer list and hidden on initial load.
+Use the uMap layer selector to show it. The shared count
+filters refer to count properties; accident year is the `year` property.
+Publish the referenced accident files, regenerate the templates, and import
+these templates into the live uMap maps to make the layers available there.

@@ -394,3 +394,17 @@ clusters from the matching points; filter controls are outside this change.
    the same representation and behavior as any other map.
 8. uMap template generation continues to use the map-level source selections
    and does not fetch or add webapp boundary layers to generated `.umap` files.
+
+## Accident selections
+
+Accident layers default to `displayOnLoad: false`. The configured selections
+place the accident layer third in each current uMap's displayed layer list.
+
+`dataSources` accepts `{"id":"ONISR_DPT34","types":["ACCIDENTS"]}`. ACCIDENTS
+is a publication type and cannot be combined with VEHICULES/BICYCLES in one
+source selection. Its object is `<id>_Accidents.geojson` under geoJsonBaseUrl.
+Accident IDs do not require count datasource registration in dsconfig.json.
+The generator and webapp validate the same shape. The generated uMap layer
+has accident-specific styling and popup properties; the webapp uses dedicated
+clusters, markers, participant-count popups and a visibility toggle. Each feature
+represents one accident, so cluster labels count accidents rather than people.
