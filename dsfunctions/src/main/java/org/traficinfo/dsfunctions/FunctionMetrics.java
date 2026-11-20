@@ -11,6 +11,15 @@ final class FunctionMetrics {
     private FunctionMetrics() {}
 
     static MetricsPublisher configured(RuntimeContext context) {
+        return configured(context, false);
+    }
+
+    /** Failure reporting must not silently skip missing monitoring configuration. */
+    static MetricsPublisher required(RuntimeContext context) {
+        return configured(context, true);
+    }
+
+    private static MetricsPublisher configured(RuntimeContext context, boolean required) {
         String compartment = context.getConfigurationByKey("METRICS_COMPARTMENT_ID").orElse("");
         String namespace = context.getConfigurationByKey("METRICS_NAMESPACE").orElse("traficinfo");
         boolean principal = Boolean.parseBoolean(
@@ -18,6 +27,7 @@ final class FunctionMetrics {
         return samples -> {
             if (samples.isEmpty()) return;
             if (compartment.isBlank()) {
+                if (required) throw new IllegalStateException("METRICS_COMPARTMENT_ID is not configured");
                 LOG.warn("Skipping metrics: METRICS_COMPARTMENT_ID is not configured");
                 return;
             }

@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fnproject.fn.api.FnConfiguration;
 import com.fnproject.fn.api.RuntimeContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,7 +24,7 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 /** Manually refreshes all departements and the EPCI boundaries in bundled mapconfig.json. */
-public class BoundaryFunction {
+public class BoundaryFunction extends TraficInfoBaseFunction {
     private static final Logger LOG = LoggerFactory.getLogger(BoundaryFunction.class);
     private static final ObjectMapper JSON = new ObjectMapper()
             .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
@@ -47,6 +46,7 @@ public class BoundaryFunction {
     }
 
     BoundaryFunction(Clock clock) {
+        super("ALL");
         this.clock = clock;
     }
 
@@ -65,8 +65,8 @@ public class BoundaryFunction {
         return new HttpClient();
     }
 
-    @FnConfiguration
-    public void config(RuntimeContext context) {
+    @Override
+    protected void configure(RuntimeContext context) {
         try {
             JsonNode config = loadMapConfig();
             URI base = URI.create(config.path("geoJsonBaseUrl").asText());
@@ -149,7 +149,8 @@ public class BoundaryFunction {
         }
     }
 
-    public String handleRequest(String input) {
+    @Override
+    protected String processRequest(String input, Invocation invocation) {
         if (boundaries == null) throw new IllegalStateException("Boundary function has not been configured");
         Request request = readRequest(input);
         Instant fetchedAt = clock.instant();

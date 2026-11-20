@@ -4,7 +4,10 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.Objects;
 
-/** One observed value, independent of the monitoring backend. Counts are snapshots, not increments. */
+/**
+ * One observed value, independent of the monitoring backend.
+ * Value semantics are defined by each metric in {@link MetricName}.
+ */
 public record MetricSample(String name, double value, String unit, Instant timestamp,
                            Map<String, String> dimensions) {
     public MetricSample {

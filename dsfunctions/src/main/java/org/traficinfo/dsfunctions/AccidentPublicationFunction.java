@@ -1,20 +1,21 @@
 package org.traficinfo.dsfunctions;
 
-import com.fnproject.fn.api.FnConfiguration;
 import com.fnproject.fn.api.RuntimeContext;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 
 /** Manual publication of map features and casualty summaries for the configured accident datasets. */
-public class AccidentPublicationFunction {
+public class AccidentPublicationFunction extends TraficInfoBaseFunction {
     private List<AccidentsConfig.Source> sources;
     private String namespace;
     private String outputBucket;
     private boolean principal;
 
-    @FnConfiguration
-    public void config(RuntimeContext context) {
+    public AccidentPublicationFunction() { super("ALL"); }
+
+    @Override
+    protected void configure(RuntimeContext context) {
         sources = loadSources();
         namespace = context.getConfigurationByKey("NAMESPACE").orElse("");
         outputBucket = context.getConfigurationByKey("BUCKETNAME_OUT").orElse("traficinfo");
@@ -27,10 +28,12 @@ public class AccidentPublicationFunction {
         return new ObjectStoreClient(principal, namespace, bucket);
     }
 
-    public String handleRequest(String input) {
+    @Override
+    protected String processRequest(String input, Invocation invocation) {
         if (namespace == null) throw new IllegalStateException("Publication function is not configured");
         try (var outputStore = createObjectStoreClient(principal, namespace, outputBucket)) {
             for (var source : sources) {
+                invocation.datasource(source.id());
                 try (var logging = LoggingContext.forSource("accident-publication", source.id());
                      var accidentStore = createObjectStoreClient(principal, namespace, source.sourceBucket())) {
                     new AccidentPublicationPublisher(accidentStore, outputStore).publish(source.id());

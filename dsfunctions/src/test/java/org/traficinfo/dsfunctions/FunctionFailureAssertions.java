@@ -2,7 +2,7 @@ package org.traficinfo.dsfunctions;
 
 import static org.junit.Assert.fail;
 
-/** Check that failed handlers reach the runtime as errors rather than successful KO responses. */
+/** Check the fallback path when a failed handler has no usable failure metrics backend. */
 public final class FunctionFailureAssertions {
     private FunctionFailureAssertions() { }
 
@@ -16,7 +16,7 @@ public final class FunctionFailureAssertions {
             invocation.run();
             fail("Expected the failed invocation to throw IllegalStateException");
         } catch (IllegalStateException expected) {
-            // The Functions runtime records an error response for the alarm.
+            // Missing failure monitoring preserves the invocation error for the OCI alarm.
         } catch (Exception unexpected) {
             throw new AssertionError("Expected IllegalStateException", unexpected);
         }

@@ -3,7 +3,6 @@ package org.traficinfo.dsfunctions;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fnproject.fn.api.FnConfiguration;
 import com.fnproject.fn.api.RuntimeContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,7 +11,7 @@ import java.io.IOException;
 import java.util.List;
 
 /** One deployed GeoJSON function, selected by datasource ID or manifest event. */
-public class GeoJsonFunction {
+public class GeoJsonFunction extends TraficInfoBaseFunction {
     private static final Logger LOG = LoggerFactory.getLogger(GeoJsonFunction.class);
     private static final ObjectMapper JSON = new ObjectMapper()
             .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
@@ -22,6 +21,8 @@ public class GeoJsonFunction {
     private String osmBucket;
     private boolean principal;
     private MetricsPublisher metrics;
+
+    public GeoJsonFunction() { super("UNKNOWN"); }
 
     protected DataSourceRegistry loadRegistry() { return DataSourceRegistry.bundled(); }
 
@@ -35,8 +36,8 @@ public class GeoJsonFunction {
         metrics.publish(samples);
     }
 
-    @FnConfiguration
-    public void config(RuntimeContext context) {
+    @Override
+    protected void configure(RuntimeContext context) {
         registry = loadRegistry();
         namespace = context.getConfigurationByKey("NAMESPACE").orElse("");
         outputBucket = context.getConfigurationByKey("BUCKETNAME_OUT").orElse("traficinfo");
@@ -45,7 +46,8 @@ public class GeoJsonFunction {
         metrics = FunctionMetrics.configured(context);
     }
 
-    public String handleRequest(String input) {
+    @Override
+    protected String processRequest(String input, Invocation invocation) {
         if (registry == null) throw new IllegalStateException("GeoJSON function has not been configured");
         Request request;
         try {
@@ -58,6 +60,7 @@ public class GeoJsonFunction {
         if (request == null || request.datasourceId() == null || request.datasourceId().isBlank()) {
             throw new IllegalArgumentException("datasourceId is required");
         }
+        invocation.datasource(request.datasourceId());
         var source = registry.geojson(request.datasourceId());
         String inputBucket = registry.source(request.datasourceId()).bucket();
         try (var logging = LoggingContext.forSource("geojson", request.datasourceId())) {

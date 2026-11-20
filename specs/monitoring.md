@@ -4,11 +4,13 @@
 
 Processing functions publish application metrics through the OCI Monitoring Java
 SDK in the `traficinfo` namespace by default. Every metric below has unit `count`
-and represents a snapshot, rather than an increment. Retrieval and preprocessing
-metrics can be added through the same abstraction.
+and, except for `FunctionFailures`, represents a snapshot rather than an increment.
+`FunctionFailures` counts handled application failures. Its Java emission is
+implemented; deployment configuration and the additional alarm remain planned.
 See the [functions README](../dsfunctions/README.md) for deployment and invocation.
 The [Alarms and Notifications](#alarms-and-notifications) chapter describes the
-separate function failure alarms based on OCI's built-in metrics.
+function failure alarms based on OCI's built-in metrics and the proposed custom
+failure metric.
 
 ### `GeoJsonFeatures`
 
@@ -73,6 +75,53 @@ review candidates. They do not report only the processed-record subset.
 | `MATCHED` | A road way is assigned from the seed/manual cache or an accepted reverse lookup |
 | `NEEDS_REVIEW` | A cached candidate requires review because no supplied road reference or street name matched when comparison-based review was enabled (`REVIEW_ROAD_MISMATCHES=true`) |
 | `NOT_FOUND` | A successful reverse response contained no suitable road way |
+
+### `FunctionFailures`
+
+Application failure metric in the `traficinfo` namespace, with unit
+`count`. Each invocation that catches an application exception at the handler
+boundary publishes one sample with value `1`, then returns a structured error
+response normally. This lets OCI consider the invocation successful, avoiding
+retries caused by an unhandled application exception, while retaining a separate
+signal for email alerts. Both synchronous and detached invocations are covered.
+Successful processing emits no sample. This is an event count, not a snapshot;
+use `sum()` to count failed invocations in an interval.
+
+| Dimension | Description | Values |
+| --- | --- | --- |
+| `applicationId` | Application containing the function | OCID of `3MOpenDataProcessor` |
+| `resourceId` | Function that handled the exception | Function OCID |
+| `resourceDisplayName` | Name identifying the affected function | E.g. `DataSourceFunction`, `OSMInfoFunction` |
+| `datasourceId` | Datasource being processed when known | Bundled source ID, e.g. `MMM`, or `UNKNOWN` when unresolved, or `ALL` for an application-wide operation |
+
+Publish once per failed invocation, even if several nested operations log the
+same exception. Exception messages, stack traces and invocation identifiers belong
+in logs and the error response, not metric dimensions. Caught, recoverable
+per-record errors that allow processing to continue do not emit this metric.
+
+Failure metric publication uses the existing `MetricsPublisher` abstraction and
+runtime settings. All functions must receive metrics configuration and IAM
+permissions. If publishing the failure metric fails (including missing metrics
+configuration), log that reporting failure and rethrow the original application
+exception. OCI then records an invocation error for the existing non-503 alarm.
+This fallback permits caller retries, prioritizing failure visibility when the
+custom monitoring path is unavailable. Timeouts, forced termination and failures
+before the handler runs remain covered by OCI's built-in failure metrics.
+
+The proposed `TraficInfo-ApplicationFailures` alarm selects the application and
+retains function and datasource dimensions:
+
+```text
+FunctionFailures[1m]{applicationId = "<application-ocid>"}.groupBy(resourceId, resourceDisplayName, datasourceId).sum() > 0
+```
+
+It has severity `CRITICAL`, a one-minute pending duration, and sends to the existing
+`TraficInfoMonitoring` topic. It covers handled failures in scheduled runs and
+manual invocations. The synchronous error response also lets `scripts/invoke.sh`
+display exception details and exit unsuccessfully without invoking the function
+again, once response handling is added to that script. The Java handler and metric
+emission are implemented; script feedback, deployment configuration and the alarm
+remain planned. No cloud resources are changed by the Java implementation.
 
 ### GeoJSON publication
 
@@ -140,8 +189,9 @@ Metrics use resource-principal authentication by default, or the existing local
 and closed per invocation, with a 2-second connection timeout, 3-second read
 timeout, and no request retries. Initialization, transport, partial rejection and
 close failures are logged without failing successful data publication. Failed
-data/cache publication sends no metrics. No previous counts or percentages are
-stored, and this does not create alarms or IAM policies.
+data/cache publication sends no publication snapshots. The
+`FunctionFailures` sample is independent of those snapshots. No previous counts
+or percentages are stored, and this does not create alarms or IAM policies.
 
 ### Backend abstraction
 
@@ -155,9 +205,10 @@ that do not supply a backend.
 
 ## Alarms and Notifications
 
-Function failures feed two OCI alarms, which send notifications through a
-shared topic to its confirmed email subscriptions. The aim is to identify the
-affected function and provide a starting point for investigation.
+Function failures currently feed two OCI alarms. The proposed third alarm covers
+handled application exceptions through `FunctionFailures`. All three paths send
+notifications through a shared topic to its confirmed email subscriptions. The aim
+is to identify the affected function and provide a starting point for investigation.
 
 ### Chain of actions
 
@@ -171,11 +222,13 @@ flowchart TD
         M["FunctionResponseCount<br/>responseType = Error"]
         A["TraficInfo-FunctionErrors<br/>Non-503 errors: at least 1 in 1 minute<br/>CRITICAL"]
         B["TraficInfo-FunctionAvailability<br/>503 responses: at least 3 in 15 minutes<br/>WARNING"]
+        C["traficinfo: FunctionFailures<br/>One sample per handled failure"]
+        D["TraficInfo-ApplicationFailures<br/>At least 1 handled failure in 1 minute<br/>CRITICAL — proposed"]
     end
 
     subgraph notifications["OCI Notifications"]
         T["Topic: TraficInfoMonitoring<br/>Function alarms publish here"]
-        S["EMAIL subscription<br/>arnaudq@quillaud.org<br/>Must be confirmed for delivery"]
+        S["EMAIL subscription<br/>alice@example.com<br/>Must be confirmed for delivery"]
     end
 
     E["Email inbox"]
@@ -185,6 +238,10 @@ flowchart TD
     M -->|"ErrorCode is 503"| B
     A -->|"Alarm fires and publishes a message"| T
     B -->|"Alarm fires and publishes a message"| T
+    F -.->|"Caught exception; return normally"| C
+    C -.->|"Group by function and datasource"| D
+    C -->|"Reporting fails: rethrow original exception"| M
+    D -.->|"Alarm fires and publishes a message"| T
     T -->|"Delivers to each confirmed subscription"| S
     S -->|"Sends email"| E
 ```
@@ -195,9 +252,10 @@ flowchart TD
 | --- | --- |
 | Application and functions | `3MOpenDataProcessor` contains the functions being monitored. Each invocation contributes its execution metrics. |
 | Metric | `FunctionResponseCount` in the `oci_faas` namespace counts responses. Both alarms select responses of type `Error`. `ErrorCode` is the numeric status (such as `503`); `ErrorMessage` is the symbolic cause (such as `FunctionInvokeServiceUnavailable`). |
-| Alarms | Separate non-503 failures from repeated 503 availability errors, with different thresholds and severity. |
+| Custom metric | `FunctionFailures` in `traficinfo` counts handled application failures even when OCI records a successful invocation. |
+| Alarms | Separate non-503 invocation failures, repeated 503 availability errors, and proposed handled application failures. |
 | Topic | `TraficInfoMonitoring` receives messages from the function alarms and the OSM review alarm and distributes them to its subscriptions. The topic itself contains no error-detection rule. |
-| Subscription | Connects a topic to a delivery method and recipient. The EMAIL subscription delivers to `arnaudq@quillaud.org` after confirmation. |
+| Subscription | Connects a topic to a delivery method and recipient. The EMAIL subscription delivers to `alice@example.com` after confirmation. |
 
 Both alarms cover all functions in the application, including functions added
 later. They evaluate each function and error category separately, so one function can
@@ -215,6 +273,7 @@ the alarm condition. Email subscriptions require confirmation before delivery.
 | --- | --- | --- |
 | `TraficInfo-FunctionErrors` | At least one non-503 error in one minute | `CRITICAL` |
 | `TraficInfo-FunctionAvailability` | At least three 503 responses in 15 minutes | `WARNING` |
+| `TraficInfo-ApplicationFailures` (proposed) | At least one handled application failure in one minute, per function and datasource | `CRITICAL` |
 
 Non-503 failures include application execution errors, timeouts, image-loading
 errors and other invocation failures. The availability alarm covers 503 responses
@@ -233,9 +292,11 @@ An isolated 503 can still mean a missed run, without an email from these alarms.
 Checking that a scheduled run eventually succeeded requires separate monitoring.
 
 Email delivery takes several minutes because metrics must be collected and
-evaluated before a notification is delivered. Emails show the function name,
-alarm state, time, error code and cause, and a link to the alarm, with the function ID available for
-investigation. Repeated failures while that function's alarm state
+evaluated before a notification is delivered. Existing OCI failure emails show
+the function name, alarm state, time, error code and cause, and a link to the alarm,
+with the function ID available for investigation. Proposed application failure
+emails identify the function and datasource; exception details remain in logs
+and the synchronous response. Repeated failures while that function's alarm state
 remains firing can be grouped into one incident; this is not one email per failed
 invocation. Periodic reminder emails are not configured.
 
@@ -248,7 +309,9 @@ succeeded or that failed processing has been repaired.
 `scripts/setup-function-alerts.sh` creates or updates both alarms using
 the environment prepared by `scripts/setup.sh`. It checks that the selected
 `TraficInfoMonitoring` topic has a confirmed email subscription for the supplied address.
-`OCI_FN_ALERT_TOPIC_NAME` selects another existing topic when needed.
+`OCI_FN_ALERT_TOPIC_NAME` selects another existing topic when needed. The proposed
+`TraficInfo-ApplicationFailures` alarm requires extending this script; the current
+script manages only the two built-in metric alarms.
 
 The script supports a dry run, checks both definitions before writing, skips
 matching settings and verifies applied changes. During migration it creates
@@ -282,8 +345,8 @@ continuously firing. It sends through the existing `TraficInfoMonitoring` topic
 After `source ./scripts/setup.sh`, preview and apply the definition with:
 
 ```sh
-./scripts/setup-osm-review-alert.sh arnaudq@quillaud.org --dry-run
-./scripts/setup-osm-review-alert.sh arnaudq@quillaud.org
+./scripts/setup-osm-review-alert.sh alice@example.com --dry-run
+./scripts/setup-osm-review-alert.sh alice@example.com
 ```
 
 The script manages only this alarm, skips a matching definition, reconciles drift
@@ -312,8 +375,8 @@ It uses the same confirmed email topic, grouped datasource details, one-minute
 pending duration and daily reminders as the review alarm. Configure it explicitly:
 
 ```sh
-./scripts/setup-osm-review-alert.sh arnaudq@quillaud.org --status NOT_FOUND --dry-run
-./scripts/setup-osm-review-alert.sh arnaudq@quillaud.org --status NOT_FOUND
+./scripts/setup-osm-review-alert.sh alice@example.com --status NOT_FOUND --dry-run
+./scripts/setup-osm-review-alert.sh alice@example.com --status NOT_FOUND
 ```
 
 Without `--status`, the script continues to manage only `NEEDS_REVIEW`. Each call
@@ -328,9 +391,10 @@ plus any recovery/reset or later firing notifications.
 ### Coverage and further monitoring
 
 The alarms detect errors recorded by OCI Functions, including runtime failures
-such as timeouts. Successful invocations with recoverable warnings do not
-trigger it. Functions outside the selected application or region require their
-own monitoring setup.
+such as timeouts. The proposed third alarm also detects handled application
+failures reported through `FunctionFailures`. Successful invocations with
+recoverable warnings do not trigger these failure alarms. Functions outside the
+selected application or region require their own monitoring setup.
 
 Other monitoring signals answer different questions:
 

@@ -2,7 +2,6 @@ package org.traficinfo.dsfunctions;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fnproject.fn.api.FnConfiguration;
 import com.fnproject.fn.api.RuntimeContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,7 +11,7 @@ import java.io.UncheckedIOException;
 import java.util.Map;
 
 /** Manual ONISR entry point importing the explicitly configured yearly publications. */
-public class ONISRAccidentFunction {
+public class ONISRAccidentFunction extends TraficInfoBaseFunction {
     private static final Logger LOG = LoggerFactory.getLogger(ONISRAccidentFunction.class);
     private static final ObjectMapper JSON = new ObjectMapper()
             .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
@@ -22,20 +21,22 @@ public class ONISRAccidentFunction {
     private boolean principal;
     private boolean configured;
 
+    public ONISRAccidentFunction() { super("ONISR"); }
+
     protected ObjectStoreClient createObjectStoreClient(boolean principal, String namespace, String bucket) {
         return new ObjectStoreClient(principal, namespace, bucket);
     }
 
-    @FnConfiguration
-    public void config(RuntimeContext context) {
+    @Override
+    protected void configure(RuntimeContext context) {
         namespace = context.getConfigurationByKey("NAMESPACE").orElse("");
         osmBucket = context.getConfigurationByKey("BUCKETNAME_OSM").orElse("osminfo");
         principal = Boolean.parseBoolean(context.getConfigurationByKey("USE_RESOURCE_PRINCIPAL").orElse("true"));
         configured = true;
     }
 
-    /** Empty input or {} imports configured years; {"action":"refresh"} rebuilds stored accident output only. */
-    public String handleRequest(String input) {
+    @Override
+    protected String processRequest(String input, Invocation invocation) {
         if (!configured) throw new IllegalStateException("Accident function has not been configured");
         String action = action(input);
         try (var logging = LoggingContext.forSource("accidents", "ONISR")) {

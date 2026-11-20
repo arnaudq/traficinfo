@@ -1111,12 +1111,32 @@ GeoJSON migration.
 
 ### Failure monitoring
 
-GeoJSON and OSM handlers return `OK` on success and throw on invocation
-failure so OCI records an error for the function failure alarm. OSM refresh
-continues processing other caches before throwing if any cache failed.
-Recoverable OSM HTTP lookup failures keep their retry behavior. Set up email
-alerts using `scripts/setup-function-alerts.sh` as described in the
-[setup specification](../specs/setup.md#function-failure-emails).
+All handlers extend `TraficInfoBaseFunction`, which owns the final `config()` and
+`handleRequest()` entry points. Each function implements `configure()` and
+`processRequest()` for its own behavior. Successful responses are preserved.
+When an application exception reaches the handler boundary, the base class logs
+it, publishes one
+`FunctionFailures` event and returns JSON with `success: false` and an `error`
+object containing the exception `type`, `message` and a `causes` array. This
+acknowledges the invocation to OCI without an unhandled exception that can trigger
+caller retries. It does not change recoverable OSM lookup errors or publication
+validation and cleanup.
+
+Failure monitoring requires `METRICS_COMPARTMENT_ID`, the usual metrics IAM
+permission and access to the Monitoring ingestion endpoint for every function.
+If reporting fails, including missing metrics configuration, the handler rethrows
+the original exception so OCI's built-in failure alarm can detect it. Retries
+are possible in this fallback case. Configuration failures, timeouts and JVM
+errors also remain runtime failures.
+
+The Java metric emission is implemented, but deployment configuration, the custom
+application failure alarm and `invoke.sh` error-response handling still need to be
+updated. Until the custom alarm is configured, handled failures are visible in
+metrics and logs but do not trigger the existing OCI invocation error alarm.
+See the [monitoring specification](../specs/monitoring.md#functionfailures) for
+metric dimensions and the proposed alarm. `MetricName` documents all application
+metric names and their value semantics. Existing platform failure email setup is
+described in the [setup specification](../specs/setup.md#function-failure-emails).
 
 ## Rennes Métropole counts
 

@@ -83,13 +83,13 @@ public final class GeoJsonPublisher {
         statistics.values().forEach(result -> years.addAll(result.recordsBeforeFiltering().keySet()));
         statistics.forEach((population, result) -> {
             var dimensions = Map.of("datasourceId", source.getDataSourceId(), "population", population.name());
-            samples.add(new MetricSample("GeoJsonFeatures", result.featureCount(), "count", timestamp, dimensions));
+            samples.add(new MetricSample(MetricName.GEO_JSON_FEATURES.metricName(), result.featureCount(), "count", timestamp, dimensions));
             for (int year : years) {
                 var yearlyDimensions = Map.of("datasourceId", source.getDataSourceId(),
                         "population", population.name(), "year", Integer.toString(year));
-                samples.add(new MetricSample("GeoJsonRecordsBeforeFiltering",
+                samples.add(new MetricSample(MetricName.GEO_JSON_RECORDS_BEFORE_FILTERING.metricName(),
                         result.recordsBeforeFiltering().getOrDefault(year, 0L), "count", timestamp, yearlyDimensions));
-                samples.add(new MetricSample("GeoJsonRecordsAfterFiltering",
+                samples.add(new MetricSample(MetricName.GEO_JSON_RECORDS_AFTER_FILTERING.metricName(),
                         result.recordsAfterFiltering().getOrDefault(year, 0L), "count", timestamp, yearlyDimensions));
             }
         });

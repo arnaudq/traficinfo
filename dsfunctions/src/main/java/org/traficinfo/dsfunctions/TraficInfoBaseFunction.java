@@ -1,0 +1,107 @@
+package org.traficinfo.dsfunctions;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fnproject.fn.api.RuntimeContext;
+import com.fnproject.fn.api.FnConfiguration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Shared configuration and request boundary for all deployed functions.
+ * Subclasses implement {@link #configure(RuntimeContext)} and
+ * {@link #processRequest(String, Invocation)}; the final entry points ensure
+ * handled application failures are reported without failing the OCI invocation.
+ * Metric or error-response failures preserve the original exception, allowing the
+ * built-in OCI alarm to take over (and permitting caller retries in that case).
+ * Configuration failures and JVM errors remain runtime failures.
+ */
+public abstract class TraficInfoBaseFunction {
+    private static final Logger LOG = LoggerFactory.getLogger(TraficInfoBaseFunction.class);
+    private static final ObjectMapper JSON = new ObjectMapper();
+    private final String defaultDatasourceId;
+    private MetricsPublisher failureMetrics = samples -> {
+        throw new IllegalStateException("Failure monitoring has not been configured");
+    };
+    private Map<String, String> dimensions = Map.of("applicationId", "UNKNOWN", "resourceId", "UNKNOWN",
+            "resourceDisplayName", "UNKNOWN");
+
+    /** @param defaultDatasourceId datasource label used until processing selects a specific source */
+    protected TraficInfoBaseFunction(String defaultDatasourceId) {
+        this.defaultDatasourceId = defaultDatasourceId;
+    }
+
+    /** Initializes monitoring before the function-specific runtime configuration. */
+    @FnConfiguration
+    public final void config(RuntimeContext context) {
+        failureMetrics = createFailureMetrics(context);
+        dimensions = Map.of("applicationId", context.getAppID(), "resourceId", context.getFunctionID(),
+                "resourceDisplayName", context.getFunctionName());
+        configure(context);
+    }
+
+    /** Supplies the failure-reporting backend; missing configuration must fail publication. */
+    protected MetricsPublisher createFailureMetrics(RuntimeContext context) {
+        return FunctionMetrics.required(context);
+    }
+
+    /** Configures function-specific resources. Exceptions here remain OCI runtime failures. */
+    protected abstract void configure(RuntimeContext context);
+
+    /** Executes application processing inside the shared exception-reporting boundary. */
+    protected abstract String processRequest(String input, Invocation invocation);
+
+    /**
+     * Returns the processing result, or an error response after publishing a failure event.
+     * Rethrows the original application exception if reporting fails.
+     */
+    public final String handleRequest(String input) {
+        // State belongs to this invocation, never to a warm function instance.
+        Invocation invocation = new Invocation(defaultDatasourceId);
+        try {
+            return processRequest(input, invocation);
+        } catch (RuntimeException original) {
+            LOG.error("Function {} failed for datasource {}", dimensions.get("resourceDisplayName"),
+                    invocation.datasourceId, original);
+            try {
+                var error = JSON.createObjectNode();
+                error.put("success", false);
+                var details = error.putObject("error");
+                details.put("type", original.getClass().getName());
+                details.put("message", original.getMessage());
+                var causes = details.putArray("causes");
+                for (Throwable cause = original.getCause(); cause != null; cause = cause.getCause()) {
+                    var entry = causes.addObject();
+                    entry.put("type", cause.getClass().getName());
+                    entry.put("message", cause.getMessage());
+                }
+                String response = JSON.writeValueAsString(error);
+                var sampleDimensions = new java.util.HashMap<>(dimensions);
+                sampleDimensions.put("datasourceId", invocation.datasourceId);
+                failureMetrics.publish(List.of(new MetricSample(MetricName.FUNCTION_FAILURES.metricName(),
+                        1, "count", Instant.now(), sampleDimensions)));
+                return response;
+            } catch (Exception reportingFailure) {
+                LOG.error("Could not report application failure; rethrowing original exception", reportingFailure);
+                throw original;
+            }
+        }
+    }
+
+    /** Datasource selected during parsing, retained after logging scopes and resources close. */
+    protected static final class Invocation {
+        private String datasourceId;
+
+        private Invocation(String datasourceId) {
+            this.datasourceId = datasourceId;
+        }
+
+        /** Sets the datasource identified during processing for any subsequent failure event. */
+        public void datasource(String id) {
+            datasourceId = id;
+        }
+    }
+}

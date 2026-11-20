@@ -1,6 +1,5 @@
 package org.traficinfo.dsfunctions;
 
-import com.fnproject.fn.api.FnConfiguration;
 import com.fnproject.fn.api.RuntimeContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -13,7 +12,7 @@ import java.util.Objects;
 import java.util.function.LongSupplier;
 
 /** Hourly bounded reverse lookup of unresolved counter-to-way mappings in Object Storage. */
-public class OSMInfoFunction {
+public class OSMInfoFunction extends TraficInfoBaseFunction {
     private static final Logger LOG = LoggerFactory.getLogger(OSMInfoFunction.class);
     private static final int MAX_LOOP_DURATION_SECONDS = 240;
     // At four reverse requests per minute (15-second spacing in OpenStreetMapClient),
@@ -48,14 +47,15 @@ public class OSMInfoFunction {
 
     OSMInfoFunction(ObjectStoreClient osmCacheOSClient, OpenStreetMapClient osmClient, LongSupplier nanoTime,
                     MetricsPublisher metrics) {
+        super("ALL");
         this.osmCacheOSClient = osmCacheOSClient;
         this.osmClient = osmClient;
         this.nanoTime = nanoTime;
         this.metrics = Objects.requireNonNull(metrics);
     }
 
-    @FnConfiguration
-    public void config(RuntimeContext ctx) {
+    @Override
+    protected void configure(RuntimeContext ctx) {
         configureLimits(ctx);
         configureRoadComparison(ctx);
         metrics = FunctionMetrics.configured(ctx);
@@ -63,7 +63,11 @@ public class OSMInfoFunction {
         String bucket = ctx.getConfigurationByKey("BUCKETNAME_OSM").orElse("osminfo");
         boolean useResourcePrincipal = Boolean.parseBoolean(
                 ctx.getConfigurationByKey("USE_RESOURCE_PRINCIPAL").orElse("true"));
-        osmCacheOSClient = new ObjectStoreClient(useResourcePrincipal, namespace, bucket);
+        osmCacheOSClient = createObjectStoreClient(useResourcePrincipal, namespace, bucket);
+    }
+
+    protected ObjectStoreClient createObjectStoreClient(boolean principal, String namespace, String bucket) {
+        return new ObjectStoreClient(principal, namespace, bucket);
     }
 
     void configureRoadComparison(RuntimeContext ctx) {
@@ -96,7 +100,8 @@ public class OSMInfoFunction {
         throw new IllegalArgumentException(key + " must be a positive integer");
     }
 
-    public String handleRequest(String input) {
+    @Override
+    protected String processRequest(String input, Invocation invocation) {
         try (var logging = LoggingContext.forSource("osminfo", null)) {
             boolean scheduled = isScheduled(input);
             // Keep limits local: a warm function instance may next receive a manual invocation.

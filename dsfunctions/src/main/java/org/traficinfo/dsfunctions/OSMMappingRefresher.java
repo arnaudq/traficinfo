@@ -277,7 +277,7 @@ final class OSMMappingRefresher {
         Instant timestamp = Instant.now();
         var samples = providers.entrySet().stream().flatMap(source ->
                 source.getValue().getWayMappingStatusCounts().entrySet().stream().map(status -> new MetricSample(
-                        "OSMWayMappings", status.getValue(), "count", timestamp,
+                        MetricName.OSM_WAY_MAPPINGS.metricName(), status.getValue(), "count", timestamp,
                         Map.of("datasourceId", source.getKey(), "status", status.getKey().name())))).toList();
         if (samples.isEmpty()) return;
         try {

@@ -2,7 +2,6 @@ package org.traficinfo.dsfunctions;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fnproject.fn.api.FnConfiguration;
 import com.fnproject.fn.api.RuntimeContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,7 +9,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 
 /** One deployed retrieval function; each invocation selects one bundled datasource. */
-public class DataSourceFunction {
+public class DataSourceFunction extends TraficInfoBaseFunction {
     private static final Logger LOG = LoggerFactory.getLogger(DataSourceFunction.class);
     private static final ObjectMapper JSON = new ObjectMapper()
             .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
@@ -18,7 +17,7 @@ public class DataSourceFunction {
     private String namespace;
     private boolean useResourcePrincipal;
 
-    public DataSourceFunction() {}
+    public DataSourceFunction() { super("UNKNOWN"); }
 
     protected DataSourceRegistry loadRegistry() {
         return DataSourceRegistry.bundled();
@@ -32,14 +31,15 @@ public class DataSourceFunction {
         return new ObjectStoreClient(principal, ns, bucket);
     }
 
-    @FnConfiguration
-    public void config(RuntimeContext context) {
+    @Override
+    protected void configure(RuntimeContext context) {
         registry = loadRegistry();
         namespace = context.getConfigurationByKey("NAMESPACE").orElse("");
         useResourcePrincipal = Boolean.parseBoolean(context.getConfigurationByKey("USE_RESOURCE_PRINCIPAL").orElse("true"));
     }
 
-    public String handleRequest(String input) {
+    @Override
+    protected String processRequest(String input, Invocation invocation) {
         if (registry == null) throw new IllegalStateException("Datasource function has not been configured");
         Request request;
         try {
@@ -50,6 +50,7 @@ public class DataSourceFunction {
         if (request == null || request.datasourceId() == null || request.datasourceId().isBlank()) {
             throw new IllegalArgumentException("datasourceId is required");
         }
+        invocation.datasource(request.datasourceId());
         var source = registry.source(request.datasourceId());
         try (var logging = LoggingContext.forSource("retrieval", request.datasourceId())) {
             try (HttpClient http = createHttpClient();

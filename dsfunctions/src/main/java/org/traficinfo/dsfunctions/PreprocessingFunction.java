@@ -1,6 +1,5 @@
 package org.traficinfo.dsfunctions;
 
-import com.fnproject.fn.api.FnConfiguration;
 import com.fnproject.fn.api.RuntimeContext;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -12,14 +11,14 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 
 /** One preprocessing entry point for input events and explicit datasource requests. */
-public class PreprocessingFunction {
+public class PreprocessingFunction extends TraficInfoBaseFunction {
     private static final Logger LOG = LoggerFactory.getLogger(PreprocessingFunction.class);
     private static final ObjectMapper JSON = new ObjectMapper().enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
     private DataSourceRegistry registry;
     private String namespace;
     private boolean principal;
 
-    public PreprocessingFunction() {}
+    public PreprocessingFunction() { super("UNKNOWN"); }
 
     protected DataSourceRegistry loadRegistry() { return DataSourceRegistry.bundled(); }
 
@@ -27,14 +26,15 @@ public class PreprocessingFunction {
         return new ObjectStoreClient(principal, namespace, bucket);
     }
 
-    @FnConfiguration
-    public void config(RuntimeContext context) {
+    @Override
+    protected void configure(RuntimeContext context) {
         registry = loadRegistry();
         namespace = context.getConfigurationByKey("NAMESPACE").orElse("");
         principal = Boolean.parseBoolean(context.getConfigurationByKey("USE_RESOURCE_PRINCIPAL").orElse("true"));
     }
 
-    public String handleRequest(String input) {
+    @Override
+    protected String processRequest(String input, Invocation invocation) {
         if (registry == null) throw new IllegalStateException("Preprocessing function has not been configured");
         Request request;
         try {
@@ -47,6 +47,7 @@ public class PreprocessingFunction {
         if (request == null || request.datasourceId() == null || request.datasourceId().isBlank()) {
             throw new IllegalArgumentException("datasourceId is required");
         }
+        invocation.datasource(request.datasourceId());
         var source = registry.source(request.datasourceId());
         var active = registry.preprocessing(request.datasourceId(), null);
         var archive = request.datasetId() == null ? null : registry.preprocessing(request.datasourceId(), request.datasetId());
