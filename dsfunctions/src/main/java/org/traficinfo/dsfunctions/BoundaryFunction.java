@@ -55,10 +55,6 @@ public class BoundaryFunction extends TraficInfoBaseFunction {
         }
     }
 
-    protected ObjectStoreClient createObjectStoreClient(boolean usePrincipal, String ns, String targetBucket) {
-        return new ObjectStoreClient(usePrincipal, ns, targetBucket);
-    }
-
     protected HttpClient createHttpClient() {
         return new HttpClient();
     }
@@ -151,7 +147,7 @@ public class BoundaryFunction extends TraficInfoBaseFunction {
         Instant fetchedAt = clock.instant();
         Instant cutoff = fetchedAt.atZone(ZoneOffset.UTC).minusMonths(MAX_AGE_MONTHS).toInstant();
         List<ObjectNode> updates = new ArrayList<>();
-        try (ObjectStoreClient storage = createObjectStoreClient(useResourcePrincipal(), namespace(), bucket)) {
+        try (ObjectStoreClient storage = createObjectStoreClient(bucket)) {
             ObjectNode dataset = request.epciCode() == null
                     ? refreshDepartements(storage, cutoff, fetchedAt, updates) : null;
             List<Boundary> selected = request.epciCode() == null

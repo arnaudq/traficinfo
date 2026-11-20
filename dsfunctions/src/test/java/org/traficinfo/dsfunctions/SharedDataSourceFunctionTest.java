@@ -145,9 +145,9 @@ public class SharedDataSourceFunctionTest {
             };
         }
 
-        @Override protected ObjectStoreClient createObjectStoreClient(boolean principal, String namespace, String bucket) {
-            buckets.add(namespace + "/" + bucket);
-            return new ObjectStoreClient(null, namespace, bucket) {
+        @Override protected ObjectStoreClient createObjectStoreClient(String bucket) {
+            buckets.add(namespace() + "/" + bucket);
+            return new ObjectStoreClient(null, namespace(), bucket) {
                 @Override public OOSResourceMetadata getResourceMetadata(String name) { return null; }
                 @Override public void putResource(String name, String type, OOSResourceMetadata metadata, InputStream input) {
                     writes.add(MDC.get("datasourceId") + ":" + name);

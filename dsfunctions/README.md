@@ -1116,7 +1116,9 @@ All handlers extend `TraficInfoBaseFunction`, which owns the final `config()` an
 `processRequest()` for its own behavior. The base class reads `NAMESPACE` (default
 empty) and `USE_RESOURCE_PRINCIPAL` (default `true`) once, before function-specific
 configuration, and exposes them through protected accessors. Metrics use the same
-authentication choice as storage. Successful responses are preserved.
+authentication choice as storage. The base class also supplies the overridable
+`createObjectStoreClient(bucket)` factory; functions retain bucket selection and client
+cleanup. Successful responses are preserved.
 When an application exception reaches the handler boundary, the base class logs
 it, publishes one
 `FunctionFailures` event and returns JSON with `success: false` and an `error`

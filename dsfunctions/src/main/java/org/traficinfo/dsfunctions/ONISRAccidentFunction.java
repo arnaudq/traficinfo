@@ -21,10 +21,6 @@ public class ONISRAccidentFunction extends TraficInfoBaseFunction {
 
     public ONISRAccidentFunction() { super("ONISR"); }
 
-    protected ObjectStoreClient createObjectStoreClient(boolean principal, String namespace, String bucket) {
-        return new ObjectStoreClient(principal, namespace, bucket);
-    }
-
     @Override
     protected void configure(RuntimeContext context) {
         osmBucket = context.getConfigurationByKey("BUCKETNAME_OSM").orElse("osminfo");
@@ -36,8 +32,8 @@ public class ONISRAccidentFunction extends TraficInfoBaseFunction {
         if (!configured) throw new IllegalStateException("Accident function has not been configured");
         String action = action(input);
         try (var logging = LoggingContext.forSource("accidents", "ONISR")) {
-            try (var accidentStore = createObjectStoreClient(useResourcePrincipal(), namespace(), ACCIDENT_BUCKET);
-                 var osmStore = createObjectStoreClient(useResourcePrincipal(), namespace(), osmBucket)) {
+            try (var accidentStore = createObjectStoreClient(ACCIDENT_BUCKET);
+                 var osmStore = createObjectStoreClient(osmBucket)) {
                 var processor = new ONISRAccidentProcessor(accidentStore, osmStore);
                 Map<String, ONISRAccidentProcessor.Statistics> result = action.equals("refresh")
                         ? processor.refresh() : processor.importYears(ONISRYearInputs.configured());

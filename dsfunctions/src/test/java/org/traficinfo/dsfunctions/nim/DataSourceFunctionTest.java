@@ -122,9 +122,9 @@ public class DataSourceFunctionTest {
             };
         }
 
-        @Override protected ObjectStoreClient createObjectStoreClient(boolean principal, String ns, String name) {
-            bucket = ns + "/" + name;
-            return new ObjectStoreClient(null, ns, name) {
+        @Override protected ObjectStoreClient createObjectStoreClient(String name) {
+            bucket = namespace() + "/" + name;
+            return new ObjectStoreClient(null, namespace(), name) {
                 @Override public OOSResourceMetadata getResourceMetadata(String object) { return metadata.get(object); }
                 @Override public InputStream getResource(String object) { return new ByteArrayInputStream(contents.get(object)); }
                 @Override public void putResource(String object, String type, OOSResourceMetadata meta,

@@ -20,10 +20,6 @@ public class PreprocessingFunction extends TraficInfoBaseFunction {
 
     protected DataSourceRegistry loadRegistry() { return DataSourceRegistry.bundled(); }
 
-    protected ObjectStoreClient createObjectStoreClient(boolean principal, String namespace, String bucket) {
-        return new ObjectStoreClient(principal, namespace, bucket);
-    }
-
     @Override
     protected void configure(RuntimeContext context) {
         registry = loadRegistry();
@@ -48,8 +44,7 @@ public class PreprocessingFunction extends TraficInfoBaseFunction {
         var active = registry.preprocessing(request.datasourceId(), null);
         var archive = request.datasetId() == null ? null : registry.preprocessing(request.datasourceId(), request.datasetId());
         try (var logging = LoggingContext.forSource("preprocess", request.datasourceId())) {
-            try (ObjectStoreClient storage = createObjectStoreClient(useResourcePrincipal(), namespace(),
-                    source.bucket())) {
+            try (ObjectStoreClient storage = createObjectStoreClient(source.bucket())) {
                 var publisher = new PreprocessingPublisher(storage);
                 if (archive != null) publisher.publishArchive(archive, active);
                 else publisher.publish(active);

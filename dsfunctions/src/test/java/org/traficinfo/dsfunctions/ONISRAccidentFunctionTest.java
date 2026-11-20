@@ -230,8 +230,8 @@ public class ONISRAccidentFunctionTest {
         final Store osmStore = new Store();
         final List<String> connections = new ArrayList<>();
 
-        @Override protected ObjectStoreClient createObjectStoreClient(boolean principal, String namespace, String bucket) {
-            connections.add(principal + "/" + namespace + "/" + bucket);
+        @Override protected ObjectStoreClient createObjectStoreClient(String bucket) {
+            connections.add(useResourcePrincipal() + "/" + namespace() + "/" + bucket);
             return bucket.equals("onisrinfo") ? accidentStore : osmStore;
         }
     }

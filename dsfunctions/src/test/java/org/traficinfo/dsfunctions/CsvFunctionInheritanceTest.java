@@ -148,9 +148,9 @@ public class CsvFunctionInheritanceTest {
         boolean closed;
 
         @Override
-        protected ObjectStoreClient createObjectStoreClient(boolean principal, String namespace, String bucket) {
-            clients.add(principal + ":" + namespace + ":" + bucket);
-            return new ObjectStoreClient(null, namespace, bucket) {
+        protected ObjectStoreClient createObjectStoreClient(String bucket) {
+            clients.add(useResourcePrincipal() + ":" + namespace() + ":" + bucket);
+            return new ObjectStoreClient(null, namespace(), bucket) {
                 @Override public OOSResourceMetadata getResourceMetadata(String name) {
                     return metadata.get(name);
                 }
@@ -197,9 +197,9 @@ public class CsvFunctionInheritanceTest {
         Map<String, byte[]> publication;
 
         @Override
-        protected ObjectStoreClient createObjectStoreClient(boolean principal, String namespace, String bucket) {
-            clients.add(principal + ":" + namespace + ":" + bucket);
-            return new ObjectStoreClient(null, namespace, bucket) {
+        protected ObjectStoreClient createObjectStoreClient(String bucket) {
+            clients.add(useResourcePrincipal() + ":" + namespace() + ":" + bucket);
+            return new ObjectStoreClient(null, namespace(), bucket) {
                 @Override public InputStream getResource(String name) throws IOException {
                     reads.add(name);
                     assertFalse("Raw CSV must not be read by the GeoJSON handler", name.endsWith(".csv"));
@@ -238,9 +238,9 @@ public class CsvFunctionInheritanceTest {
         final List<String> writes = new ArrayList<>();
 
         @Override
-        protected ObjectStoreClient createObjectStoreClient(boolean principal, String namespace, String bucket) {
-            clients.add(principal + ":" + namespace + ":" + bucket);
-            return new ObjectStoreClient(null, namespace, bucket) {
+        protected ObjectStoreClient createObjectStoreClient(String bucket) {
+            clients.add(useResourcePrincipal() + ":" + namespace() + ":" + bucket);
+            return new ObjectStoreClient(null, namespace(), bucket) {
                 @Override public InputStream getResource(String name) throws IOException {
                     reads.add(name);
                     byte[] bytes = name.equals("MMM_Manifest.json")

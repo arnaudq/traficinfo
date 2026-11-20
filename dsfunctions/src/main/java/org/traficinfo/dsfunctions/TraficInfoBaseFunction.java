@@ -58,6 +58,16 @@ public abstract class TraficInfoBaseFunction {
         return useResourcePrincipal;
     }
 
+    /**
+     * Creates a storage client for the selected bucket using this function's
+     * configured namespace and authentication mode.
+     * The caller owns the client and must close it when its work is complete.
+     * Subclasses may override this factory to supply a different client implementation.
+     */
+    protected ObjectStoreClient createObjectStoreClient(String bucket) {
+        return new ObjectStoreClient(useResourcePrincipal(), namespace(), bucket);
+    }
+
     /** Supplies the failure-reporting backend; missing configuration must fail publication. */
     protected MetricsPublisher createFailureMetrics(RuntimeContext context) {
         return FunctionMetrics.required(context, useResourcePrincipal());

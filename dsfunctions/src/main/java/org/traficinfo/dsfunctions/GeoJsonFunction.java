@@ -24,10 +24,6 @@ public class GeoJsonFunction extends TraficInfoBaseFunction {
 
     protected DataSourceRegistry loadRegistry() { return DataSourceRegistry.bundled(); }
 
-    protected ObjectStoreClient createObjectStoreClient(boolean principal, String namespace, String bucket) {
-        return new ObjectStoreClient(principal, namespace, bucket);
-    }
-
     protected OpenStreetMapClient createOpenStreetMapClient() { return new OpenStreetMapClient(); }
 
     protected void publishMetrics(List<MetricSample> samples) {
@@ -60,9 +56,9 @@ public class GeoJsonFunction extends TraficInfoBaseFunction {
         var source = registry.geojson(request.datasourceId());
         String inputBucket = registry.source(request.datasourceId()).bucket();
         try (var logging = LoggingContext.forSource("geojson", request.datasourceId())) {
-            try (var inputs = createObjectStoreClient(useResourcePrincipal(), namespace(), inputBucket);
-                 var outputs = createObjectStoreClient(useResourcePrincipal(), namespace(), outputBucket);
-                 var osm = createObjectStoreClient(useResourcePrincipal(), namespace(), osmBucket);
+            try (var inputs = createObjectStoreClient(inputBucket);
+                 var outputs = createObjectStoreClient(outputBucket);
+                 var osm = createObjectStoreClient(osmBucket);
                  var osmClient = createOpenStreetMapClient()) {
                 var provider = new OSMInfoProviderImpl(osm, osmClient,
                         source.getOsmCacheObjectName(), source.getOsmWayMappingObjectName());

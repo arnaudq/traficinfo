@@ -290,10 +290,10 @@ public class BoundaryFunctionTest {
             return (response == null ? feature(code) : response).getBytes(StandardCharsets.UTF_8);
         }
 
-        @Override protected ObjectStoreClient createObjectStoreClient(boolean principal, String ns, String bucket) {
-            assertTrue(principal);
-            clients.add(ns + "/" + bucket);
-            return new ObjectStoreClient(null, ns, bucket) {
+        @Override protected ObjectStoreClient createObjectStoreClient(String bucket) {
+            assertTrue(useResourcePrincipal());
+            clients.add(namespace() + "/" + bucket);
+            return new ObjectStoreClient(null, namespace(), bucket) {
                 @Override public void putResource(String name, String contentType, OOSResourceMetadata metadata,
                                                   InputStream input) throws IOException {
                     if (failUpload) throw new IOException("Upload failed");

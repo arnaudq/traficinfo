@@ -36,7 +36,7 @@ public class AccidentPublicationFunctionTest {
         @Override protected List<AccidentsConfig.Source> loadSources() {
             return List.of(new AccidentsConfig.Source("CITY_A", "private-accidents"));
         }
-        @Override protected ObjectStoreClient createObjectStoreClient(boolean principal, String ns, String bucket) {
+        @Override protected ObjectStoreClient createObjectStoreClient(String bucket) {
             buckets.add(bucket);
             return bucket.equals("private-accidents") ? input : output;
         }
@@ -63,8 +63,8 @@ public class AccidentPublicationFunctionTest {
     public static class Probe extends AccidentPublicationFunction {
         final Store input=new Store(),output=new Store();
         final List<String> connections=new ArrayList<>();
-        @Override protected ObjectStoreClient createObjectStoreClient(boolean principal,String ns,String bucket){
-            connections.add(principal+"/"+ns+"/"+bucket);
+        @Override protected ObjectStoreClient createObjectStoreClient(String bucket) {
+            connections.add(useResourcePrincipal()+"/"+namespace()+"/"+bucket);
             return bucket.equals("onisrinfo")?input:output;
         }
     }

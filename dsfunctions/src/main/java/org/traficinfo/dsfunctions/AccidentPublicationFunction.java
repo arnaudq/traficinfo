@@ -20,18 +20,14 @@ public class AccidentPublicationFunction extends TraficInfoBaseFunction {
 
     protected List<AccidentsConfig.Source> loadSources() { return AccidentsConfig.bundled(); }
 
-    protected ObjectStoreClient createObjectStoreClient(boolean principal, String namespace, String bucket) {
-        return new ObjectStoreClient(principal, namespace, bucket);
-    }
-
     @Override
     protected String processRequest(String input, Invocation invocation) {
         if (namespace() == null) throw new IllegalStateException("Publication function is not configured");
-        try (var outputStore = createObjectStoreClient(useResourcePrincipal(), namespace(), outputBucket)) {
+        try (var outputStore = createObjectStoreClient(outputBucket)) {
             for (var source : sources) {
                 invocation.datasource(source.id());
                 try (var logging = LoggingContext.forSource("accident-publication", source.id());
-                     var accidentStore = createObjectStoreClient(useResourcePrincipal(), namespace(), source.sourceBucket())) {
+                     var accidentStore = createObjectStoreClient(source.sourceBucket())) {
                     new AccidentPublicationPublisher(accidentStore, outputStore).publish(source.id());
                 }
             }

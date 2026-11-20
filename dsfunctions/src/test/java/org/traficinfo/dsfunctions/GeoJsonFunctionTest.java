@@ -113,9 +113,9 @@ public class GeoJsonFunctionTest {
             };
         }
 
-        @Override protected ObjectStoreClient createObjectStoreClient(boolean principal, String namespace, String bucket) {
-            clients.add(namespace + "/" + bucket);
-            return new ObjectStoreClient(null, namespace, bucket) {
+        @Override protected ObjectStoreClient createObjectStoreClient(String bucket) {
+            clients.add(namespace() + "/" + bucket);
+            return new ObjectStoreClient(null, namespace(), bucket) {
                 @Override public InputStream getResource(String name) throws IOException {
                     assertEquals("geojson", MDC.get("stage"));
                     if (fail) throw new IOException("manifest unavailable");

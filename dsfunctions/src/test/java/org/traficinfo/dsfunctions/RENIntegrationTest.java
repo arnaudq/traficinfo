@@ -199,8 +199,8 @@ public class RENIntegrationTest {
     public static class Probe extends PreprocessingFunction {
         final PreprocessingPublisherTest.Store store = new PreprocessingPublisherTest.Store();
         String bucket;
-        @Override protected ObjectStoreClient createObjectStoreClient(boolean principal, String namespace, String name) {
-            bucket = namespace + "/" + name;
+        @Override protected ObjectStoreClient createObjectStoreClient(String name) {
+            bucket = namespace() + "/" + name;
             try {
                 store.source(settings(), sample());
                 var archive = DataSourceRegistry.bundled().preprocessing("REN", "ren-2021-2025");

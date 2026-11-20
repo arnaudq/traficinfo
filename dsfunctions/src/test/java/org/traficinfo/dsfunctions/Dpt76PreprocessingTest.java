@@ -170,8 +170,8 @@ public class Dpt76PreprocessingTest {
     public static class Probe extends PreprocessingFunction {
         final PreprocessingPublisherTest.Store store = new PreprocessingPublisherTest.Store();
         String bucket;
-        @Override protected ObjectStoreClient createObjectStoreClient(boolean principal, String namespace, String name) {
-            bucket = namespace + "/" + name;
+        @Override protected ObjectStoreClient createObjectStoreClient(String name) {
+            bucket = namespace() + "/" + name;
             try {
                 store.source(settings(), GEOJSON);
             }

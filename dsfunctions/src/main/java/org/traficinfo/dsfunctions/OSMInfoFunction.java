@@ -60,11 +60,7 @@ public class OSMInfoFunction extends TraficInfoBaseFunction {
         configureRoadComparison(ctx);
         metrics = FunctionMetrics.configured(ctx, useResourcePrincipal());
         String bucket = ctx.getConfigurationByKey("BUCKETNAME_OSM").orElse("osminfo");
-        osmCacheOSClient = createObjectStoreClient(useResourcePrincipal(), namespace(), bucket);
-    }
-
-    protected ObjectStoreClient createObjectStoreClient(boolean principal, String namespace, String bucket) {
-        return new ObjectStoreClient(principal, namespace, bucket);
+        osmCacheOSClient = createObjectStoreClient(bucket);
     }
 
     void configureRoadComparison(RuntimeContext ctx) {

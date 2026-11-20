@@ -68,9 +68,9 @@ public class PreprocessingFunctionTest {
         final PreprocessingPublisherTest.Store store = new PreprocessingPublisherTest.Store();
         String bucket;
 
-        @Override protected ObjectStoreClient createObjectStoreClient(boolean principal, String namespace, String bucket) {
+        @Override protected ObjectStoreClient createObjectStoreClient(String bucket) {
             created++;
-            this.bucket = namespace + "/" + bucket;
+            this.bucket = namespace() + "/" + bucket;
             if (!store.objects.containsKey("NIM_Comptage.csv")) {
                 store.source(settings(), "id_camera;date;tranche;nbPassage;coordonnees_geographique\n52;2023-01-01;00:00 - 01:00;10;43.8, 4.4\n");
             }

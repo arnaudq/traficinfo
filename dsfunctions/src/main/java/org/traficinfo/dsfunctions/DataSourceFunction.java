@@ -25,10 +25,6 @@ public class DataSourceFunction extends TraficInfoBaseFunction {
         return new HttpClient();
     }
 
-    protected ObjectStoreClient createObjectStoreClient(boolean principal, String ns, String bucket) {
-        return new ObjectStoreClient(principal, ns, bucket);
-    }
-
     @Override
     protected void configure(RuntimeContext context) {
         registry = loadRegistry();
@@ -50,7 +46,7 @@ public class DataSourceFunction extends TraficInfoBaseFunction {
         var source = registry.source(request.datasourceId());
         try (var logging = LoggingContext.forSource("retrieval", request.datasourceId())) {
             try (HttpClient http = createHttpClient();
-                 ObjectStoreClient storage = createObjectStoreClient(useResourcePrincipal(), namespace(), source.bucket())) {
+                 ObjectStoreClient storage = createObjectStoreClient(source.bucket())) {
                 new SourceObjectPublisher(http, storage).publish(source.settings());
                 return "OK";
             } catch (IOException | RuntimeException failure) {
