@@ -19,6 +19,24 @@ public class TraficInfoBaseFunctionTest {
     private static final ObjectMapper JSON = new ObjectMapper();
 
     @Test
+    public void sharedSettingsKeepDefaultsAndAreAvailableDuringConfiguration() {
+        var function = configured(samples::addAll);
+        assertEquals("", function.configuredNamespace);
+        assertTrue(function.configuredPrincipal);
+    }
+
+    @Test
+    public void sharedSettingsReadExplicitNamespaceAndAuthenticationChoice() {
+        var function = new TestFunction(samples::addAll);
+        function.config(runtime(Map.of("NAMESPACE", "testnamespace", "USE_RESOURCE_PRINCIPAL", "false")));
+        assertEquals("testnamespace", function.configuredNamespace);
+        assertFalse(function.configuredPrincipal);
+        function.config(runtime(Map.of("NAMESPACE", "other", "USE_RESOURCE_PRINCIPAL", "true")));
+        assertEquals("other", function.configuredNamespace);
+        assertTrue(function.configuredPrincipal);
+    }
+
+    @Test
     public void successfulResponseIsUnchangedAndEmitsNoFailureMetric() {
         assertEquals("OK", handler.invoke(attempt -> "OK"));
         assertTrue(samples.isEmpty());
@@ -79,7 +97,7 @@ public class TraficInfoBaseFunctionTest {
         assertSame(original, assertThrows(IllegalArgumentException.class,
                 () -> configured.invoke(attempt -> { throw original; })));
         // Snapshot publication retains its existing optional configuration behavior.
-        FunctionMetrics.configured(runtime(Map.of())).publish(List.of(new MetricSample(
+        FunctionMetrics.configured(runtime(Map.of()), true).publish(List.of(new MetricSample(
                 MetricName.GEO_JSON_FEATURES.metricName(), 0, "count", Instant.now(), Map.of())));
     }
 
@@ -154,6 +172,8 @@ public class TraficInfoBaseFunctionTest {
 
     private static final class TestFunction extends TraficInfoBaseFunction {
         private final MetricsPublisher publisher;
+        private String configuredNamespace;
+        private boolean configuredPrincipal;
         private java.util.function.Function<Invocation, String> operation;
 
         TestFunction(MetricsPublisher publisher) {
@@ -165,7 +185,10 @@ public class TraficInfoBaseFunctionTest {
             return publisher == null ? super.createFailureMetrics(context) : publisher;
         }
 
-        @Override protected void configure(RuntimeContext context) { }
+        @Override protected void configure(RuntimeContext context) {
+            configuredNamespace = namespace();
+            configuredPrincipal = useResourcePrincipal();
+        }
 
         @Override protected String processRequest(String input, Invocation invocation) {
             return operation.apply(invocation);

@@ -14,8 +14,6 @@ public class DataSourceFunction extends TraficInfoBaseFunction {
     private static final ObjectMapper JSON = new ObjectMapper()
             .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
     private DataSourceRegistry registry;
-    private String namespace;
-    private boolean useResourcePrincipal;
 
     public DataSourceFunction() { super("UNKNOWN"); }
 
@@ -34,8 +32,6 @@ public class DataSourceFunction extends TraficInfoBaseFunction {
     @Override
     protected void configure(RuntimeContext context) {
         registry = loadRegistry();
-        namespace = context.getConfigurationByKey("NAMESPACE").orElse("");
-        useResourcePrincipal = Boolean.parseBoolean(context.getConfigurationByKey("USE_RESOURCE_PRINCIPAL").orElse("true"));
     }
 
     @Override
@@ -54,7 +50,7 @@ public class DataSourceFunction extends TraficInfoBaseFunction {
         var source = registry.source(request.datasourceId());
         try (var logging = LoggingContext.forSource("retrieval", request.datasourceId())) {
             try (HttpClient http = createHttpClient();
-                 ObjectStoreClient storage = createObjectStoreClient(useResourcePrincipal, namespace, source.bucket())) {
+                 ObjectStoreClient storage = createObjectStoreClient(useResourcePrincipal(), namespace(), source.bucket())) {
                 new SourceObjectPublisher(http, storage).publish(source.settings());
                 return "OK";
             } catch (IOException | RuntimeException failure) {

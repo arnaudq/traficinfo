@@ -23,6 +23,8 @@ public abstract class TraficInfoBaseFunction {
     private static final Logger LOG = LoggerFactory.getLogger(TraficInfoBaseFunction.class);
     private static final ObjectMapper JSON = new ObjectMapper();
     private final String defaultDatasourceId;
+    private String namespace;
+    private boolean useResourcePrincipal;
     private MetricsPublisher failureMetrics = samples -> {
         throw new IllegalStateException("Failure monitoring has not been configured");
     };
@@ -34,18 +36,31 @@ public abstract class TraficInfoBaseFunction {
         this.defaultDatasourceId = defaultDatasourceId;
     }
 
-    /** Initializes monitoring before the function-specific runtime configuration. */
+    /** Initializes shared namespace, authentication and monitoring before function-specific configuration. */
     @FnConfiguration
     public final void config(RuntimeContext context) {
+        namespace = context.getConfigurationByKey("NAMESPACE").orElse("");
+        useResourcePrincipal = Boolean.parseBoolean(
+                context.getConfigurationByKey("USE_RESOURCE_PRINCIPAL").orElse("true"));
         failureMetrics = createFailureMetrics(context);
         dimensions = Map.of("applicationId", context.getAppID(), "resourceId", context.getFunctionID(),
                 "resourceDisplayName", context.getFunctionName());
         configure(context);
     }
 
+    /** @return the Object Storage namespace (empty if unset), or null before configuration */
+    protected final String namespace() {
+        return namespace;
+    }
+
+    /** @return whether OCI clients authenticate with a resource principal; defaults to true */
+    protected final boolean useResourcePrincipal() {
+        return useResourcePrincipal;
+    }
+
     /** Supplies the failure-reporting backend; missing configuration must fail publication. */
     protected MetricsPublisher createFailureMetrics(RuntimeContext context) {
-        return FunctionMetrics.required(context);
+        return FunctionMetrics.required(context, useResourcePrincipal());
     }
 
     /** Configures function-specific resources. Exceptions here remain OCI runtime failures. */

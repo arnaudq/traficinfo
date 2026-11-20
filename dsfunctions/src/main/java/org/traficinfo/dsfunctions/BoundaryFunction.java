@@ -38,8 +38,6 @@ public class BoundaryFunction extends TraficInfoBaseFunction {
     private final Clock clock;
     private List<Boundary> boundaries;
     private String bucket;
-    private String namespace;
-    private boolean principal;
 
     public BoundaryFunction() {
         this(Clock.systemUTC());
@@ -76,9 +74,6 @@ public class BoundaryFunction extends TraficInfoBaseFunction {
             }
             bucket = destination.group(1);
             boundaries = readBoundaries(config.path("boundaries"));
-            namespace = context.getConfigurationByKey("NAMESPACE")
-                    .filter(value -> !value.isBlank()).orElseThrow(() -> new IllegalArgumentException("NAMESPACE is required"));
-            principal = Boolean.parseBoolean(context.getConfigurationByKey("USE_RESOURCE_PRINCIPAL").orElse("true"));
         } catch (IOException failure) {
             throw new IllegalArgumentException("Cannot load bundled mapconfig.json", failure);
         }
@@ -156,7 +151,7 @@ public class BoundaryFunction extends TraficInfoBaseFunction {
         Instant fetchedAt = clock.instant();
         Instant cutoff = fetchedAt.atZone(ZoneOffset.UTC).minusMonths(MAX_AGE_MONTHS).toInstant();
         List<ObjectNode> updates = new ArrayList<>();
-        try (ObjectStoreClient storage = createObjectStoreClient(principal, namespace, bucket)) {
+        try (ObjectStoreClient storage = createObjectStoreClient(useResourcePrincipal(), namespace(), bucket)) {
             ObjectNode dataset = request.epciCode() == null
                     ? refreshDepartements(storage, cutoff, fetchedAt, updates) : null;
             List<Boundary> selected = request.epciCode() == null

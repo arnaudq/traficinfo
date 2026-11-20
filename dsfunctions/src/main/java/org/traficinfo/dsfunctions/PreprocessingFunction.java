@@ -15,8 +15,6 @@ public class PreprocessingFunction extends TraficInfoBaseFunction {
     private static final Logger LOG = LoggerFactory.getLogger(PreprocessingFunction.class);
     private static final ObjectMapper JSON = new ObjectMapper().enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
     private DataSourceRegistry registry;
-    private String namespace;
-    private boolean principal;
 
     public PreprocessingFunction() { super("UNKNOWN"); }
 
@@ -29,8 +27,6 @@ public class PreprocessingFunction extends TraficInfoBaseFunction {
     @Override
     protected void configure(RuntimeContext context) {
         registry = loadRegistry();
-        namespace = context.getConfigurationByKey("NAMESPACE").orElse("");
-        principal = Boolean.parseBoolean(context.getConfigurationByKey("USE_RESOURCE_PRINCIPAL").orElse("true"));
     }
 
     @Override
@@ -52,7 +48,7 @@ public class PreprocessingFunction extends TraficInfoBaseFunction {
         var active = registry.preprocessing(request.datasourceId(), null);
         var archive = request.datasetId() == null ? null : registry.preprocessing(request.datasourceId(), request.datasetId());
         try (var logging = LoggingContext.forSource("preprocess", request.datasourceId())) {
-            try (ObjectStoreClient storage = createObjectStoreClient(principal, namespace,
+            try (ObjectStoreClient storage = createObjectStoreClient(useResourcePrincipal(), namespace(),
                     source.bucket())) {
                 var publisher = new PreprocessingPublisher(storage);
                 if (archive != null) publisher.publishArchive(archive, active);
@@ -75,7 +71,7 @@ public class PreprocessingFunction extends TraficInfoBaseFunction {
         }
         String name = body.path("data").path("resourceName").asText();
         var details = body.path("data").path("additionalDetails");
-        if (!namespace.isBlank() && !namespace.equals(details.path("namespace").asText())) {
+        if (!namespace().isBlank() && !namespace().equals(details.path("namespace").asText())) {
             throw new IllegalArgumentException("Event does not match configured namespace");
         }
         String id = registry.datasourceForInput(details.path("bucketName").asText(), name);

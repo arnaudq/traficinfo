@@ -10,20 +10,18 @@ final class FunctionMetrics {
 
     private FunctionMetrics() {}
 
-    static MetricsPublisher configured(RuntimeContext context) {
-        return configured(context, false);
+    static MetricsPublisher configured(RuntimeContext context, boolean principal) {
+        return configured(context, principal, false);
     }
 
     /** Failure reporting must not silently skip missing monitoring configuration. */
-    static MetricsPublisher required(RuntimeContext context) {
-        return configured(context, true);
+    static MetricsPublisher required(RuntimeContext context, boolean principal) {
+        return configured(context, principal, true);
     }
 
-    private static MetricsPublisher configured(RuntimeContext context, boolean required) {
+    private static MetricsPublisher configured(RuntimeContext context, boolean principal, boolean required) {
         String compartment = context.getConfigurationByKey("METRICS_COMPARTMENT_ID").orElse("");
         String namespace = context.getConfigurationByKey("METRICS_NAMESPACE").orElse("traficinfo");
-        boolean principal = Boolean.parseBoolean(
-                context.getConfigurationByKey("USE_RESOURCE_PRINCIPAL").orElse("true"));
         return samples -> {
             if (samples.isEmpty()) return;
             if (compartment.isBlank()) {

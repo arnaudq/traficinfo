@@ -8,18 +8,14 @@ import java.util.List;
 /** Manual publication of map features and casualty summaries for the configured accident datasets. */
 public class AccidentPublicationFunction extends TraficInfoBaseFunction {
     private List<AccidentsConfig.Source> sources;
-    private String namespace;
     private String outputBucket;
-    private boolean principal;
 
     public AccidentPublicationFunction() { super("ALL"); }
 
     @Override
     protected void configure(RuntimeContext context) {
         sources = loadSources();
-        namespace = context.getConfigurationByKey("NAMESPACE").orElse("");
         outputBucket = context.getConfigurationByKey("BUCKETNAME_OUT").orElse("traficinfo");
-        principal = Boolean.parseBoolean(context.getConfigurationByKey("USE_RESOURCE_PRINCIPAL").orElse("true"));
     }
 
     protected List<AccidentsConfig.Source> loadSources() { return AccidentsConfig.bundled(); }
@@ -30,12 +26,12 @@ public class AccidentPublicationFunction extends TraficInfoBaseFunction {
 
     @Override
     protected String processRequest(String input, Invocation invocation) {
-        if (namespace == null) throw new IllegalStateException("Publication function is not configured");
-        try (var outputStore = createObjectStoreClient(principal, namespace, outputBucket)) {
+        if (namespace() == null) throw new IllegalStateException("Publication function is not configured");
+        try (var outputStore = createObjectStoreClient(useResourcePrincipal(), namespace(), outputBucket)) {
             for (var source : sources) {
                 invocation.datasource(source.id());
                 try (var logging = LoggingContext.forSource("accident-publication", source.id());
-                     var accidentStore = createObjectStoreClient(principal, namespace, source.sourceBucket())) {
+                     var accidentStore = createObjectStoreClient(useResourcePrincipal(), namespace(), source.sourceBucket())) {
                     new AccidentPublicationPublisher(accidentStore, outputStore).publish(source.id());
                 }
             }

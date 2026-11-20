@@ -16,10 +16,8 @@ public class GeoJsonFunction extends TraficInfoBaseFunction {
     private static final ObjectMapper JSON = new ObjectMapper()
             .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
     private DataSourceRegistry registry;
-    private String namespace;
     private String outputBucket;
     private String osmBucket;
-    private boolean principal;
     private MetricsPublisher metrics;
 
     public GeoJsonFunction() { super("UNKNOWN"); }
@@ -39,11 +37,9 @@ public class GeoJsonFunction extends TraficInfoBaseFunction {
     @Override
     protected void configure(RuntimeContext context) {
         registry = loadRegistry();
-        namespace = context.getConfigurationByKey("NAMESPACE").orElse("");
         outputBucket = context.getConfigurationByKey("BUCKETNAME_OUT").orElse("traficinfo");
         osmBucket = context.getConfigurationByKey("BUCKETNAME_OSM").orElse("osminfo");
-        principal = Boolean.parseBoolean(context.getConfigurationByKey("USE_RESOURCE_PRINCIPAL").orElse("true"));
-        metrics = FunctionMetrics.configured(context);
+        metrics = FunctionMetrics.configured(context, useResourcePrincipal());
     }
 
     @Override
@@ -64,9 +60,9 @@ public class GeoJsonFunction extends TraficInfoBaseFunction {
         var source = registry.geojson(request.datasourceId());
         String inputBucket = registry.source(request.datasourceId()).bucket();
         try (var logging = LoggingContext.forSource("geojson", request.datasourceId())) {
-            try (var inputs = createObjectStoreClient(principal, namespace, inputBucket);
-                 var outputs = createObjectStoreClient(principal, namespace, outputBucket);
-                 var osm = createObjectStoreClient(principal, namespace, osmBucket);
+            try (var inputs = createObjectStoreClient(useResourcePrincipal(), namespace(), inputBucket);
+                 var outputs = createObjectStoreClient(useResourcePrincipal(), namespace(), outputBucket);
+                 var osm = createObjectStoreClient(useResourcePrincipal(), namespace(), osmBucket);
                  var osmClient = createOpenStreetMapClient()) {
                 var provider = new OSMInfoProviderImpl(osm, osmClient,
                         source.getOsmCacheObjectName(), source.getOsmWayMappingObjectName());
@@ -90,7 +86,7 @@ public class GeoJsonFunction extends TraficInfoBaseFunction {
         String datasourceId = name.substring(0, name.length() - suffix.length());
         var details = event.path("data").path("additionalDetails");
         if (!registry.source(datasourceId).bucket().equals(details.path("bucketName").asText())
-                || (!namespace.isBlank() && !namespace.equals(details.path("namespace").asText()))) {
+                || (!namespace().isBlank() && !namespace().equals(details.path("namespace").asText()))) {
             throw new IllegalArgumentException("Event does not match configured datasource storage");
         }
         return new Request(datasourceId);

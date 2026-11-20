@@ -1113,7 +1113,10 @@ GeoJSON migration.
 
 All handlers extend `TraficInfoBaseFunction`, which owns the final `config()` and
 `handleRequest()` entry points. Each function implements `configure()` and
-`processRequest()` for its own behavior. Successful responses are preserved.
+`processRequest()` for its own behavior. The base class reads `NAMESPACE` (default
+empty) and `USE_RESOURCE_PRINCIPAL` (default `true`) once, before function-specific
+configuration, and exposes them through protected accessors. Metrics use the same
+authentication choice as storage. Successful responses are preserved.
 When an application exception reaches the handler boundary, the base class logs
 it, publishes one
 `FunctionFailures` event and returns JSON with `success: false` and an `error`
