@@ -1,4 +1,5 @@
 import L from 'leaflet';
+import { createMapSearch } from './map-search.ts';
 import { element } from './dom.ts';
 import { createCountMap } from './count-map.ts';
 import {
@@ -82,7 +83,9 @@ export async function loadOverview(map: L.Map): Promise<void> {
   const counts = createCountMap(map, config, (message) => {
     countStatus.textContent = message;
   });
+  const search = createMapSearch(map);
   const select = (selected: PublicMap) => {
+    search.select(selected);
     back.hidden = false;
     legend.hidden = false;
     document.querySelector('details.available-maps')?.removeAttribute('open');
@@ -94,6 +97,7 @@ export async function loadOverview(map: L.Map): Promise<void> {
   };
   back.addEventListener('click', () => {
     counts.clear();
+    search.hide();
     back.hidden = true;
     legend.hidden = true;
     countStatus.textContent = '';

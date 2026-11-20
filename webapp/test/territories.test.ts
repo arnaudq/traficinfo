@@ -130,10 +130,12 @@ test('bounds cover all polygons and invalid or mismatched geometry is rejected',
 
 test('public config derives bounds without exposing uMap overrides or mutating source', async () => {
   const config = registry();
+  config.maps.A.searchProvider = 'ign';
   const output = await publicConfig(config, async (boundary) =>
     feature(boundary.boundaryId),
   );
   assert.deepEqual(output.boundaries['epci:1'].bounds, [2, 43, 4, 45]);
+  assert.equal(output.maps.A.searchProvider, 'ign');
   assert.equal('$schema' in output, false);
   assert.equal('properties' in output.maps.A, false);
   assert.equal('layerProperties' in output.maps.A, false);
@@ -151,7 +153,13 @@ test('public config derives bounds without exposing uMap overrides or mutating s
 test('registry validation rejects broken references, unsupported fields and invalid selections', () => {
   const sources = { SOURCE: { id: 'SOURCE' } };
   validateRegistry(registry(), sources);
+  const explicitProvider = registry();
+  explicitProvider.maps.A.searchProvider = 'ign';
+  validateRegistry(explicitProvider, sources);
   const changes: Array<(config: MapConfig) => void> = [
+    (config) => {
+      Object.assign(config.maps.A, { searchProvider: 'unknown' });
+    },
     (config) => {
       config.boundaries['epci:1'].boundaryId = 'wrong';
     },

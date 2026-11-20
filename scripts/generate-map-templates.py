@@ -83,7 +83,7 @@ def validate(config, sources):
     require(isinstance(maps, dict) and maps, "maps must be a nonempty object")
     require(isinstance(sources, dict), "dsconfig must be an object")
     allowed = {"id", "name", "description", "center", "zoom", "dataSources",
-               "uri", "properties", "layerProperties", "boundaryId"}
+               "uri", "properties", "layerProperties", "boundaryId", "searchProvider"}
     for map_id, entry in maps.items():
         require(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", map_id),
                 f"Invalid map ID: {map_id}")
@@ -95,6 +95,8 @@ def validate(config, sources):
                 f"{map_id}: boundaryId must reference an existing boundary")
         require(all(nonempty(entry.get(k)) for k in ("name", "description")),
                 f"{map_id}: name and description are required")
+        require("searchProvider" not in entry or entry["searchProvider"] == "ign",
+                f"{map_id}: invalid search provider")
         center = entry.get("center")
         require(isinstance(center, list) and len(center) == 2
                 and all(number(v) for v in center)

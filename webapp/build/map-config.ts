@@ -1,4 +1,5 @@
 import type { Plugin } from 'vite';
+import { searchProviders } from '../src/search-providers.ts';
 import type {
   Boundary,
   MapConfig,
@@ -111,6 +112,12 @@ export function validateRegistry(
     ensure(
       text(map.name) && text(map.description),
       `Missing map content: ${id}`,
+    );
+    ensure(
+      map.searchProvider === undefined ||
+        (typeof map.searchProvider === 'string' &&
+          Object.hasOwn(searchProviders, map.searchProvider)),
+      `Invalid search provider: ${id}`,
     );
     ensure(
       map.uri === undefined || (text(map.uri) && /^https?:\/\//.test(map.uri)),

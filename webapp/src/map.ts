@@ -13,5 +13,9 @@ export function createMap(elementId: string): L.Map {
   });
 
   baseLayer.addTo(map);
+  // Search results and legends change the space available below the header.
+  const resize = new ResizeObserver(() => map.invalidateSize({ pan: false }));
+  resize.observe(map.getContainer());
+  map.on('unload', () => resize.disconnect());
   return map;
 }

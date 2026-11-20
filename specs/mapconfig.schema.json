@@ -126,6 +126,10 @@
             "uniqueItems": true,
             "description": "Ordered source selections. Counts use VEHICULES/BICYCLES from dsconfig.json; ACCIDENTS selects an independent public <id>_Accidents.geojson publication. IDs must be distinct."
           },
+          "searchProvider": {
+            "enum": ["ign"],
+            "description": "Webapp address/place search provider. Defaults to ign."
+          },
           "uri": {
             "type": "string",
             "pattern": "^https?://",

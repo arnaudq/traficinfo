@@ -79,6 +79,19 @@ Advanced filters and full history charts are not yet implemented; downloaded
 GeoJSON stays independent of the rendered groups so future filters can rebuild
 clusters from matching points without downloading again.
 
+Detailed maps show an address/place search bar. Submit at least three characters
+with Enter or **Rechercher**, then select a result to zoom to its location.
+Search uses IGN's public Géoplateforme service (France), with the current map
+center as a proximity preference. Queries go directly to IGN. Switching maps
+or returning to territories clears the search and its marker.
+
+Maps can optionally set `"searchProvider": "ign"` in `mapconfig.json`; IGN is the
+default. To support another country, add an adapter to `src/search-providers.ts`
+implementing `SearchProvider` (search and attribution), then extend the registry
+schema and validators, including the uMap generator. Adapters return labels and
+`[longitude, latitude]` coordinates; the search UI and navigation remain provider
+independent. No other provider is bundled yet.
+
 Switching maps removes previous counts; **Retour aux territoires** unloads them
 and restores the France view. Contours remain independently available. Successful
 downloads are cached for the page session, and requests completed after leaving

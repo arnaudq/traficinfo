@@ -1,3 +1,4 @@
+import type { SearchProviderId } from './search-providers.ts';
 import type { Feature, MultiPolygon, Polygon } from 'geojson';
 
 export type Bounds = [west: number, south: number, east: number, north: number];
@@ -25,6 +26,7 @@ export interface MapDefinition {
   center: [longitude: number, latitude: number];
   zoom: number;
   dataSources: DataSourceSelection[];
+  searchProvider?: SearchProviderId;
   uri?: string;
   properties?: Record<string, unknown>;
   layerProperties?: Record<string, Record<string, unknown>>;
