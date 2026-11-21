@@ -28,7 +28,7 @@ class SharedRetrievalTest(unittest.TestCase):
         self.deploy_retrieval()
         self.assertEqual([['function', 'update', 'DataSourceFunction']], self.state['writes'])
         shared = next(f for f in self.state['functions'] if f['display-name'] == 'DataSourceFunction')
-        self.assertEqual({'NAMESPACE': 'testnamespace'},
+        self.assertEqual({'NAMESPACE': 'testnamespace', 'METRICS_COMPARTMENT_ID': 'ocid1.compartment.test'},
                          shared['config'])
         self.assertEqual({}, shared['defined-tags'])
         self.assertEqual(300, shared['timeout-in-seconds'])
@@ -45,7 +45,7 @@ class SharedRetrievalTest(unittest.TestCase):
         self.deploy_retrieval('MMM')
         self.assertEqual([['function', 'create', 'DataSourceFunction']], self.state['writes'])
         shared = next(f for f in self.state['functions'] if f['display-name'] == 'DataSourceFunction')
-        self.assertEqual({'NAMESPACE': 'testnamespace'}, shared['config'])
+        self.assertEqual({'NAMESPACE': 'testnamespace', 'METRICS_COMPARTMENT_ID': 'ocid1.compartment.test'}, shared['config'])
 
     def test_generated_schedules_payloads_clock_override_and_repeat(self):
         config = json.loads(self.config_file.read_text())

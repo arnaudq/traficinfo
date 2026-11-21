@@ -6,7 +6,8 @@ Processing functions publish application metrics through the OCI Monitoring Java
 SDK in the `traficinfo` namespace by default. Every metric below has unit `count`
 and, except for `FunctionFailures`, represents a snapshot rather than an increment.
 `FunctionFailures` counts handled application failures. Its Java emission is
-implemented; deployment configuration and the additional alarm remain planned.
+implemented, as are deployment settings and manual response handling; the
+additional alarm remains planned.
 See the [functions README](../dsfunctions/README.md) for deployment and invocation.
 The [Alarms and Notifications](#alarms-and-notifications) chapter describes the
 function failure alarms based on OCI's built-in metrics and the proposed custom
@@ -119,9 +120,12 @@ It has severity `CRITICAL`, a one-minute pending duration, and sends to the exis
 `TraficInfoMonitoring` topic. It covers handled failures in scheduled runs and
 manual invocations. The synchronous error response also lets `scripts/invoke.sh`
 display exception details and exit unsuccessfully without invoking the function
-again, once response handling is added to that script. The Java handler and metric
-emission are implemented; script feedback, deployment configuration and the alarm
-remain planned. No cloud resources are changed by the Java implementation.
+again. The script disables OCI CLI retries, prints handled exception details to
+standard error, and exits with status 1. Successful responses go to standard
+output; OCI invocation errors retain their exit status and output. The Java
+handler, metric emission, script feedback and deployment configuration are
+implemented; the additional alarm remains planned. These script changes have not
+been applied to cloud resources.
 
 ### GeoJSON publication
 
@@ -173,7 +177,7 @@ OSMWayMappings[1h]{datasourceId = "MMM", status = "NEEDS_REVIEW"}.max()
 | `METRICS_NAMESPACE` | `traficinfo` |
 
 Deployment sets `METRICS_COMPARTMENT_ID` to the shared `OCI_COMPARTMENT_ID` exported
-by `scripts/setup.sh` for both GeoJSON and OSM deployment. Each function's
+by `scripts/setup.sh` for all function deployments. Each function's
 resource-principal dynamic group needs an
 additional IAM policy (substitute its name and compartment OCID):
 

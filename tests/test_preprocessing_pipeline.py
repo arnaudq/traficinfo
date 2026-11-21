@@ -44,7 +44,7 @@ class PreprocessingPipelineTest(unittest.TestCase):
         self.save()
         self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main preprocess')
         shared = next(f for f in self.state['functions'] if f['display-name'] == 'PreprocessingFunction')
-        self.assertEqual({'NAMESPACE': 'testnamespace'}, shared['config'])
+        self.assertEqual({'NAMESPACE': 'testnamespace', 'METRICS_COMPARTMENT_ID': 'ocid1.compartment.test'}, shared['config'])
         self.assertEqual(300, shared['timeout-in-seconds'])
         self.assertEqual({}, shared['defined-tags'])
         for args, expected in [(('NIM',), {'datasourceId': 'NIM'}),

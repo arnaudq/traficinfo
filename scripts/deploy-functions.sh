@@ -108,10 +108,11 @@ validate_jar() {
 
 build_function_config() {
   local type="$1" namespace="$2"
+  local compartment="${OCI_COMPARTMENT_ID:?Run source ./scripts/setup.sh first}"
   if [ "$type" = osm ]; then
     validate_bucket_name "$osm_bucket" BUCKETNAME_OSM || return
     jq -cne --arg namespace "$namespace" --arg bucket "$osm_bucket" \
-      --arg compartment "${OCI_COMPARTMENT_ID:?Run source ./scripts/setup.sh first}" \
+      --arg compartment "$compartment" \
       --arg max_loop "${MAX_LOOP_DURATION_SECONDS-240}" --arg max_way "${MAX_WAY_MAPPINGS_PER_RUN-16}" \
       --arg scheduled_loop "${MAX_SCHEDULED_LOOP_DURATION_SECONDS-2700}" \
       --arg scheduled_way "${MAX_SCHEDULED_WAY_MAPPINGS_PER_RUN-180}" \
@@ -130,24 +131,26 @@ build_function_config() {
     return
   fi
   if [ "$type" = ds ] || [ "$type" = preprocess ] || [ "$type" = boundaries ]; then
-    jq -cn --arg namespace "$namespace" '{NAMESPACE: $namespace}'
+    jq -cn --arg namespace "$namespace" --arg compartment "$compartment" \
+      '{NAMESPACE: $namespace, METRICS_COMPARTMENT_ID: $compartment}'
     return
   fi
   if [ "$type" = accident-publication ]; then
     validate_bucket_name "$output_bucket" BUCKETNAME_OUT || return
-    jq -cn --arg namespace "$namespace" --arg output "$output_bucket" '{NAMESPACE: $namespace, BUCKETNAME_OUT: $output}'
+    jq -cn --arg namespace "$namespace" --arg output "$output_bucket" --arg compartment "$compartment" \
+      '{NAMESPACE: $namespace, BUCKETNAME_OUT: $output, METRICS_COMPARTMENT_ID: $compartment}'
     return
   fi
   if [ "$type" = accidents ]; then
     validate_bucket_name "$osm_bucket" BUCKETNAME_OSM || return
-    jq -cn --arg namespace "$namespace" --arg osm "$osm_bucket" \
-      '{NAMESPACE: $namespace, BUCKETNAME_OSM: $osm}'
+    jq -cn --arg namespace "$namespace" --arg osm "$osm_bucket" --arg compartment "$compartment" \
+      '{NAMESPACE: $namespace, BUCKETNAME_OSM: $osm, METRICS_COMPARTMENT_ID: $compartment}'
     return
   fi
   validate_bucket_name "$output_bucket" BUCKETNAME_OUT || return
   validate_bucket_name "$osm_bucket" BUCKETNAME_OSM || return
   jq -cn --arg namespace "$namespace" --arg output "$output_bucket" --arg osm "$osm_bucket" \
-    --arg compartment "${OCI_COMPARTMENT_ID:?Run source ./scripts/setup.sh first}" \
+    --arg compartment "$compartment" \
     '{NAMESPACE: $namespace, BUCKETNAME_OUT: $output, BUCKETNAME_OSM: $osm,
       METRICS_COMPARTMENT_ID: $compartment}'
 }

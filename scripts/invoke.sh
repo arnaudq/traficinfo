@@ -8,6 +8,23 @@ usage() {
   printf 'Usage: %s <ds|geojson> <data-source-id>\n       %s preprocess <data-source-id> [archive-dataset-id]\n       %s osm\n       %s accidents [refresh]\n       %s boundaries [epci-code]\n       %s accident-publication\n' "$0" "$0" "$0" "$0" "$0" "$0" >&2
 }
 
+invoke_function() {
+  local response status
+  if response="$(oci fn function invoke --no-retry "$@")"; then
+    if jq -e 'type == "object" and .success == false' <<< "$response" >/dev/null 2>&1; then
+      log 'Function reported an application failure.'
+      jq -r '.error | "\(.type): \(.message)",
+        (.causes[]? | "Caused by: \(.type): \(.message)")' <<< "$response" >&2
+      return 1
+    fi
+    printf '%s\n' "$response"
+  else
+    status=$?
+    if [ -n "$response" ]; then printf '%s\n' "$response"; fi
+    return "$status"
+  fi
+}
+
 main() {
   local type source function_name application_id function_id timeout body=""
   local invocation_options=(--fn-invoke-type sync --file "-")
@@ -67,7 +84,7 @@ main() {
   application_id="$(resolve_application_id)"
   function_id="$(resolve_function_id "$application_id" "$function_name")"
   log "Invoking $function_name..."
-  exec oci fn function invoke --function-id "$function_id" \
+  invoke_function --function-id "$function_id" \
     "${invocation_options[@]}"
 }
 

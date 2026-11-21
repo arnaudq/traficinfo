@@ -40,7 +40,10 @@ def wire_resources(resources):
                 parameter['value'] = json.dumps(parameter['value'])
     return resources
 command = args[:3]
-if state.get('fail_command') == command: sys.exit(7)
+if state.get('fail_command') == command:
+    if 'failure_stdout' in state: print(state['failure_stdout'])
+    if 'failure_stderr' in state: print(state['failure_stderr'], file=sys.stderr)
+    sys.exit(7)
 if command == ['iam', 'compartment', 'list']:
     emit([{'id': 'ocid1.compartment.test'}])
 elif command == ['os', 'ns', 'get']: print('testnamespace')
@@ -53,7 +56,8 @@ elif command == ['fn', 'function', 'list']:
     if state.get('blank_functions'): sys.exit(0)
     if state.get('malformed_functions'): emit({})
     else: emit([f for f in state['functions'] if f['display-name'] == opt('--display-name')])
-elif command == ['fn', 'function', 'invoke']: print('invoked ' + opt('--function-id'))
+elif command == ['fn', 'function', 'invoke']:
+    print(state.get('invocation_response', 'invoked ' + opt('--function-id')))
 elif command in [['fn', 'function', 'create'], ['fn', 'function', 'update']]:
     operation = args[2]
     if operation == 'create':
@@ -212,7 +216,7 @@ class OciScriptsTest(unittest.TestCase):
         self.config_file.write_text(json.dumps(config))
         self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main ds')
         function = next(f for f in self.state['functions'] if f['display-name'] == 'DataSourceFunction')
-        self.assertEqual(function['config'], {'NAMESPACE': 'testnamespace'})
+        self.assertEqual(function['config'], {'NAMESPACE': 'testnamespace', 'METRICS_COMPARTMENT_ID': 'ocid1.compartment.test'})
 
     def test_application_settings_count_towards_limit_before_any_function_changes(self):
         self.state['applications'][0]['config'] = {'SHARED': 'x' * 4090}
@@ -288,7 +292,7 @@ class OciScriptsTest(unittest.TestCase):
         self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main ds NIM')
         function = next(f for f in self.state['functions'] if f['display-name'] == 'DataSourceFunction')
         self.assertEqual(function['timeout-in-seconds'], 120)
-        self.assertEqual(function['config'], {'NAMESPACE': 'testnamespace'})
+        self.assertEqual(function['config'], {'NAMESPACE': 'testnamespace', 'METRICS_COMPARTMENT_ID': 'ocid1.compartment.test'})
         self.script('invoke.sh', 'ds', 'NIM')
         call = self.state['calls'][-1]
         self.assertEqual(call[call.index('--read-timeout') + 1], '180')
@@ -317,7 +321,7 @@ class OciScriptsTest(unittest.TestCase):
                 writes = [w for w in self.state['writes'] if w[0] == 'function' and w[2] == 'DataSourceFunction']
                 self.assertEqual(len(writes), 1 if existing else 2)
                 function = next(f for f in self.state['functions'] if f['display-name'] == 'DataSourceFunction')
-                self.assertEqual(function['config'], {'NAMESPACE': 'testnamespace'})
+                self.assertEqual(function['config'], {'NAMESPACE': 'testnamespace', 'METRICS_COMPARTMENT_ID': 'ocid1.compartment.test'})
                 self.assertEqual(function['defined-tags'], {})
 
     def test_invalid_retrieval_settings_fail_before_deployment_calls(self):
@@ -405,7 +409,7 @@ class OciScriptsTest(unittest.TestCase):
         for _ in range(2):
             self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main ds DPT76')
             function = next(f for f in self.state['functions'] if f['display-name'] == 'DataSourceFunction')
-            self.assertEqual(function['config'], {'NAMESPACE': 'testnamespace'})
+            self.assertEqual(function['config'], {'NAMESPACE': 'testnamespace', 'METRICS_COMPARTMENT_ID': 'ocid1.compartment.test'})
             self.assertEqual(function['defined-tags'], {})
         self.script('invoke.sh', 'ds', 'DPT76')
         self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main geojson')
@@ -430,7 +434,7 @@ class OciScriptsTest(unittest.TestCase):
         self.assertEqual(settings['source']['inputs'][0]['contentType'], 'application/geo+json')
         self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main preprocess')
         function = next(f for f in self.state['functions'] if f['display-name'] == 'PreprocessingFunction')
-        self.assertEqual(function['config'], {'NAMESPACE': 'testnamespace'})
+        self.assertEqual(function['config'], {'NAMESPACE': 'testnamespace', 'METRICS_COMPARTMENT_ID': 'ocid1.compartment.test'})
         self.assertEqual(function['timeout-in-seconds'], 300)
         self.assertTrue(any('--handler' in call and call[call.index('--handler') + 1]
                             == 'org.traficinfo.dsfunctions.PreprocessingFunction::handleRequest'
@@ -465,7 +469,7 @@ class OciScriptsTest(unittest.TestCase):
                 function = next(item for item in self.state['functions'] if item['display-name'] == 'DataSourceFunction')
                 self.assertEqual(function['timeout-in-seconds'], 300)
                 self.assertEqual(function['defined-tags'], {})
-                self.assertEqual(function['config'], {'NAMESPACE': 'testnamespace'})
+                self.assertEqual(function['config'], {'NAMESPACE': 'testnamespace', 'METRICS_COMPARTMENT_ID': 'ocid1.compartment.test'})
                 handler = [call for call in self.state['calls'] if '--handler' in call][-1]
                 self.assertEqual(handler[handler.index('--handler') + 1],
                                  'org.traficinfo.dsfunctions.DataSourceFunction::handleRequest')
@@ -477,7 +481,7 @@ class OciScriptsTest(unittest.TestCase):
                 function = next(f for f in self.state['functions'] if f['display-name'] == 'PreprocessingFunction')
                 self.assertEqual(function['timeout-in-seconds'], 300)
                 config = function['config']
-                self.assertEqual(config, {'NAMESPACE': 'testnamespace'})
+                self.assertEqual(config, {'NAMESPACE': 'testnamespace', 'METRICS_COMPARTMENT_ID': 'ocid1.compartment.test'})
                 self.assertLessEqual(sum(len(k.encode()) + len(v.encode()) for k, v in config.items()), 4096)
                 self.assertNotIn('TraficInfo', function.get('defined-tags', {}))
         self.script('invoke.sh', 'preprocess', 'NIM')
@@ -502,7 +506,7 @@ class OciScriptsTest(unittest.TestCase):
     def test_dpt30_preprocessing_uses_configured_years_and_shared_handler(self):
         self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main preprocess')
         function = next(f for f in self.state['functions'] if f['display-name'] == 'PreprocessingFunction')
-        self.assertEqual(function['config'], {'NAMESPACE': 'testnamespace'})
+        self.assertEqual(function['config'], {'NAMESPACE': 'testnamespace', 'METRICS_COMPARTMENT_ID': 'ocid1.compartment.test'})
         self.assertEqual(function['timeout-in-seconds'], 300)
         self.assertTrue(any('org.traficinfo.dsfunctions.PreprocessingFunction::handleRequest' in call
                             for call in self.state['calls']))
@@ -611,7 +615,7 @@ class OciScriptsTest(unittest.TestCase):
     def test_boundary_deployment_and_manual_invocation(self):
         self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main boundaries')
         function = next(f for f in self.state['functions'] if f['display-name'] == 'BoundaryFunction')
-        self.assertEqual({'NAMESPACE': 'testnamespace'}, function['config'])
+        self.assertEqual({'NAMESPACE': 'testnamespace', 'METRICS_COMPARTMENT_ID': 'ocid1.compartment.test'}, function['config'])
         self.assertEqual(300, function['timeout-in-seconds'])
         self.assertEqual({}, function['defined-tags'])
         self.assertEqual([], self.state['schedules'])
@@ -650,6 +654,45 @@ class OciScriptsTest(unittest.TestCase):
         self.script('invoke.sh', 'osm', success=False)
         self.assertFalse(any(c[:3] == ['fn', 'function', 'invoke'] for c in self.state['calls']))
 
+    def test_invoke_displays_success_responses_and_disables_cli_retries(self):
+        for response in ['OK', '{"success":true,"value":3}', 'ordinary text response']:
+            with self.subTest(response=response):
+                self.state['invocation_response'] = response
+                self.state['calls'] = []
+                self.save()
+                result = self.script('invoke.sh', 'osm')
+                self.assertEqual(response + '\n', result.stdout)
+                calls = [c for c in self.state['calls'] if c[:3] == ['fn', 'function', 'invoke']]
+                self.assertEqual(1, len(calls))
+                self.assertIn('--no-retry', calls[0])
+
+    def test_invoke_reports_handled_exception_and_causes_without_retrying(self):
+        self.state['invocation_response'] = json.dumps({
+            'success': False,
+            'error': {'type': 'java.lang.IllegalStateException', 'message': 'Publication "failed"',
+                      'causes': [{'type': 'java.io.IOException', 'message': 'Connection lost\nTry later'}]}})
+        self.save()
+        result = self.script('invoke.sh', 'osm', success=False)
+        self.assertEqual(1, result.returncode)
+        self.assertEqual('', result.stdout)
+        self.assertIn('java.lang.IllegalStateException: Publication "failed"', result.stderr)
+        self.assertIn('Caused by: java.io.IOException: Connection lost\nTry later', result.stderr)
+        calls = [c for c in self.state['calls'] if c[:3] == ['fn', 'function', 'invoke']]
+        self.assertEqual(1, len(calls))
+        self.assertIn('--no-retry', calls[0])
+
+    def test_invoke_preserves_oci_failure_status_and_output(self):
+        self.state.update(fail_command=['fn', 'function', 'invoke'],
+                          failure_stdout='partial response', failure_stderr='OCI invocation failed')
+        self.save()
+        result = self.script('invoke.sh', 'osm', success=False)
+        self.assertEqual(7, result.returncode)
+        self.assertEqual('partial response\n', result.stdout)
+        self.assertIn('OCI invocation failed', result.stderr)
+        calls = [c for c in self.state['calls'] if c[:3] == ['fn', 'function', 'invoke']]
+        self.assertEqual(1, len(calls))
+        self.assertIn('--no-retry', calls[0])
+
     def test_invoke_rejects_invalid_arguments_before_oci_calls(self):
         for args in [(), ('osm', 'DPT34'), ('osm', 'extra', 'extra'),
                      ('accidents', '2024'), ('accidents', 'refresh', 'extra'),
@@ -667,12 +710,14 @@ class OciScriptsTest(unittest.TestCase):
                     self.save()
                 self.deploy()
                 self.assertEqual(len(self.state['writes']), 7)
+                for function in self.state['functions']:
+                    self.assertEqual('ocid1.compartment.test', function['config']['METRICS_COMPARTMENT_ID'])
                 functions = {f['display-name']: f for f in self.state['functions']}
-                self.assertEqual({'NAMESPACE': 'testnamespace'}, functions['BoundaryFunction']['config'])
+                self.assertEqual({'NAMESPACE': 'testnamespace', 'METRICS_COMPARTMENT_ID': 'ocid1.compartment.test'}, functions['BoundaryFunction']['config'])
                 self.assertEqual({}, functions['BoundaryFunction']['defined-tags'])
                 self.assertEqual(300, functions['BoundaryFunction']['timeout-in-seconds'])
                 self.assertEqual(functions['ONISRAccidentFunction']['config'],
-                                 {'NAMESPACE': 'testnamespace', 'BUCKETNAME_OSM': 'osminfo'})
+                                 {'NAMESPACE': 'testnamespace', 'BUCKETNAME_OSM': 'osminfo', 'METRICS_COMPARTMENT_ID': 'ocid1.compartment.test'})
                 self.assertEqual(functions['ONISRAccidentFunction']['defined-tags'], {})
                 self.assertEqual(functions['ONISRAccidentFunction']['timeout-in-seconds'], 300)
                 self.assertEqual(functions['OSMInfoFunction']['config'],
@@ -686,7 +731,7 @@ class OciScriptsTest(unittest.TestCase):
                 self.assertEqual(functions['OSMInfoFunction']['detached-mode-timeout-in-seconds'], 3300)
                 self.assertEqual(functions['OSMInfoFunction']['defined-tags'],
                                  {'TraficInfo': {'DataSourceSchedule': 'Hourly'}})
-                self.assertEqual(functions['DataSourceFunction']['config'], {'NAMESPACE': 'testnamespace'})
+                self.assertEqual(functions['DataSourceFunction']['config'], {'NAMESPACE': 'testnamespace', 'METRICS_COMPARTMENT_ID': 'ocid1.compartment.test'})
                 self.assertEqual(functions['DataSourceFunction']['defined-tags'], {})
                 self.assertEqual(functions['GeoJsonFunction']['config'],
                                  {'NAMESPACE': 'testnamespace', 'BUCKETNAME_OUT': 'traficinfo',
@@ -700,7 +745,7 @@ class OciScriptsTest(unittest.TestCase):
         for _ in range(2):
             self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main accidents')
             function = next(f for f in self.state['functions'] if f['display-name'] == 'ONISRAccidentFunction')
-            self.assertEqual(function['config'], {'NAMESPACE': 'testnamespace', 'BUCKETNAME_OSM': 'custom-osm'})
+            self.assertEqual(function['config'], {'NAMESPACE': 'testnamespace', 'BUCKETNAME_OSM': 'custom-osm', 'METRICS_COMPARTMENT_ID': 'ocid1.compartment.test'})
             self.assertEqual(function['defined-tags'], {})
             self.assertEqual(function['timeout-in-seconds'], 300)
             call = next(c for c in reversed(self.state['calls']) if '--handler' in c)
@@ -720,7 +765,7 @@ class OciScriptsTest(unittest.TestCase):
         for _ in range(2):
             self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main accident-publication')
             function = next(f for f in self.state['functions'] if f['display-name'] == 'AccidentPublicationFunction')
-            self.assertEqual(function['config'], {'NAMESPACE': 'testnamespace', 'BUCKETNAME_OUT': 'public-output'})
+            self.assertEqual(function['config'], {'NAMESPACE': 'testnamespace', 'BUCKETNAME_OUT': 'public-output', 'METRICS_COMPARTMENT_ID': 'ocid1.compartment.test'})
             self.assertEqual(function['defined-tags'], {})
             self.assertEqual(function['timeout-in-seconds'], 300)
         self.config_file.unlink()

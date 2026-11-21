@@ -1140,9 +1140,15 @@ the original exception so OCI's built-in failure alarm can detect it. Retries
 are possible in this fallback case. Configuration failures, timeouts and JVM
 errors also remain runtime failures.
 
-The Java metric emission is implemented, but deployment configuration, the custom
-application failure alarm and `invoke.sh` error-response handling still need to be
-updated. Until the custom alarm is configured, handled failures are visible in
+Deployment supplies `METRICS_COMPARTMENT_ID` from the shared `OCI_COMPARTMENT_ID`
+for all functions. `invoke.sh` displays successful responses, reports handled
+exception types, messages and causes to standard error, and exits with status 1
+for application failures. OCI invocation errors retain their exit status and
+output. Invocation uses the CLI's `--no-retry` option.
+
+The custom application failure alarm still needs to be implemented and configured.
+Metrics IAM permissions and network access must also be in place. Until the
+custom alarm is configured, handled failures are visible in
 metrics and logs but do not trigger the existing OCI invocation error alarm.
 See the [monitoring specification](../specs/monitoring.md#functionfailures) for
 metric dimensions and the proposed alarm. `MetricName` documents all application
