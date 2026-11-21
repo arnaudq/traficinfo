@@ -22,3 +22,11 @@ module "policies" {
   compartment_id    = var.compartment_id
   state_bucket_name = var.state_bucket_name
 }
+
+module "monitoring" {
+  source = "../../modules/monitoring/oci"
+
+  compartment_id          = var.compartment_id
+  function_application_id = var.function_application_id
+  notification_topic_id   = var.notification_topic_id
+}

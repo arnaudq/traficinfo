@@ -1146,12 +1146,12 @@ exception types, messages and causes to standard error, and exits with status 1
 for application failures. OCI invocation errors retain their exit status and
 output. Invocation uses the CLI's `--no-retry` option.
 
-The custom application failure alarm still needs to be implemented and configured.
-Metrics IAM permissions and network access must also be in place. Until the
-custom alarm is configured, handled failures are visible in
-metrics and logs but do not trigger the existing OCI invocation error alarm.
+The Terraform/OpenTofu monitoring module manages the application failure alarm,
+both OCI invocation error alarms and both OSM status alarms. It uses the existing
+topic without checking email subscriptions. Metrics IAM permissions and network
+access must also be in place.
 See the [monitoring specification](../specs/monitoring.md#functionfailures) for
-metric dimensions and the proposed alarm. `MetricName` documents all application
+metric dimensions and alarm definitions. `MetricName` documents all application
 metric names and their value semantics. Existing platform failure email setup is
 described in the [setup specification](../specs/setup.md#function-failure-emails).
 

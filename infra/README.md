@@ -20,6 +20,17 @@ access. Subsequent plans should show no changes unless configuration or
 infrastructure has changed. Keep `state_bucket_name` in the private dev variables
 consistent with the bucket in the private dev backend settings.
 
+## Monitoring
+
+The [monitoring module](modules/monitoring/oci/README.md) manages three function
+failure alarms and two OSM mapping status alarms. Set `function_application_id`
+and `notification_topic_id` in the private `dev.tfvars` to reference the existing
+Functions application and Notifications topic. Topic subscriptions remain outside
+Terraform; there is no recipient variable or subscription verification.
+
+Use the same `tofu plan` and `tofu apply` commands below to manage all five alarms.
+The former function and OSM alarm setup scripts have been replaced by this module.
+
 ## Private deployment settings
 
 Keep account identifiers and backend locations outside this repository:

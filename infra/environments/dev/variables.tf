@@ -52,3 +52,13 @@ variable "tile_allowed_origins" {
   type        = list(string)
   default     = ["*"]
 }
+
+variable "function_application_id" {
+  description = "OCID of the existing Functions application monitored by failure alarms."
+  type        = string
+}
+
+variable "notification_topic_id" {
+  description = "OCID of the existing Notifications topic receiving function alarms."
+  type        = string
+}

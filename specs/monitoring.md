@@ -6,11 +6,11 @@ Processing functions publish application metrics through the OCI Monitoring Java
 SDK in the `traficinfo` namespace by default. Every metric below has unit `count`
 and, except for `FunctionFailures`, represents a snapshot rather than an increment.
 `FunctionFailures` counts handled application failures. Its Java emission is
-implemented, as are deployment settings and manual response handling; the
-additional alarm remains planned.
+implemented, along with deployment settings, manual response handling, and the
+Terraform-managed alarms.
 See the [functions README](../dsfunctions/README.md) for deployment and invocation.
 The [Alarms and Notifications](#alarms-and-notifications) chapter describes the
-function failure alarms based on OCI's built-in metrics and the proposed custom
+function failure alarms based on OCI's built-in metrics and the custom
 failure metric.
 
 ### `GeoJsonFeatures`
@@ -109,7 +109,7 @@ This fallback permits caller retries, prioritizing failure visibility when the
 custom monitoring path is unavailable. Timeouts, forced termination and failures
 before the handler runs remain covered by OCI's built-in failure metrics.
 
-The proposed `TraficInfo-ApplicationFailures` alarm selects the application and
+The `TraficInfo-ApplicationFailures` alarm selects the application and
 retains function and datasource dimensions:
 
 ```text
@@ -124,8 +124,7 @@ again. The script disables OCI CLI retries, prints handled exception details to
 standard error, and exits with status 1. Successful responses go to standard
 output; OCI invocation errors retain their exit status and output. The Java
 handler, metric emission, script feedback and deployment configuration are
-implemented; the additional alarm remains planned. These script changes have not
-been applied to cloud resources.
+implemented. The Terraform/OpenTofu monitoring module manages the additional alarm.
 
 ### GeoJSON publication
 
@@ -219,7 +218,7 @@ that do not supply a backend.
 
 ## Alarms and Notifications
 
-Function failures currently feed two OCI alarms. The proposed third alarm covers
+Function failures feed three OCI alarms. The application failure alarm covers
 handled application exceptions through `FunctionFailures`. All three paths send
 notifications through a shared topic to its confirmed email subscriptions. The aim
 is to identify the affected function and provide a starting point for investigation.
@@ -237,7 +236,7 @@ flowchart TD
         A["TraficInfo-FunctionErrors<br/>Non-503 errors: at least 1 in 1 minute<br/>CRITICAL"]
         B["TraficInfo-FunctionAvailability<br/>503 responses: at least 3 in 15 minutes<br/>WARNING"]
         C["traficinfo: FunctionFailures<br/>One sample per handled failure"]
-        D["TraficInfo-ApplicationFailures<br/>At least 1 handled failure in 1 minute<br/>CRITICAL — proposed"]
+        D["TraficInfo-ApplicationFailures<br/>At least 1 handled failure in 1 minute<br/>CRITICAL"]
     end
 
     subgraph notifications["OCI Notifications"]
@@ -252,10 +251,10 @@ flowchart TD
     M -->|"ErrorCode is 503"| B
     A -->|"Alarm fires and publishes a message"| T
     B -->|"Alarm fires and publishes a message"| T
-    F -.->|"Caught exception; return normally"| C
-    C -.->|"Group by function and datasource"| D
+    F -->|"Caught exception; return normally"| C
+    C -->|"Group by function and datasource"| D
     C -->|"Reporting fails: rethrow original exception"| M
-    D -.->|"Alarm fires and publishes a message"| T
+    D -->|"Alarm fires and publishes a message"| T
     T -->|"Delivers to each confirmed subscription"| S
     S -->|"Sends email"| E
 ```
@@ -267,12 +266,13 @@ flowchart TD
 | Application and functions | `3MOpenDataProcessor` contains the functions being monitored. Each invocation contributes its execution metrics. |
 | Metric | `FunctionResponseCount` in the `oci_faas` namespace counts responses. Both alarms select responses of type `Error`. `ErrorCode` is the numeric status (such as `503`); `ErrorMessage` is the symbolic cause (such as `FunctionInvokeServiceUnavailable`). |
 | Custom metric | `FunctionFailures` in `traficinfo` counts handled application failures even when OCI records a successful invocation. |
-| Alarms | Separate non-503 invocation failures, repeated 503 availability errors, and proposed handled application failures. |
+| Alarms | Separate non-503 invocation failures, repeated 503 availability errors, and handled application failures. |
 | Topic | `TraficInfoMonitoring` receives messages from the function alarms and the OSM review alarm and distributes them to its subscriptions. The topic itself contains no error-detection rule. |
 | Subscription | Connects a topic to a delivery method and recipient. The EMAIL subscription delivers to `alice@example.com` after confirmation. |
 
-Both alarms cover all functions in the application, including functions added
-later. They evaluate each function and error category separately, so one function can
+The built-in alarms cover all functions in the application, including functions
+added later. The application failure alarm covers functions emitting the custom
+metric. They evaluate each function and error category separately, so one function can
 trigger a notification independently of the others. This covers source
 retrieval, preprocessing, GeoJSON generation and OSM maintenance when deployed
 in that application.
@@ -287,12 +287,12 @@ the alarm condition. Email subscriptions require confirmation before delivery.
 | --- | --- | --- |
 | `TraficInfo-FunctionErrors` | At least one non-503 error in one minute | `CRITICAL` |
 | `TraficInfo-FunctionAvailability` | At least three 503 responses in 15 minutes | `WARNING` |
-| `TraficInfo-ApplicationFailures` (proposed) | At least one handled application failure in one minute, per function and datasource | `CRITICAL` |
+| `TraficInfo-ApplicationFailures` | At least one handled application failure in one minute, per function and datasource | `CRITICAL` |
 
 Non-503 failures include application execution errors, timeouts, image-loading
 errors and other invocation failures. The availability alarm covers 503 responses
 such as `FunctionInvokeServiceUnavailable`, which can occur before application
-code runs. Both alarms have a one-minute pending duration; the first breaching
+code runs. All three function alarms have a one-minute pending duration; the first breaching
 evaluation can move the relevant stream from OK to firing.
 
 The availability threshold reduces noise from transient errors; it is not an
@@ -320,18 +320,17 @@ succeeded or that failed processing has been repaired.
 
 ### Configuration and operation
 
-`scripts/setup-function-alerts.sh` creates or updates both alarms using
-the environment prepared by `scripts/setup.sh`. It checks that the selected
-`TraficInfoMonitoring` topic has a confirmed email subscription for the supplied address.
-`OCI_FN_ALERT_TOPIC_NAME` selects another existing topic when needed. The proposed
-`TraficInfo-ApplicationFailures` alarm requires extending this script; the current
-script manages only the two built-in metric alarms.
+The Terraform/OpenTofu [monitoring module](../infra/modules/monitoring/oci/README.md)
+creates and updates all five alarms: the three function failure alarms and the two
+OSM status alarms. The dev environment supplies the existing application and topic
+OCIDs through `function_application_id` and `notification_topic_id` in private
+`~/.config/traficinfo/dev.tfvars`. The module does not inspect, create or change
+email subscriptions; confirmed subscribers to the topic receive notifications.
+There is no email variable or subscription check.
 
-The script supports a dry run, checks both definitions before writing, skips
-matching settings and verifies applied changes. During migration it creates
-availability coverage first, then renames and narrows the legacy
-`3MOpenDataProcessor-FunctionErrors` alarm. It does not create topics or
-subscriptions. Setup commands are in the
+Use `tofu plan` to review changes and `tofu apply` to reconcile the definitions.
+The former `setup-function-alerts.sh` and `setup-osm-review-alert.sh` scripts have
+been removed. Setup commands are in the
 [setup specification](setup.md#function-failure-emails).
 
 After receiving an alert, use the function's resource ID to find its metrics
@@ -352,21 +351,13 @@ OSMWayMappings[1h]{status = "NEEDS_REVIEW"}.groupBy(datasourceId).max() > 0
 Keeping `datasourceId` in the result lets formatted emails identify affected
 sources and their counts. **Group notifications across metric streams** combines
 qualifying sources into one alarm-level message. The alarm uses a one-minute
-pending duration and `repeatNotificationDuration: P1D` for daily reminders while
+pending duration and `repeat_notification_duration = "PT24H"` for daily reminders while
 continuously firing. It sends through the existing `TraficInfoMonitoring` topic
-(or `OCI_FN_ALERT_TOPIC_NAME`) and requires a confirmed email subscription.
+selected by `notification_topic_id`. Delivery uses the topic's confirmed subscriptions.
 
-After `source ./scripts/setup.sh`, preview and apply the definition with:
-
-```sh
-./scripts/setup-osm-review-alert.sh alice@example.com --dry-run
-./scripts/setup-osm-review-alert.sh alice@example.com
-```
-
-The script manages only this alarm, skips a matching definition, reconciles drift
-and verifies the result. It rejects duplicate alarms and suppressed or inactive
-existing alarms. It does not change function error alarms or create subscriptions.
-As with other topic messages, all confirmed email subscribers receive the alert.
+The monitoring module manages this alarm alongside the other four. Use the shared
+Terraform plan/apply workflow in [Configuration and operation](#configuration-and-operation).
+The existing topic and its subscriptions are reused without recipient verification.
 
 The email points to `OSMWayMapping_NEEDS_REVIEW.json` in the OSM bucket. Uploaded
 approvals are applied by the next hourly OSM refresh. Counts are maxima within the
@@ -385,18 +376,11 @@ reverse lookups that returned no suitable road way. It uses:
 OSMWayMappings[1h]{status = "NOT_FOUND"}.groupBy(datasourceId).max() > 0
 ```
 
-It uses the same confirmed email topic, grouped datasource details, one-minute
-pending duration and daily reminders as the review alarm. Configure it explicitly:
-
-```sh
-./scripts/setup-osm-review-alert.sh alice@example.com --status NOT_FOUND --dry-run
-./scripts/setup-osm-review-alert.sh alice@example.com --status NOT_FOUND
-```
-
-Without `--status`, the script continues to manage only `NEEDS_REVIEW`. Each call
-reconciles only its selected alarm. The `NOT_FOUND` email points to each affected
-`<datasourceId>_OSMWayMapping.json` cache and the stored reverse response; these
-records are not included in the dedicated `NEEDS_REVIEW` document.
+It uses the same topic, grouped datasource details, one-minute pending duration
+and daily reminders as the review alarm. Terraform manages both alarms together.
+The `NOT_FOUND` email points to each affected `<datasourceId>_OSMWayMapping.json`
+cache and the stored reverse response; these records are not included in the
+dedicated `NEEDS_REVIEW` document.
 
 Daily repeats apply independently to each alarm. If both categories are nonzero,
 you can receive one reminder from each alarm per day while continuously firing,
@@ -405,7 +389,7 @@ plus any recovery/reset or later firing notifications.
 ### Coverage and further monitoring
 
 The alarms detect errors recorded by OCI Functions, including runtime failures
-such as timeouts. The proposed third alarm also detects handled application
+such as timeouts. The application failure alarm also detects handled application
 failures reported through `FunctionFailures`. Successful invocations with
 recoverable warnings do not trigger these failure alarms. Functions outside the
 selected application or region require their own monitoring setup.

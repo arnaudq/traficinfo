@@ -234,56 +234,40 @@ configured input buckets.
 
 ## Function failure emails
 
-See the [monitoring and alerts specification](monitoring.md) for the
-alert flow, failure coverage, limits and monitoring extensions.
+See the [monitoring specification](monitoring.md) for alert conditions and limits.
+The Terraform/OpenTofu [monitoring module](../infra/modules/monitoring/oci/README.md)
+manages three function alarms and both OSM mapping status alarms. It uses the
+existing Notifications topic without creating or verifying email subscriptions.
+Notifications continue going to that topic's confirmed subscribers.
 
-Use the `TraficInfoMonitoring` Notifications topic with a confirmed email
-subscription:
+Set `function_application_id` and `notification_topic_id` in
+`~/.config/traficinfo/dev.tfvars`, alongside the existing region and compartment.
+After `source ./scripts/setup.sh`, run:
 
 ```sh
-./scripts/setup-function-alerts.sh arnaudq@quillaud.org --dry-run
-./scripts/setup-function-alerts.sh arnaudq@quillaud.org
+source ./infra/oci-env.sh
+tofu -chdir=infra/environments/dev init -backend-config="$HOME/.config/traficinfo/dev.s3.tfbackend"
+tofu -chdir=infra/environments/dev plan -var-file="$HOME/.config/traficinfo/dev.tfvars"
+tofu -chdir=infra/environments/dev apply -var-file="$HOME/.config/traficinfo/dev.tfvars"
 ```
 
-Run after `source ./scripts/setup.sh`. Set `OCI_FN_ALERT_TOPIC_NAME` to use
-another existing topic in the selected compartment. The script checks that the
-supplied address has an active EMAIL subscription; it does not create a topic
-or subscription or change existing bucket Events rules. All subscribers to the
-chosen topic receive the alarm notifications.
-
-Two alarms monitor `oci_faas.FunctionResponseCount` with `responseType = "Error"`,
-filtered to the application and grouped by function OCID, display name, error
-code and cause:
-
-| Alarm | Trigger per function and error category | Severity |
+| Alarm | Trigger | Severity |
 | --- | --- | --- |
-| `TraficInfo-FunctionErrors` | At least 1 non-503 error in 1 minute | `CRITICAL` |
-| `TraficInfo-FunctionAvailability` | At least 3 HTTP 503 errors in 15 minutes | `WARNING` |
+| `TraficInfo-FunctionErrors` | At least 1 non-503 invocation error in 1 minute, per function and error category | `CRITICAL` |
+| `TraficInfo-FunctionAvailability` | At least 3 HTTP 503 errors in 15 minutes, per function and error category | `WARNING` |
+| `TraficInfo-ApplicationFailures` | At least 1 handled exception in 1 minute, per function and datasource | `CRITICAL` |
 
-Both use a one-minute pending duration. The 503 threshold reduces noise; it is
-not OCI's retry limit and does not determine whether a later retry succeeded.
-An isolated 503 that causes a missed run can remain without an email. Successful-run
-monitoring is separate. Emails show the function name, alarm state, time, error
-code and cause, and a link to the alarm.
-New functions in the application are covered automatically. Delivery takes
-several minutes because OCI must ingest and evaluate the metrics. Repeated
-failures while a function's alarm remains firing are grouped; this is not one
-email per failed invocation. OCI also sends alarm recovery notifications.
+All use a one-minute pending duration. Handled exceptions return normally after
+publishing `FunctionFailures`; failure to publish that metric rethrows the original
+exception for the built-in error alarm. Function configuration failures, runtime
+errors and timeouts also remain covered by built-in metrics. A recovery email
+indicates a cleared alarm condition, not proof of a successful subsequent run.
+The availability threshold is not a retry limit; a single 503 can mean a missed run.
 
-Repeated setup runs skip matching alarms or reconcile their settings. The
-script creates availability coverage before renaming and narrowing the legacy
-`3MOpenDataProcessor-FunctionErrors` alarm to non-503 errors. Both definitions
-are checked before any writes. Duplicate names, simultaneous legacy/replacement
-error alarms, failed lookups, missing confirmed subscriptions and
-existing alarm suppression stop setup. Credentials need access to read Functions
-applications and Notifications topics/subscriptions and manage Monitoring alarms.
-
-GeoJSON and OSM handlers throw on invocation failure so OCI records an error,
-instead of returning a successful response containing `KO`. Deploy the updated
-handlers to cover these failures. Download and preprocessing handlers already
-throw on failures; runtime errors and timeouts are also monitored. Successful
-invocations with recoverable OSM lookup warnings do not trigger this alarm.
-See [OCI function metrics](https://docs.oracle.com/en-us/iaas/Content/Functions/Reference/functionsmetrics.htm).
+Function alarms use per-stream notifications without periodic reminders. The OSM
+alarms group datasource streams and repeat daily while firing. Terraform plans
+replace the old setup scripts' dry-run and comparison logic. The scripts have
+been removed. No recipient email address is required in the private settings.
 
 For grouped OSM review reminders with daily repeats, see the
 [OSM review alarm setup](monitoring.md#osm-review-reminders).

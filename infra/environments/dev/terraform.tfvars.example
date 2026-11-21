@@ -4,6 +4,8 @@ subnet_id                  = "<public subnet OCID>"
 gateway_name               = "TraficInfoAPIGW"
 state_bucket_name          = "<private state bucket name>"
 function_objects_policy_id = "<existing functions Object Storage policy OCID>"
+function_application_id     = "<existing Functions application OCID>"
+notification_topic_id       = "<existing Notifications topic OCID>"
 
 # Set the actual token only in the private file or TF_VAR_jawg_access_token.
 jawg_access_token = "<Jawg access token>"
