@@ -8,7 +8,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Objects;
 import java.util.function.LongSupplier;
 
 /** Hourly bounded reverse lookup of unresolved counter-to-way mappings in Object Storage. */
@@ -30,7 +29,6 @@ public class OSMInfoFunction extends TraficInfoBaseFunction {
     private ObjectStoreClient osmCacheOSClient;
     private OpenStreetMapClient osmClient;
     private final LongSupplier nanoTime;
-    private MetricsPublisher metrics;
     private boolean reviewRoadMismatches;
 
     public OSMInfoFunction() {
@@ -42,23 +40,16 @@ public class OSMInfoFunction extends TraficInfoBaseFunction {
     }
 
     OSMInfoFunction(ObjectStoreClient osmCacheOSClient, OpenStreetMapClient osmClient, LongSupplier nanoTime) {
-        this(osmCacheOSClient, osmClient, nanoTime, samples -> {});
-    }
-
-    OSMInfoFunction(ObjectStoreClient osmCacheOSClient, OpenStreetMapClient osmClient, LongSupplier nanoTime,
-                    MetricsPublisher metrics) {
         super("ALL");
         this.osmCacheOSClient = osmCacheOSClient;
         this.osmClient = osmClient;
         this.nanoTime = nanoTime;
-        this.metrics = Objects.requireNonNull(metrics);
     }
 
     @Override
     protected void configure(RuntimeContext ctx) {
         configureLimits(ctx);
         configureRoadComparison(ctx);
-        metrics = FunctionMetrics.configured(ctx, useResourcePrincipal());
         String bucket = ctx.getConfigurationByKey("BUCKETNAME_OSM").orElse("osminfo");
         osmCacheOSClient = createObjectStoreClient(bucket);
     }
@@ -102,7 +93,7 @@ public class OSMInfoFunction extends TraficInfoBaseFunction {
             int wayMappings = scheduled ? maxScheduledWayMappings : maxWayMappings;
             LOG.info("OSM {} run: {} second loop budget, {} reverse lookups",
                     scheduled ? "scheduled" : "manual", loopSeconds, wayMappings);
-            return new OSMMappingRefresher(osmCacheOSClient, osmClient, nanoTime, metrics, reviewRoadMismatches)
+            return new OSMMappingRefresher(osmCacheOSClient, osmClient, nanoTime, this::publishMetrics, reviewRoadMismatches)
                     .refresh(loopSeconds, wayMappings);
         }
     }

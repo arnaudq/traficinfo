@@ -8,7 +8,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.List;
 
 /** One deployed GeoJSON function, selected by datasource ID or manifest event. */
 public class GeoJsonFunction extends TraficInfoBaseFunction {
@@ -18,7 +17,6 @@ public class GeoJsonFunction extends TraficInfoBaseFunction {
     private DataSourceRegistry registry;
     private String outputBucket;
     private String osmBucket;
-    private MetricsPublisher metrics;
 
     public GeoJsonFunction() { super("UNKNOWN"); }
 
@@ -26,16 +24,11 @@ public class GeoJsonFunction extends TraficInfoBaseFunction {
 
     protected OpenStreetMapClient createOpenStreetMapClient() { return new OpenStreetMapClient(); }
 
-    protected void publishMetrics(List<MetricSample> samples) {
-        metrics.publish(samples);
-    }
-
     @Override
     protected void configure(RuntimeContext context) {
         registry = loadRegistry();
         outputBucket = context.getConfigurationByKey("BUCKETNAME_OUT").orElse("traficinfo");
         osmBucket = context.getConfigurationByKey("BUCKETNAME_OSM").orElse("osminfo");
-        metrics = FunctionMetrics.configured(context, useResourcePrincipal());
     }
 
     @Override

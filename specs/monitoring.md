@@ -169,7 +169,7 @@ OSMWayMappings[1h]{datasourceId = "MMM", status = "NEEDS_REVIEW"}.max()
 
 | Runtime setting | Default |
 | --- | --- |
-| `METRICS_COMPARTMENT_ID` | Unset: skip metrics with a warning |
+| `METRICS_COMPARTMENT_ID` | Unset: warn and skip processing metrics; rethrow the original exception when failure reporting is required |
 | `METRICS_NAMESPACE` | `traficinfo` |
 
 Deployment sets `METRICS_COMPARTMENT_ID` to the shared `OCI_COMPARTMENT_ID` exported
@@ -186,7 +186,7 @@ Allow dynamic-group <functions-group> to use metrics in compartment id <compartm
 The function needs network access to the regional Monitoring ingestion endpoint.
 Metrics use resource-principal authentication by default, or the existing local
 `arnaudq` OCI profile when `USE_RESOURCE_PRINCIPAL=false`. The client is created
-and closed per invocation, with a 2-second connection timeout, 3-second read
+and closed per nonempty publication batch, with a 2-second connection timeout, 3-second read
 timeout, and no request retries. Initialization, transport, partial rejection and
 close failures are logged without failing successful data publication. Failed
 data/cache publication sends no publication snapshots. The
@@ -196,11 +196,21 @@ or percentages are stored, and this does not create alarms or IAM policies.
 ### Backend abstraction
 
 `MetricSample` and `MetricsPublisher` define the backend-independent publishing
-boundary. New observations can reuse that interface; OCI SDK types and namespace,
-compartment, batching and transport details are confined to `OciMetricsPublisher`.
-`FunctionMetrics` shares runtime configuration and per-invocation OCI client
-lifecycle between GeoJSON and OSM. `GeoJsonPublisher` and `OSMInfoFunction` accept
-any `MetricsPublisher` implementation. The four-argument publisher constructor disables metrics for callers
+boundary. New observations can reuse that interface. OCI SDK types, batching and
+transport details are confined to `OciMetricsPublisher`.
+`TraficInfoBaseFunction` reads metrics compartment and namespace settings once,
+uses the shared authentication setting, and configures one backend through the
+overridable `createMetricsPublisher()` factory. Clients are opened lazily for
+nonempty batches and closed after publication, without caching a client between
+invocations.
+
+The inherited `publishMetrics()` method logs backend failures without failing
+successful processing. GeoJSON and OSM pass this method to their processing
+publishers. Failure events use the same backend directly: missing configuration,
+transport, rejection or close failures rethrow the original application exception.
+This preserves the built-in error alarm fallback. `GeoJsonPublisher` and
+`OSMMappingRefresher` retain backend-independent `MetricsPublisher` injection.
+The four-argument GeoJSON publisher constructor disables metrics for callers
 that do not supply a backend.
 
 ## Alarms and Notifications

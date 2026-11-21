@@ -38,7 +38,7 @@ public class OSMInfoFunctionTest {
         OpenStreetMapClient client = new OpenStreetMapClient() {
             @Override public Map<String, String> getWayTags(long wayId) { return Map.of(); }
         };
-        OSMInfoFunction function = new OSMInfoFunction(store, client, () -> 0L, samples -> {
+        OSMInfoFunction function = withMetrics(store, client, () -> 0L, samples -> {
             assertTrue(store.objects.containsKey(OSMWayMappingReviewStore.OBJECT_NAME));
             batches.add(samples);
         });
@@ -70,7 +70,7 @@ public class OSMInfoFunctionTest {
     public void mappingMetricsFailureDoesNotFailSavedRefresh() {
         Store store = new Store();
         store.objects.put("MMM_OSMWayMapping.json", "{}");
-        var function = new OSMInfoFunction(store, new OpenStreetMapClient(), () -> 0L, samples -> {
+        var function = withMetrics(store, new OpenStreetMapClient(), () -> 0L, samples -> {
             throw new IllegalStateException("Monitoring unavailable");
         });
         assertEquals("OK", function.handleRequest(""));
@@ -89,7 +89,7 @@ public class OSMInfoFunctionTest {
             };
             store.objects.put("MMM_OSMWayMapping.json", loadFailure ? null : "{}");
             List<MetricSample> metrics = new ArrayList<>();
-            var function = new OSMInfoFunction(store, new OpenStreetMapClient(), () -> 0L, metrics::addAll);
+            var function = withMetrics(store, new OpenStreetMapClient(), () -> 0L, metrics::addAll);
             assertFunctionFailure(() -> function.handleRequest(""));
             assertTrue(metrics.isEmpty());
         }
@@ -216,7 +216,7 @@ public class OSMInfoFunctionTest {
                 }
             };
             List<MetricSample> metrics = new ArrayList<>();
-            OSMInfoFunction function = new OSMInfoFunction(store, client, elapsed::get, metrics::addAll);
+            OSMInfoFunction function = withMetrics(store, client, elapsed::get, metrics::addAll);
             function.configureLimits(context(limits));
             assertEquals("OK", function.handleRequest("{\"mode\":\"manual\"}"));
             assertEquals(limits.isEmpty() ? 8 : 1, lookups.get());
@@ -264,7 +264,7 @@ public class OSMInfoFunctionTest {
             }
         };
         List<MetricSample> metrics = new ArrayList<>();
-        OSMInfoFunction function = new OSMInfoFunction(store, client, () -> 0L, metrics::addAll);
+        OSMInfoFunction function = withMetrics(store, client, () -> 0L, metrics::addAll);
         function.configureRoadComparison(context(Map.of("REVIEW_ROAD_MISMATCHES", "true")));
         assertEquals("OK", function.handleRequest(""));
         assertEquals(4, metrics.size());
@@ -304,7 +304,7 @@ public class OSMInfoFunctionTest {
             }
         };
         List<MetricSample> metrics = new ArrayList<>();
-        OSMInfoFunction function = new OSMInfoFunction(store, client, () -> 0L, metrics::addAll);
+        OSMInfoFunction function = withMetrics(store, client, () -> 0L, metrics::addAll);
         assertEquals("OK", function.handleRequest(""));
         assertEquals(8, metrics.size());
         assertStatusCount(metrics, "DPT30", OSMWayMappingStatus.NEEDS_REVIEW, 1);
@@ -727,6 +727,15 @@ public class OSMInfoFunctionTest {
                     assertEquals("getConfigurationByKey", method.getName());
                     return Optional.ofNullable(configuration.get(args[0]));
                 });
+    }
+
+    private static OSMInfoFunction withMetrics(ObjectStoreClient store, OpenStreetMapClient client,
+                                               java.util.function.LongSupplier nanoTime, MetricsPublisher publisher) {
+        return new OSMInfoFunction(store, client, nanoTime) {
+            @Override protected void publishMetrics(List<MetricSample> samples) {
+                publisher.publish(samples);
+            }
+        };
     }
 
     private static void assertStatusCount(List<MetricSample> metrics, String source,

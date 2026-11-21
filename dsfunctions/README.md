@@ -1118,7 +1118,11 @@ empty) and `USE_RESOURCE_PRINCIPAL` (default `true`) once, before function-speci
 configuration, and exposes them through protected accessors. Metrics use the same
 authentication choice as storage. The base class also supplies the overridable
 `createObjectStoreClient(bucket)` factory; functions retain bucket selection and client
-cleanup. Successful responses are preserved.
+cleanup. Metrics settings are read once by the base class, which supplies an
+overridable `createMetricsPublisher()` backend factory. Its `publishMetrics()`
+method logs ordinary metrics failures without failing processing; failure events
+use the same backend directly to preserve the original-exception fallback.
+Successful responses are preserved.
 When an application exception reaches the handler boundary, the base class logs
 it, publishes one
 `FunctionFailures` event and returns JSON with `success: false` and an `error`

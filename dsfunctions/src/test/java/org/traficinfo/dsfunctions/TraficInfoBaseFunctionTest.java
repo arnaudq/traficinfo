@@ -97,8 +97,36 @@ public class TraficInfoBaseFunctionTest {
         assertSame(original, assertThrows(IllegalArgumentException.class,
                 () -> configured.invoke(attempt -> { throw original; })));
         // Snapshot publication retains its existing optional configuration behavior.
-        FunctionMetrics.configured(runtime(Map.of()), true).publish(List.of(new MetricSample(
+        configured.publishMetrics(List.of(new MetricSample(
                 MetricName.GEO_JSON_FEATURES.metricName(), 0, "count", Instant.now(), Map.of())));
+    }
+
+    @Test
+    public void processingAndFailureMetricsShareBackendWithDifferentFailurePolicies() {
+        List<MetricSample> delivered = new ArrayList<>();
+        var function = configured(delivered::addAll);
+        var observation = new MetricSample(MetricName.GEO_JSON_FEATURES.metricName(),
+                3, "count", Instant.now(), Map.of("datasourceId", "MMM"));
+        function.publishMetrics(List.of(observation));
+        function.invoke(invocation -> { throw new IllegalArgumentException("invalid input"); });
+        assertEquals(List.of(MetricName.GEO_JSON_FEATURES.metricName(), MetricName.FUNCTION_FAILURES.metricName()),
+                delivered.stream().map(MetricSample::name).toList());
+
+        int[] publications = {0};
+        var failing = configured(batch -> {
+            publications[0]++;
+            throw new IllegalStateException("monitoring unavailable");
+        });
+        failing.publishMetrics(List.of());
+        assertEquals(0, publications[0]);
+        assertEquals("OK", failing.invoke(invocation -> {
+            failing.publishMetrics(List.of(observation));
+            return "OK";
+        }));
+        var original = new IllegalArgumentException("original");
+        assertSame(original, assertThrows(IllegalArgumentException.class,
+                () -> failing.invoke(invocation -> { throw original; })));
+        assertEquals(2, publications[0]);
     }
 
     @Test
@@ -113,19 +141,19 @@ public class TraficInfoBaseFunctionTest {
     public void allFunctionEntryPointsHandleFailuresWhenMonitoringSucceeds() throws Exception {
         var context = runtime(Map.of("NAMESPACE", "namespace"));
         var retrieval = new DataSourceFunction() {
-            @Override protected MetricsPublisher createFailureMetrics(RuntimeContext ctx) { return samples::addAll; }
+            @Override protected MetricsPublisher createMetricsPublisher() { return samples::addAll; }
         };
         retrieval.config(context);
         assertError(retrieval.handleRequest("{}"), "datasourceId is required", "UNKNOWN");
 
         var preprocess = new PreprocessingFunction() {
-            @Override protected MetricsPublisher createFailureMetrics(RuntimeContext ctx) { return samples::addAll; }
+            @Override protected MetricsPublisher createMetricsPublisher() { return samples::addAll; }
         };
         preprocess.config(context);
         assertError(preprocess.handleRequest("{}"), "datasourceId is required", "UNKNOWN");
 
         var geojson = new GeoJsonFunction() {
-            @Override protected MetricsPublisher createFailureMetrics(RuntimeContext ctx) { return samples::addAll; }
+            @Override protected MetricsPublisher createMetricsPublisher() { return samples::addAll; }
             @Override protected ObjectStoreClient createObjectStoreClient(String bucket) {
                 throw new IllegalStateException("storage unavailable");
             }
@@ -134,13 +162,13 @@ public class TraficInfoBaseFunctionTest {
         assertError(geojson.handleRequest("{\"datasourceId\":\"MMM\"}"), "GeoJSON generation failed for MMM", "MMM");
 
         var accidents = new ONISRAccidentFunction() {
-            @Override protected MetricsPublisher createFailureMetrics(RuntimeContext ctx) { return samples::addAll; }
+            @Override protected MetricsPublisher createMetricsPublisher() { return samples::addAll; }
         };
         accidents.config(context);
         assertError(accidents.handleRequest("{\"action\":\"invalid\"}"), "Expected action import or refresh", "ONISR");
 
         var publication = new AccidentPublicationFunction() {
-            @Override protected MetricsPublisher createFailureMetrics(RuntimeContext ctx) { return samples::addAll; }
+            @Override protected MetricsPublisher createMetricsPublisher() { return samples::addAll; }
             @Override protected ObjectStoreClient createObjectStoreClient(String bucket) {
                 throw new IllegalStateException("storage unavailable");
             }
@@ -149,13 +177,13 @@ public class TraficInfoBaseFunctionTest {
         assertError(publication.handleRequest("{}"), "storage unavailable", "ALL");
 
         var boundaries = new BoundaryFunction() {
-            @Override protected MetricsPublisher createFailureMetrics(RuntimeContext ctx) { return samples::addAll; }
+            @Override protected MetricsPublisher createMetricsPublisher() { return samples::addAll; }
         };
         boundaries.config(context);
         assertError(boundaries.handleRequest("{\"epciCode\":\"bad\"}"), "epciCode must be a nine-digit string", "ALL");
 
         var osm = new OSMInfoFunction() {
-            @Override protected MetricsPublisher createFailureMetrics(RuntimeContext ctx) { return samples::addAll; }
+            @Override protected MetricsPublisher createMetricsPublisher() { return samples::addAll; }
             @Override protected ObjectStoreClient createObjectStoreClient(String bucket) { return null; }
         };
         osm.config(context);
@@ -181,8 +209,8 @@ public class TraficInfoBaseFunctionTest {
             this.publisher = publisher;
         }
 
-        @Override protected MetricsPublisher createFailureMetrics(RuntimeContext context) {
-            return publisher == null ? super.createFailureMetrics(context) : publisher;
+        @Override protected MetricsPublisher createMetricsPublisher() {
+            return publisher == null ? super.createMetricsPublisher() : publisher;
         }
 
         @Override protected void configure(RuntimeContext context) {

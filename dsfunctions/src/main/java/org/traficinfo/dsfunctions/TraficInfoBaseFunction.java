@@ -25,8 +25,10 @@ public abstract class TraficInfoBaseFunction {
     private final String defaultDatasourceId;
     private String namespace;
     private boolean useResourcePrincipal;
-    private MetricsPublisher failureMetrics = samples -> {
-        throw new IllegalStateException("Failure monitoring has not been configured");
+    private String metricsCompartmentId;
+    private String metricsNamespace;
+    private MetricsPublisher metrics = samples -> {
+        throw new IllegalStateException("Metrics have not been configured");
     };
     private Map<String, String> dimensions = Map.of("applicationId", "UNKNOWN", "resourceId", "UNKNOWN",
             "resourceDisplayName", "UNKNOWN");
@@ -42,7 +44,9 @@ public abstract class TraficInfoBaseFunction {
         namespace = context.getConfigurationByKey("NAMESPACE").orElse("");
         useResourcePrincipal = Boolean.parseBoolean(
                 context.getConfigurationByKey("USE_RESOURCE_PRINCIPAL").orElse("true"));
-        failureMetrics = createFailureMetrics(context);
+        metricsCompartmentId = context.getConfigurationByKey("METRICS_COMPARTMENT_ID").orElse("");
+        metricsNamespace = context.getConfigurationByKey("METRICS_NAMESPACE").orElse("traficinfo");
+        metrics = createMetricsPublisher();
         dimensions = Map.of("applicationId", context.getAppID(), "resourceId", context.getFunctionID(),
                 "resourceDisplayName", context.getFunctionName());
         configure(context);
@@ -68,9 +72,39 @@ public abstract class TraficInfoBaseFunction {
         return new ObjectStoreClient(useResourcePrincipal(), namespace(), bucket);
     }
 
-    /** Supplies the failure-reporting backend; missing configuration must fail publication. */
-    protected MetricsPublisher createFailureMetrics(RuntimeContext context) {
-        return FunctionMetrics.required(context, useResourcePrincipal());
+    /**
+     * Supplies the common metrics backend. Clients are created only for nonempty batches
+     * and closed after publication. Missing configuration and rejected samples must
+     * throw, so failure reporting can fall back to the original application exception.
+     */
+    protected MetricsPublisher createMetricsPublisher() {
+        String compartment = metricsCompartmentId;
+        String metricNamespace = metricsNamespace;
+        boolean principal = useResourcePrincipal();
+        return samples -> {
+            if (samples.isEmpty()) return;
+            if (compartment.isBlank()) {
+                throw new IllegalStateException("METRICS_COMPARTMENT_ID is not configured");
+            }
+            try (var publisher = OciMetricsPublisher.create(principal, compartment, metricNamespace)) {
+                publisher.publish(samples);
+            } catch (Exception failure) {
+                throw new IllegalStateException("Could not publish metrics to OCI Monitoring", failure);
+            }
+        };
+    }
+
+    /**
+     * Publishes ordinary processing observations without failing successful work.
+     * Failure events bypass this best-effort method and use the backend directly.
+     */
+    protected void publishMetrics(List<MetricSample> samples) {
+        if (samples.isEmpty()) return;
+        try {
+            metrics.publish(samples);
+        } catch (RuntimeException failure) {
+            LOG.warn("Could not publish processing metrics", failure);
+        }
     }
 
     /** Configures function-specific resources. Exceptions here remain OCI runtime failures. */
@@ -106,7 +140,7 @@ public abstract class TraficInfoBaseFunction {
                 String response = JSON.writeValueAsString(error);
                 var sampleDimensions = new java.util.HashMap<>(dimensions);
                 sampleDimensions.put("datasourceId", invocation.datasourceId);
-                failureMetrics.publish(List.of(new MetricSample(MetricName.FUNCTION_FAILURES.metricName(),
+                metrics.publish(List.of(new MetricSample(MetricName.FUNCTION_FAILURES.metricName(),
                         1, "count", Instant.now(), sampleDimensions)));
                 return response;
             } catch (Exception reportingFailure) {
