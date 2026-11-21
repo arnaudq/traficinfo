@@ -1,4 +1,10 @@
 import L from 'leaflet';
+import {
+  applicationRoot,
+  mapAtUrl,
+  mapRoutes,
+  mapUrl,
+} from './map-navigation.ts';
 import { createMapSearch } from './map-search.ts';
 import { element } from './dom.ts';
 import { createCountMap } from './count-map.ts';
@@ -63,10 +69,11 @@ export async function loadOverview(map: L.Map): Promise<void> {
   const status = document.getElementById('map-status');
   const availableMaps = document.getElementById('available-maps');
   if (!status || !availableMaps) throw new Error('Missing overview controls');
+  const root = applicationRoot();
   let config: PublicMapConfig;
   try {
     config = (await fetchJson(
-      new URL('./mapconfig.json', window.location.href),
+      new URL('mapconfig.json', root),
     )) as PublicMapConfig;
   } catch (error) {
     console.error(error);
@@ -84,7 +91,8 @@ export async function loadOverview(map: L.Map): Promise<void> {
     countStatus.textContent = message;
   });
   const search = createMapSearch(map);
-  const select = (selected: PublicMap) => {
+  const routes = mapRoutes(config.maps);
+  const showMap = (selected: PublicMap) => {
     search.select(selected);
     back.hidden = false;
     legend.hidden = false;
@@ -95,7 +103,7 @@ export async function loadOverview(map: L.Map): Promise<void> {
         'Les données de la carte ne peuvent pas être affichées.';
     });
   };
-  back.addEventListener('click', () => {
+  const showOverview = () => {
     counts.clear();
     search.hide();
     back.hidden = true;
@@ -103,7 +111,23 @@ export async function loadOverview(map: L.Map): Promise<void> {
     countStatus.textContent = '';
     map.setView([46.6, 2.4], 6);
     map.getContainer().focus();
-  });
+  };
+  const navigate = (selected?: PublicMap) => {
+    const url = mapUrl(root, selected);
+    if (window.location.href !== url.href)
+      window.history.pushState(null, '', url);
+    if (selected) showMap(selected);
+    else showOverview();
+  };
+  const select = (selected: PublicMap) => navigate(selected);
+  back.addEventListener('click', () => navigate());
+  const restoreLocation = () => {
+    const selected = mapAtUrl(routes, root, new URL(window.location.href));
+    if (selected) showMap(selected);
+    else showOverview();
+  };
+  window.addEventListener('popstate', restoreLocation);
+  restoreLocation();
 
   for (const type of ['region', 'city']) {
     map.createPane(type).style.zIndex = type === 'city' ? '420' : '410';

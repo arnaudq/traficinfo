@@ -119,6 +119,11 @@ class MapGenerationTest(unittest.TestCase):
 
     def test_invalid_configurations_are_rejected(self):
         mutations = [
+            lambda e: e.update(path="MMM"),
+            lambda e: e.update(path="Montpellier"),
+            lambda e: e.update(path="bad/path"),
+            lambda e: e.update(path="assets"),
+            lambda e: e.update(path=None),
             lambda e: e.update(dataSources=[{"id": "ONISR_DPT34", "types": ["ACCIDENTS", "VEHICULES"]}]),
             lambda e: e.update(dataSources=[{"id": "UNKNOWN", "types": ["VEHICULES"]}]),
             lambda e: e.update(dataSources=[{"id": "NIM", "types": ["VEHICULES"]},

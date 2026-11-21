@@ -58,6 +58,7 @@
   "maps": {
     "MMM": {
       "id": "MMM",
+      "path": "Montpellier",
       "name": "Comptage véhicules - Montpellier",
       "description": "Carte basée sur les données de la métropole de Montpellier et du département de l'Hérault. Accidents corporels issus des données ONISR.",
       "boundaryId": "epci:243400017",
@@ -91,6 +92,7 @@
     },
     "NIM": {
       "id": "NIM",
+      "path": "Nimes",
       "name": "Comptage véhicules - Nîmes",
       "description": "Carte basée sur les données de Nîmes Métropole et du département du Gard. Accidents corporels issus des données ONISR.",
       "boundaryId": "epci:243000643",
@@ -123,6 +125,7 @@
     },
     "MRN": {
       "id": "MRN",
+      "path": "Rouen",
       "name": "Comptages véhicules et vélos - Métropole Rouen Normandie",
       "uri": "https://umap.openstreetmap.fr/en/map/comptage-vehicules-rouen_1475742",
       "description": "Carte basée sur les données de comptage de véhicules et de vélos de la Métropole Rouen Normandie et de véhicules du département de la Seine-Maritime. Accidents corporels issus des données ONISR.",
@@ -156,6 +159,7 @@
     },
     "REN": {
       "id": "REN",
+      "path": "Rennes",
       "name": "Comptages véhicules - Rennes Métropole",
       "description": "Comptages de véhicules issus des données de Rennes Métropole et accidents corporels de la circulation en Ille-et-Vilaine issus des données ONISR.",
       "boundaryId": "epci:243500139",

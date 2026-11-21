@@ -1,4 +1,5 @@
 import type { Plugin } from 'vite';
+import { mapRoutes } from '../src/map-navigation.ts';
 import { searchProviders } from '../src/search-providers.ts';
 import type {
   Boundary,
@@ -197,6 +198,7 @@ export function validateRegistry(
       );
     }
   }
+  mapRoutes(config.maps as Record<string, PublicMap>);
 }
 
 export async function publicConfig(

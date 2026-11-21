@@ -126,6 +126,11 @@
             "uniqueItems": true,
             "description": "Ordered source selections. Counts use VEHICULES/BICYCLES from dsconfig.json; ACCIDENTS selects an independent public <id>_Accidents.geojson publication. IDs must be distinct."
           },
+          "path": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+            "description": "Optional preferred webapp URL segment (for example Montpellier). IDs remain usable. Must be unique across map IDs and paths; assets, licenses and src are reserved."
+          },
           "searchProvider": {
             "enum": ["ign"],
             "description": "Webapp address/place search provider. Defaults to ign."

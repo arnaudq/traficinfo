@@ -83,13 +83,21 @@ def validate(config, sources):
     require(isinstance(maps, dict) and maps, "maps must be a nonempty object")
     require(isinstance(sources, dict), "dsconfig must be an object")
     allowed = {"id", "name", "description", "center", "zoom", "dataSources",
-               "uri", "properties", "layerProperties", "boundaryId", "searchProvider"}
+               "uri", "properties", "layerProperties", "boundaryId", "searchProvider", "path"}
+    routes = {}
     for map_id, entry in maps.items():
         require(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", map_id),
                 f"Invalid map ID: {map_id}")
         require(isinstance(entry, dict) and not (entry.keys() - allowed),
                 f"{map_id}: invalid map fields")
         require(entry.get("id") == map_id, f"{map_id}: key must match id")
+        path = entry.get("path", map_id)
+        require(isinstance(path, str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", path),
+                f"{map_id}: invalid map path")
+        for route in {map_id, path}:
+            require(route.lower() not in {"assets", "licenses", "src"}, f"Reserved map path: {route}")
+            require(route not in routes, f"Duplicate map path: {route}")
+            routes[route] = map_id
         boundary_id = entry.get("boundaryId")
         require(isinstance(boundary_id, str) and boundary_id in boundaries,
                 f"{map_id}: boundaryId must reference an existing boundary")

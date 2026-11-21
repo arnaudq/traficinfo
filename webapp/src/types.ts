@@ -27,6 +27,7 @@ export interface MapDefinition {
   zoom: number;
   dataSources: DataSourceSelection[];
   searchProvider?: SearchProviderId;
+  path?: string;
   uri?: string;
   properties?: Record<string, unknown>;
   layerProperties?: Record<string, Record<string, unknown>>;

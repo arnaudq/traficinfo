@@ -131,11 +131,13 @@ test('bounds cover all polygons and invalid or mismatched geometry is rejected',
 test('public config derives bounds without exposing uMap overrides or mutating source', async () => {
   const config = registry();
   config.maps.A.searchProvider = 'ign';
+  config.maps.A.path = 'Montpellier';
   const output = await publicConfig(config, async (boundary) =>
     feature(boundary.boundaryId),
   );
   assert.deepEqual(output.boundaries['epci:1'].bounds, [2, 43, 4, 45]);
   assert.equal(output.maps.A.searchProvider, 'ign');
+  assert.equal(output.maps.A.path, 'Montpellier');
   assert.equal('$schema' in output, false);
   assert.equal('properties' in output.maps.A, false);
   assert.equal('layerProperties' in output.maps.A, false);
@@ -201,4 +203,34 @@ test('accident datasets are public map selections independent of the count regis
     types: ['ACCIDENTS', 'BICYCLES'],
   });
   assert.throws(() => validateRegistry(config, sources));
+});
+
+test('map paths reject ambiguous IDs, invalid segments and reserved directories', () => {
+  const sources = { SOURCE: { id: 'SOURCE' } };
+  for (const path of [
+    '',
+    '/Montpellier',
+    'two/parts',
+    '..',
+    'a?b',
+    'a#b',
+    'a b',
+    'assets',
+    'licenses',
+    'src',
+    'B',
+    null,
+    123,
+  ]) {
+    const config = registry();
+    Object.assign(config.maps.A, { path });
+    assert.throws(() => validateRegistry(config, sources));
+  }
+  const config = registry();
+  config.maps.A.path = 'Montpellier';
+  validateRegistry(config, sources);
+  config.maps.B.path = 'Montpellier';
+  assert.throws(() => validateRegistry(config, sources), /Duplicate map path/);
+  config.maps.B.path = 'B';
+  validateRegistry(config, sources);
 });

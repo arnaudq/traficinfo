@@ -122,12 +122,32 @@ See the [map specification](../specs/map-templates.md#webapp-territory-boundarie
 for publication and interaction requirements. Bounds and datasource selections
 drive the on-demand count view.
 
+## Direct map URLs
+
+Open a map directly with its ID, for example `/MMM`, or its optional `path`
+from `mapconfig.json`. MMM sets `"path": "Montpellier"`, so `/Montpellier`
+opens the same detailed map. IDs remain usable when a path is configured.
+Paths are case-sensitive single segments using letters A–Z/a–z, digits,
+underscores and hyphens, starting with a letter or digit. They must be unique
+across all map IDs and paths; `assets`, `licenses` and `src` are reserved.
+Selecting a map updates the address to its configured path (or ID), and browser
+Back/Forward restores map selection. **Retour aux territoires** returns to the
+site root. A directory slash may be added by the static host.
+
+The build emits an entry page for every ID and configured path, so direct visits
+and refreshes work on GitHub Pages without rewrite rules. URLs include the site
+prefix when hosted below a project path, for example `/traficinfo/Montpellier/`.
+Assets, configuration and the licences link resolve from the site root.
+Rebuild and deploy after adding or changing paths.
+
 ## Source layout
 
 - `index.html`: page structure and application entry point.
 - `src/main.ts`: imports styles and starts the application.
 - `src/map.ts`: creates the Leaflet map and base layer.
 - `src/config.ts`: public basemap URL, zoom limits and provider attribution.
+- `src/map-navigation.ts`: map URL resolution and preferred paths.
+- `build/map-pages.ts`: static direct map pages and development routes.
 - `src/overview.ts`: loads overview layers and connects map selection controls.
 - `src/count-data.ts`: framework-independent layer URLs, validation and download cache.
 - `src/count-map.ts`: Leaflet count-layer lifecycle and counter popups.
@@ -209,8 +229,9 @@ bucket geometry alone does not trigger Pages deployment; run the workflow
 manually when its generated bounds need updating.
 
 Vite generates relative asset URLs so the same output works under a project
-path such as `/traficinfo/` or at the root of a custom domain. The application
-has a map page and a static licences page; neither needs client-side routing rules.
+path such as `/traficinfo/` or at the root of a custom domain. The build includes
+a map overview, direct map entry pages and a static licences page; no server
+routing rules are required.
 
 ## Licences and source access
 
