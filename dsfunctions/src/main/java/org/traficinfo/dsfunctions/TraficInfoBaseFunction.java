@@ -23,6 +23,7 @@ public abstract class TraficInfoBaseFunction {
     private static final Logger LOG = LoggerFactory.getLogger(TraficInfoBaseFunction.class);
     private static final ObjectMapper JSON = new ObjectMapper();
     private final String defaultDatasourceId;
+    private boolean configured;
     private String namespace;
     private boolean useResourcePrincipal;
     private String metricsCompartmentId;
@@ -41,6 +42,7 @@ public abstract class TraficInfoBaseFunction {
     /** Initializes shared namespace, authentication and monitoring before function-specific configuration. */
     @FnConfiguration
     public final void config(RuntimeContext context) {
+        configured = false;
         namespace = context.getConfigurationByKey("NAMESPACE").orElse("");
         useResourcePrincipal = Boolean.parseBoolean(
                 context.getConfigurationByKey("USE_RESOURCE_PRINCIPAL").orElse("true"));
@@ -50,6 +52,7 @@ public abstract class TraficInfoBaseFunction {
         dimensions = Map.of("applicationId", context.getAppID(), "resourceId", context.getFunctionID(),
                 "resourceDisplayName", context.getFunctionName());
         configure(context);
+        configured = true;
     }
 
     /** @return the Object Storage namespace (empty if unset), or null before configuration */
@@ -118,6 +121,7 @@ public abstract class TraficInfoBaseFunction {
      * Rethrows the original application exception if reporting fails.
      */
     public final String handleRequest(String input) {
+        if (!configured) throw new IllegalStateException("Function has not been configured");
         // State belongs to this invocation, never to a warm function instance.
         Invocation invocation = new Invocation(defaultDatasourceId);
         try {

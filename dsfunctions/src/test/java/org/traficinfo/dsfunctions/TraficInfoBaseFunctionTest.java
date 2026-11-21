@@ -19,6 +19,37 @@ public class TraficInfoBaseFunctionTest {
     private static final ObjectMapper JSON = new ObjectMapper();
 
     @Test
+    public void unconfiguredFunctionNeverProcessesRequestsOrPublishesFailureMetrics() {
+        var function = new TestFunction(samples::addAll);
+        assertEquals("Function has not been configured", assertThrows(IllegalStateException.class,
+                () -> function.invoke(invocation -> { fail("Processing must not run"); return "OK"; })).getMessage());
+        assertTrue(samples.isEmpty());
+    }
+
+    @Test
+    public void configurationFailureBlocksProcessingUntilConfigurationSucceeds() {
+        var function = new TestFunction(samples::addAll);
+        function.configurationFailure = new IllegalArgumentException("invalid settings");
+        assertSame(function.configurationFailure, assertThrows(IllegalArgumentException.class,
+                () -> function.config(runtime(Map.of()))));
+        assertThrows(IllegalStateException.class,
+                () -> function.invoke(invocation -> { fail("Processing must not run"); return "OK"; }));
+        assertTrue(samples.isEmpty());
+        function.configurationFailure = null;
+        function.config(runtime(Map.of()));
+        assertEquals("OK", function.invoke(invocation -> "OK"));
+    }
+
+    @Test
+    public void failedReconfigurationClearsPreviouslyConfiguredState() {
+        handler.configurationFailure = new IllegalArgumentException("invalid new settings");
+        assertThrows(IllegalArgumentException.class, () -> handler.config(runtime(Map.of())));
+        assertThrows(IllegalStateException.class,
+                () -> handler.invoke(invocation -> { fail("Processing must not run"); return "OK"; }));
+        assertTrue(samples.isEmpty());
+    }
+
+    @Test
     public void sharedSettingsKeepDefaultsAndAreAvailableDuringConfiguration() {
         var function = configured(samples::addAll);
         assertEquals("", function.configuredNamespace);
@@ -200,6 +231,7 @@ public class TraficInfoBaseFunctionTest {
 
     private static final class TestFunction extends TraficInfoBaseFunction {
         private final MetricsPublisher publisher;
+        private RuntimeException configurationFailure;
         private String configuredNamespace;
         private boolean configuredPrincipal;
         private java.util.function.Function<Invocation, String> operation;
@@ -214,6 +246,7 @@ public class TraficInfoBaseFunctionTest {
         }
 
         @Override protected void configure(RuntimeContext context) {
+            if (configurationFailure != null) throw configurationFailure;
             configuredNamespace = namespace();
             configuredPrincipal = useResourcePrincipal();
         }

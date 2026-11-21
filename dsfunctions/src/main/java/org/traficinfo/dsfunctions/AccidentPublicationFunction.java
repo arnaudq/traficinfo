@@ -22,7 +22,6 @@ public class AccidentPublicationFunction extends TraficInfoBaseFunction {
 
     @Override
     protected String processRequest(String input, Invocation invocation) {
-        if (namespace() == null) throw new IllegalStateException("Publication function is not configured");
         try (var outputStore = createObjectStoreClient(outputBucket)) {
             for (var source : sources) {
                 invocation.datasource(source.id());

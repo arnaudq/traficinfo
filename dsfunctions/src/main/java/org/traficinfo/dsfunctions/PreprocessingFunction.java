@@ -27,7 +27,6 @@ public class PreprocessingFunction extends TraficInfoBaseFunction {
 
     @Override
     protected String processRequest(String input, Invocation invocation) {
-        if (registry == null) throw new IllegalStateException("Preprocessing function has not been configured");
         Request request;
         try {
             JsonNode body = JSON.readTree(input == null ? "" : input);

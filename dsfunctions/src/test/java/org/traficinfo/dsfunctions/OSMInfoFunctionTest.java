@@ -132,7 +132,7 @@ public class OSMInfoFunctionTest {
         store.objects.put("MMM_OSMInfo.json", "{}");
         store.objects.put("unrelated_OSMInfo.json", "must not be read");
         store.objects.put("DPT34_OSMWayMapping.metadata.json", "must not be read");
-        assertEquals("OK", new OSMInfoFunction(store).handleRequest(""));
+        assertEquals("OK", new ConfiguredOSMFunction(store).handleRequest(""));
         assertEquals(List.of("DPT34_OSMInfo.json", "DPT34_OSMWayMapping.json",
                 "MMM_OSMInfo.json", "MMM_OSMWayMapping.json", OSMWayMappingReviewStore.OBJECT_NAME,
                 OSMWayMappingReviewStore.NOT_FOUND_OBJECT_NAME, OSMWayMappingReviewStore.NEEDS_REVIEW_MERGED_OBJECT_NAME, OSMWayMappingReviewStore.NOT_FOUND_MERGED_OBJECT_NAME,
@@ -153,7 +153,7 @@ public class OSMInfoFunctionTest {
             store.objects.put("bad_OSMInfo.json", "{}");
             store.objects.put("good_OSMWayMapping.json", "{}");
             store.objects.put("good_OSMInfo.json", "{}");
-            assertFunctionFailure(() -> new OSMInfoFunction(store).handleRequest(""));
+            assertFunctionFailure(() -> new ConfiguredOSMFunction(store).handleRequest(""));
             assertEquals(9, store.read.size());
             assertEquals(store.read.stream().filter(name -> !name.equals(OSMWayMappingReviewStore.OBJECT_NAME)
                 && !name.equals(OSMWayMappingReviewStore.NOT_FOUND_OBJECT_NAME)
@@ -165,10 +165,10 @@ public class OSMInfoFunctionTest {
         unreadable.objects.put("denied_OSMWayMapping.json", null);
         unreadable.objects.put("denied_OSMInfo.json", "{}");
         unreadable.objects.put("good_OSMWayMapping.json", "{}");
-        assertFunctionFailure(() -> new OSMInfoFunction(unreadable).handleRequest(""));
+        assertFunctionFailure(() -> new ConfiguredOSMFunction(unreadable).handleRequest(""));
         assertEquals(9, unreadable.read.size());
-        assertEquals("OK", new OSMInfoFunction(new Store()).handleRequest(""));
-        assertFunctionFailure(() -> new OSMInfoFunction(new Store() {
+        assertEquals("OK", new ConfiguredOSMFunction(new Store()).handleRequest(""));
+        assertFunctionFailure(() -> new ConfiguredOSMFunction(new Store() {
             @Override public List<String> listResources() {
                 throw new BmcException(403, "Forbidden", "Denied", "request");
             }
@@ -179,7 +179,7 @@ public class OSMInfoFunctionTest {
     public void missingInfoStartsEmptyButInvalidOrForbiddenInfoFailsAndContinues() {
         Store missing = new Store();
         missing.objects.put("DPT34_OSMWayMapping.json", "{}");
-        assertEquals("OK", new OSMInfoFunction(missing).handleRequest(""));
+        assertEquals("OK", new ConfiguredOSMFunction(missing).handleRequest(""));
         assertEquals(List.of(OSMWayMappingReviewStore.NEEDS_REVIEW_MERGED_OBJECT_NAME, OSMWayMappingReviewStore.NOT_FOUND_MERGED_OBJECT_NAME, OSMWayMappingReviewStore.OBJECT_NAME, OSMWayMappingReviewStore.NOT_FOUND_OBJECT_NAME, "DPT34_OSMInfo.json", "DPT34_OSMWayMapping.json", "DPT34_OSMRequests.json"), missing.read);
         for (String info : new String[]{"invalid", "null", "[]", "{} trailing", null}) {
             Store store = new Store();
@@ -187,7 +187,7 @@ public class OSMInfoFunctionTest {
             store.objects.put("bad_OSMInfo.json", info);
             store.objects.put("good_OSMWayMapping.json", "{}");
             store.objects.put("good_OSMInfo.json", "{}");
-            assertFunctionFailure(() -> new OSMInfoFunction(store).handleRequest(""));
+            assertFunctionFailure(() -> new ConfiguredOSMFunction(store).handleRequest(""));
             assertEquals(List.of(OSMWayMappingReviewStore.OBJECT_NAME, OSMWayMappingReviewStore.NEEDS_REVIEW_MERGED_OBJECT_NAME, OSMWayMappingReviewStore.NOT_FOUND_OBJECT_NAME, OSMWayMappingReviewStore.NOT_FOUND_MERGED_OBJECT_NAME, "bad_OSMInfo.json", "good_OSMInfo.json", "good_OSMRequests.json", "good_OSMWayMapping.json"),
                     store.read.stream().sorted().toList());
             assertTrue(store.closed.contains("good_OSMInfo.json"));
@@ -366,7 +366,7 @@ public class OSMInfoFunctionTest {
                 return Map.of("maxspeed", "80");
             }
         };
-        OSMInfoFunction function = new OSMInfoFunction(store, client, () -> 0L);
+        OSMInfoFunction function = new ConfiguredOSMFunction(store, client, () -> 0L);
         assertEquals("OK", function.handleRequest(""));
         String objectName = OSMWayMappingReviewStore.NOT_FOUND_OBJECT_NAME;
         JsonNode notFound = json.readTree(store.objects.get(objectName));
@@ -465,7 +465,7 @@ public class OSMInfoFunctionTest {
                 Store store = new Store();
                 store.objects.put(reviewName, document);
                 store.objects.put("DPT30_OSMWayMapping.json", "{}");
-                assertFunctionFailure(() -> new OSMInfoFunction(store).handleRequest(""));
+                assertFunctionFailure(() -> new ConfiguredOSMFunction(store).handleRequest(""));
                 assertEquals(document, store.objects.get(reviewName));
                 assertEquals(0, store.writes);
             }
@@ -474,7 +474,7 @@ public class OSMInfoFunctionTest {
         String review = "{\"DPT30\":{\"counter\":{\"status\":\"NEEDS_REVIEW\"}}}";
         store.objects.put(OSMWayMappingReviewStore.OBJECT_NAME, review);
         store.objects.put("DPT30_OSMWayMapping.json", "invalid");
-        assertFunctionFailure(() -> new OSMInfoFunction(store).handleRequest(""));
+        assertFunctionFailure(() -> new ConfiguredOSMFunction(store).handleRequest(""));
         assertEquals(review, store.objects.get(OSMWayMappingReviewStore.OBJECT_NAME));
         assertEquals(0, store.writes);
     }
@@ -499,7 +499,7 @@ public class OSMInfoFunctionTest {
             };
             Store store = new Store();
             store.objects.put("DPT34_OSMWayMapping.json", "{\"counter\":{\"latitude\":43.5,\"longitude\":3.2}}");
-            OSMInfoFunction function = new OSMInfoFunction(store, client, () -> 0L);
+            OSMInfoFunction function = new ConfiguredOSMFunction(store, client, () -> 0L);
             assertEquals("OK", function.handleRequest(""));
             ObjectMapper json = new ObjectMapper();
             var cache = (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree(store.objects.get("DPT34_OSMWayMapping.json"));
@@ -563,7 +563,7 @@ public class OSMInfoFunctionTest {
                     return json.createObjectNode().put("error", "Unable to geocode");
                 }
             };
-            assertEquals("OK", new OSMInfoFunction(store, client, () -> 0L).handleRequest("{\"mode\":\"manual\"}"));
+            assertEquals("OK", new ConfiguredOSMFunction(store, client, () -> 0L).handleRequest("{\"mode\":\"manual\"}"));
             assertEquals(16, requests.values().stream().mapToInt(Integer::intValue).sum());
             assertEquals(singleSource ? Map.of(2, 16) : Map.of(1, 2, 2, 14), requests);
         }
@@ -587,7 +587,7 @@ public class OSMInfoFunctionTest {
                 return json.createObjectNode().put("error", "Unable to geocode");
             }
         };
-        OSMInfoFunction function = new OSMInfoFunction(store, client, () -> 0L);
+        OSMInfoFunction function = new ConfiguredOSMFunction(store, client, () -> 0L);
         assertEquals("OK", function.handleRequest("")); // Tag-selected schedule supplies no body.
         assertEquals(Map.of(43, 90, 44, 90), requests);
         assertEquals("OK", function.handleRequest("{\"mode\":\"manual\"}"));
@@ -618,7 +618,7 @@ public class OSMInfoFunctionTest {
                     return json.createObjectNode().put("error", "Unable to geocode");
                 }
             };
-            OSMInfoFunction function = new OSMInfoFunction(store, client, elapsed::get);
+            OSMInfoFunction function = new ConfiguredOSMFunction(store, client, elapsed::get);
             function.configureLimits(context(limits));
             assertEquals("OK", function.handleRequest("{\"mode\":\"scheduled\"}"));
             assertEquals(limits.isEmpty() ? 180 : 1, requests.get());
@@ -631,7 +631,7 @@ public class OSMInfoFunctionTest {
                 "{\"mode\":\"other\"}", "{} {}")) {
             Store store = new Store();
             try {
-                new OSMInfoFunction(store).handleRequest(input);
+                new ConfiguredOSMFunction(store).handleRequest(input);
                 fail("Expected invalid invocation: " + input);
             } catch (IllegalArgumentException expected) {
                 assertTrue(expected.getMessage().contains("OSM invocation"));
@@ -639,7 +639,7 @@ public class OSMInfoFunctionTest {
             assertTrue(store.read.isEmpty());
             assertEquals(0, store.writes);
         }
-        assertEquals("OK", new OSMInfoFunction(new Store()).handleRequest("{}"));
+        assertEquals("OK", new ConfiguredOSMFunction(new Store()).handleRequest("{}"));
     }
 
     @Test
@@ -648,7 +648,7 @@ public class OSMInfoFunctionTest {
                 "MAX_SCHEDULED_LOOP_DURATION_SECONDS", "MAX_SCHEDULED_WAY_MAPPINGS_PER_RUN")) {
             for (String value : List.of("", "abc", "0", "-1", "1.5", "2147483648")) {
                 try {
-                    new OSMInfoFunction(new Store()).configureLimits(context(Map.of(key, value)));
+                    new ConfiguredOSMFunction(new Store()).configureLimits(context(Map.of(key, value)));
                     fail("Expected invalid limit: " + key + "=" + value);
                 } catch (IllegalArgumentException expected) {
                     assertTrue(expected.getMessage().contains(key));
@@ -684,7 +684,7 @@ public class OSMInfoFunctionTest {
                 }
                 @Override public Map<String, String> getWayTags(long id) { return Map.of("maxspeed", "50"); }
             };
-            OSMInfoFunction function = new OSMInfoFunction(store, client, () -> 0L);
+            OSMInfoFunction function = new ConfiguredOSMFunction(store, client, () -> 0L);
             if (!setting.equals("default")) {
                 function.configureRoadComparison(context(Map.of("REVIEW_ROAD_MISMATCHES", setting)));
             }
@@ -713,7 +713,7 @@ public class OSMInfoFunctionTest {
     public void rejectsInvalidRoadComparisonConfiguration() {
         for (String value : List.of("", "yes", "1", "TRUE")) {
             try {
-                new OSMInfoFunction(new Store()).configureRoadComparison(context(Map.of("REVIEW_ROAD_MISMATCHES", value)));
+                new ConfiguredOSMFunction(new Store()).configureRoadComparison(context(Map.of("REVIEW_ROAD_MISMATCHES", value)));
                 fail("Expected invalid road comparison setting: " + value);
             } catch (IllegalArgumentException expected) {
                 assertTrue(expected.getMessage().contains("REVIEW_ROAD_MISMATCHES"));
@@ -731,11 +731,7 @@ public class OSMInfoFunctionTest {
 
     private static OSMInfoFunction withMetrics(ObjectStoreClient store, OpenStreetMapClient client,
                                                java.util.function.LongSupplier nanoTime, MetricsPublisher publisher) {
-        return new OSMInfoFunction(store, client, nanoTime) {
-            @Override protected void publishMetrics(List<MetricSample> samples) {
-                publisher.publish(samples);
-            }
-        };
+        return new ConfiguredOSMFunction(store, client, nanoTime, publisher);
     }
 
     private static void assertStatusCount(List<MetricSample> metrics, String source,

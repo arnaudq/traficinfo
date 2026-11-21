@@ -79,7 +79,7 @@ public class OSMRequestWorkflowTest {
                 return Map.of("maxspeed", "50");
             }
         };
-        var function = new OSMInfoFunction(store, client, () -> 0L);
+        var function = new ConfiguredOSMFunction(store, client, () -> 0L);
         assertEquals("OK", function.handleRequest(""));
         assertEquals("MATCHED", store.json("MRN_OSMWayMapping.json").get("counter").get("status").asText());
         assertEquals("50", store.json("MRN_OSMInfo.json").get("123").get("tags").get("maxspeed").asText());
@@ -112,7 +112,7 @@ public class OSMRequestWorkflowTest {
             }
             @Override public Map<String, String> getWayTags(long id) { throw new AssertionError("No approved way"); }
         };
-        var function = new OSMInfoFunction(store, client, () -> 0L);
+        var function = new ConfiguredOSMFunction(store, client, () -> 0L);
         function.configureRoadComparison((RuntimeContext) Proxy.newProxyInstance(RuntimeContext.class.getClassLoader(),
                 new Class<?>[]{RuntimeContext.class}, (proxy, method, args) -> Optional.of("true")));
         assertEquals("OK", function.handleRequest(""));
@@ -141,7 +141,7 @@ public class OSMRequestWorkflowTest {
                 return Map.of("maxspeed", "50");
             }
         };
-        var function = new OSMInfoFunction(store, client, () -> 0L);
+        var function = new ConfiguredOSMFunction(store, client, () -> 0L);
         store.failWrite = OSMWayMappingReviewStore.NOT_FOUND_OBJECT_NAME;
         assertFunctionFailure(() -> function.handleRequest(""));
         assertTrue(store.objects.containsKey(OSMWayMappingReviewStore.NEEDS_REVIEW_MERGED_OBJECT_NAME));
@@ -175,7 +175,7 @@ public class OSMRequestWorkflowTest {
                 return Map.of("maxspeed", "50");
             }
         };
-        var function = new OSMInfoFunction(store, client, () -> 0L);
+        var function = new ConfiguredOSMFunction(store, client, () -> 0L);
         store.failDelete = OSMWayMappingReviewStore.NEEDS_REVIEW_MERGED_OBJECT_NAME;
         assertFunctionFailure(() -> function.handleRequest(""));
         assertEquals(123, store.json("MRN_OSMWayMapping.json").get("needsReview").get("osmWayId").asLong());
@@ -200,7 +200,7 @@ public class OSMRequestWorkflowTest {
         store.put("MRN_OSMWayMapping.json", "{\"counter\":{\"status\":\"NOT_FOUND\"}}");
         store.put(OSMWayMappingReviewStore.NOT_FOUND_OBJECT_NAME,
                 "{\"MRN\":{\"counter\":{\"status\":\"MATCHED\",\"candidateOsmWayId\":789}}}");
-        assertEquals("OK", new OSMInfoFunction(store, noHttp(), () -> 0L).handleRequest(""));
+        assertEquals("OK", new ConfiguredOSMFunction(store, noHttp(), () -> 0L).handleRequest(""));
         assertEquals("NOT_FOUND", store.json("MRN_OSMWayMapping.json").get("counter").get("status").asText());
         assertEquals("NOT_FOUND", store.json(OSMWayMappingReviewStore.NOT_FOUND_OBJECT_NAME)
                 .get("MRN").get("counter").get("status").asText());
@@ -222,7 +222,7 @@ public class OSMRequestWorkflowTest {
                             "notFound":{"status":"NEEDS_REVIEW","candidateOsmWayId":999}},
                      "unknown":{"counter":{"status":"NOT_FOUND"}}}
                     """);
-            assertEquals("OK", new OSMInfoFunction(store, noHttp(), () -> 0L).handleRequest(""));
+            assertEquals("OK", new ConfiguredOSMFunction(store, noHttp(), () -> 0L).handleRequest(""));
             assertEquals(originalMappings, store.json("MRN_OSMWayMapping.json"));
             assertFalse(store.objects.containsKey("unknown_OSMWayMapping.json"));
             assertFalse(store.objects.containsKey("unknown_OSMInfo.json"));
@@ -245,7 +245,7 @@ public class OSMRequestWorkflowTest {
                             "notFound":{"status":"NOT_FOUND"},
                             "invalid":{"status":"MATCHED"}}}
                     """);
-            assertFunctionFailure(() -> new OSMInfoFunction(store, noHttp(), () -> 0L).handleRequest(""));
+            assertFunctionFailure(() -> new ConfiguredOSMFunction(store, noHttp(), () -> 0L).handleRequest(""));
             assertTrue(store.objects.containsKey(submission));
             assertTrue(store.writes.isEmpty());
             assertTrue(store.deleted.isEmpty());
@@ -262,7 +262,7 @@ public class OSMRequestWorkflowTest {
                 return super.listResources();
             }
         };
-        assertEquals("OK", new OSMInfoFunction(store, noHttp(), () -> 0L).handleRequest(""));
+        assertEquals("OK", new ConfiguredOSMFunction(store, noHttp(), () -> 0L).handleRequest(""));
         assertTrue(store.objects.containsKey(OSMWayMappingReviewStore.NEEDS_REVIEW_MERGED_OBJECT_NAME));
         assertTrue(store.deleted.isEmpty());
     }
@@ -276,13 +276,13 @@ public class OSMRequestWorkflowTest {
                 "{\"reverseLookups\":{},\"wayTagRefreshes\":[1.5]}")) {
             Store store = new Store();
             store.objects.put("MRN_OSMRequests.json", request.getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            assertFunctionFailure(() -> new OSMInfoFunction(store, noHttp(), () -> 0L).handleRequest(""));
+            assertFunctionFailure(() -> new ConfiguredOSMFunction(store, noHttp(), () -> 0L).handleRequest(""));
             assertTrue(store.writes.isEmpty());
         }
         Store store = new Store();
         store.put(OSMWayMappingReviewStore.NEEDS_REVIEW_MERGED_OBJECT_NAME,
                 "{\"unknown\":{\"counter\":{\"status\":\"MATCHED\",\"candidateOsmWayId\":789}}}");
-        assertFunctionFailure(() -> new OSMInfoFunction(store, noHttp(), () -> 0L).handleRequest(""));
+        assertFunctionFailure(() -> new ConfiguredOSMFunction(store, noHttp(), () -> 0L).handleRequest(""));
         assertTrue(store.objects.containsKey(OSMWayMappingReviewStore.NEEDS_REVIEW_MERGED_OBJECT_NAME));
         assertTrue(store.deleted.isEmpty());
     }

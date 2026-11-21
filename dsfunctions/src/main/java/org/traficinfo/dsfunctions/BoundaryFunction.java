@@ -142,7 +142,6 @@ public class BoundaryFunction extends TraficInfoBaseFunction {
 
     @Override
     protected String processRequest(String input, Invocation invocation) {
-        if (boundaries == null) throw new IllegalStateException("Boundary function has not been configured");
         Request request = readRequest(input);
         Instant fetchedAt = clock.instant();
         Instant cutoff = fetchedAt.atZone(ZoneOffset.UTC).minusMonths(MAX_AGE_MONTHS).toInstant();

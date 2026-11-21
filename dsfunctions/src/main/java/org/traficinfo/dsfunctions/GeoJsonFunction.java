@@ -33,7 +33,6 @@ public class GeoJsonFunction extends TraficInfoBaseFunction {
 
     @Override
     protected String processRequest(String input, Invocation invocation) {
-        if (registry == null) throw new IllegalStateException("GeoJSON function has not been configured");
         Request request;
         try {
             JsonNode body = JSON.readTree(input == null ? "" : input);

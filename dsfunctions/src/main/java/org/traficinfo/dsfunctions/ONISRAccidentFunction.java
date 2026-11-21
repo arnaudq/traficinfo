@@ -17,19 +17,16 @@ public class ONISRAccidentFunction extends TraficInfoBaseFunction {
             .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
     private static final String ACCIDENT_BUCKET = "onisrinfo";
     private String osmBucket;
-    private boolean configured;
 
     public ONISRAccidentFunction() { super("ONISR"); }
 
     @Override
     protected void configure(RuntimeContext context) {
         osmBucket = context.getConfigurationByKey("BUCKETNAME_OSM").orElse("osminfo");
-        configured = true;
     }
 
     @Override
     protected String processRequest(String input, Invocation invocation) {
-        if (!configured) throw new IllegalStateException("Accident function has not been configured");
         String action = action(input);
         try (var logging = LoggingContext.forSource("accidents", "ONISR")) {
             try (var accidentStore = createObjectStoreClient(ACCIDENT_BUCKET);

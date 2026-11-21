@@ -32,7 +32,6 @@ public class DataSourceFunction extends TraficInfoBaseFunction {
 
     @Override
     protected String processRequest(String input, Invocation invocation) {
-        if (registry == null) throw new IllegalStateException("Datasource function has not been configured");
         Request request;
         try {
             request = JSON.readValue(input == null ? "" : input, Request.class);
