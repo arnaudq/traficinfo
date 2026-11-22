@@ -181,6 +181,62 @@ public class OSMReverseMappingTest {
     }
 
     @Test
+    public void acceptsAdministrativeBoundaryWaysWithLanesAndMaxspeedWithoutExtraLookup() throws Exception {
+        for (String scenario : List.of("pierre_le_moine", "robiquette", "matching_ref", "different_ref",
+                "missing_lanes", "missing_maxspeed", "blank_lanes", "null_maxspeed", "no_tags",
+                "wrong_category", "wrong_type", "node", "relation", "invalid_id")) {
+            var result = JSON.createObjectNode().put("osm_type", "way").put("osm_id", 22935229)
+                    .put("category", "boundary").put("type", "administrative")
+                    .put("name", "Boulevard Pierre Le Moine");
+            var tags = result.putObject("extratags").put("lanes", "1").put("maxspeed", "30");
+            switch (scenario) {
+                case "robiquette" -> {
+                    result.put("osm_id", 189217217).put("name", "Boulevard de la Robiquette");
+                    tags.put("lanes", "2").put("maxspeed", "50");
+                    result.putObject("namedetails").put("ref", "D 637");
+                }
+                case "matching_ref", "different_ref" -> result.putObject("namedetails").put("ref", "D 637");
+                case "missing_lanes" -> tags.remove("lanes");
+                case "missing_maxspeed" -> tags.remove("maxspeed");
+                case "blank_lanes" -> tags.put("lanes", " ");
+                case "null_maxspeed" -> tags.putNull("maxspeed");
+                case "no_tags" -> result.remove("extratags");
+                case "wrong_category" -> result.put("category", "building");
+                case "wrong_type" -> result.put("type", "protected_area");
+                case "node", "relation" -> result.put("osm_type", scenario);
+                case "invalid_id" -> result.put("osm_id", 0);
+                default -> { }
+            }
+            Store store = new Store();
+            OSMWayMapping mapping = new OSMWayMapping();
+            mapping.setLatitude(48.09040353554436);
+            mapping.setLongitude(-1.6611003837972234);
+            if (scenario.endsWith("_ref")) mapping.setSourceRoadReference(
+                    scenario.equals("matching_ref") ? "D0637" : "D0638");
+            store.objects.put("mappings.json", JSON.writeValueAsBytes(Map.of("counter", mapping)));
+            var provider = provider(store, new OpenStreetMapClient() {
+                @Override public JsonNode reverseLookup(double latitude, double longitude) { return result; }
+                @Override public Map<String, String> getWayTags(long wayId) {
+                    throw new AssertionError("Reverse acceptance must not fetch way tags");
+                }
+            });
+            provider.loadCache();
+            provider.refreshWayMappings(1);
+            JsonNode saved = JSON.readTree(store.objects.get("mappings.json")).get("counter");
+            String expected = List.of("pierre_le_moine", "robiquette", "matching_ref").contains(scenario)
+                    ? "MATCHED" : scenario.equals("different_ref") ? "NEEDS_REVIEW" : "NOT_FOUND";
+            assertEquals(scenario, expected, saved.get("status").asText());
+            assertEquals(result, saved.get("reverseLookupResult"));
+            if (expected.equals("MATCHED")) assertEquals(result.get("osm_id").asLong(), saved.get("osmWayId").asLong());
+            else {
+                assertTrue(saved.get("osmWayId").isNull());
+                assertEquals(scenario.equals("different_ref") ? "different_ref" : "no_road_way",
+                        saved.get("reviewReason").asText());
+            }
+        }
+    }
+
+    @Test
     public void acceptsNonMotorwayHighwayTypesThroughEitherClassificationWithoutAccessChecks() throws Exception {
         for (String highway : List.of("footway", "cycleway", "path", "pedestrian", "track")) {
             for (boolean extraTags : List.of(false, true)) {

@@ -394,11 +394,18 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
 
     private void applyReverseResult(OSMWayMapping mapping, JsonNode result) {
         Long wayId = reverseWayId(result.path("osm_id"));
-        // Nominatim can classify a road way as an administrative boundary while retaining its highway tag.
+        JsonNode extraTags = result.path("extratags");
+        // Nominatim can classify road ways as boundaries and omit highway. Lanes plus maxspeed
+        // provide a road hint for administrative boundary ways without another API request.
+        boolean boundaryRoadHint = "boundary".equals(result.path("category").asText())
+                && "administrative".equals(result.path("type").asText())
+                && !extraTags.path("lanes").asText("").isBlank()
+                && !extraTags.path("maxspeed").asText("").isBlank();
         boolean road = "way".equals(result.path("osm_type").asText())
                 && (("highway".equals(result.path("category").asText())
                         && ROAD_HIGHWAY_TYPES.contains(result.path("type").asText()))
-                    || ROAD_HIGHWAY_TYPES.contains(result.path("extratags").path("highway").asText()));
+                    || ROAD_HIGHWAY_TYPES.contains(extraTags.path("highway").asText())
+                    || boundaryRoadHint);
         mapping.setLastUpdated(mapping.getLastLookupAt());
         mapping.setDistanceMeters(null);
         if (!road || wayId == null) {

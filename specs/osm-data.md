@@ -39,7 +39,7 @@ Existing positive way IDs are preserved.
 ## Candidate acceptance
 
 Automatic validation uses the Nominatim fields `osm_type`, `osm_id`, `category`,
-`type`, `extratags.highway`, `namedetails.ref`, `namedetails["name:fr"]`,
+`type`, `extratags.highway`, `extratags.lanes`, `extratags.maxspeed`, `namedetails.ref`, `namedetails["name:fr"]`,
 `namedetails.name`, `name`, and `address.road`, together with the source road
 reference and street name. The first four are response fields rather than OSM tags.
 
@@ -48,28 +48,38 @@ comparing references. `any` means that field does not affect that row's result.
 A valid ID is a positive integer fitting in a Java `long`, supplied as a JSON
 integer or a string containing only digits.
 
-| `osm_type` | `osm_id` | `category` | `type` | `extratags.highway` | Decision |
-| --- | --- | --- | --- | --- | --- |
-| `way` | Valid | `highway` | Supported road type | Any | Compare references below |
-| `way` | Valid | `boundary` | `administrative` | Supported road type | Compare references below |
-| `way` | Valid | Any | Any | Supported road type | Compare references below |
-| `node`, `relation`, other, or missing | Any | Any | Any | Any | `NOT_FOUND` (`no_road_way`) |
-| `way` | Missing, zero, negative, fractional, malformed, or overflowing | Any | Any | Any | `NOT_FOUND` (`no_road_way`) |
-| `way` | Valid | `highway` | Unsupported or missing | Unsupported or missing | `NOT_FOUND` (`no_road_way`) |
-| `way` | Valid | Other or missing | Any | Unsupported or missing | `NOT_FOUND` (`no_road_way`) |
+Use the first applicable row:
+
+| `osm_type` | `osm_id` | `category` | `type` | `extratags.highway` | `extratags.lanes` | `extratags.maxspeed` | Decision |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `way` | Valid | `highway` | Supported road type | Any | Any | Any | Compare references below |
+| `way` | Valid | Any | Any | Supported road type | Any | Any | Compare references below |
+| `way` | Valid | `boundary` | `administrative` | Any | Present, nonblank | Present, nonblank | Compare references below (heuristic) |
+| `node`, `relation`, other, or missing | Any | Any | Any | Any | Any | Any | `NOT_FOUND` (`no_road_way`) |
+| `way` | Missing, zero, negative, fractional, malformed, or overflowing | Any | Any | Any | Any | Any | `NOT_FOUND` (`no_road_way`) |
+| `way` | Valid | Any remaining combination | Any | Unsupported or missing | Any | Any | `NOT_FOUND` (`no_road_way`) |
 
 Supported road types for either `type` or `extratags.highway` are:
 `motorway`, `trunk`, `primary`, `secondary`, `tertiary`, `unclassified`,
 `residential`, `living_street`, `service`, `road`, `motorway_link`, `trunk_link`,
 `primary_link`, `secondary_link`, `tertiary_link`, `footway`, `cycleway`, `path`,
 `pedestrian`, and `track`. These are accepted regardless of the counter's transport type, without
-checking bicycle-access tags. Either road-classification path can qualify
+checking bicycle-access tags. Any of the three road-classification paths can qualify
 the way; an unsupported value in one path does not override a supported value
 in the other.
 
 For example, the DPT76 response with `category=boundary`, `type=administrative`,
 and `extratags.highway=primary` qualifies as a road. Its `namedetails.ref=D 925`
 matches source identifier `D0925`, producing `MATCHED`.
+
+Nominatim sometimes omits `highway` for a way classified as an administrative
+boundary. As a heuristic, such a way qualifies when both `extratags.lanes` and
+`extratags.maxspeed` have nonblank values. This covers Boulevard Pierre Le Moine
+(way `22935229`, `lanes=1`, `maxspeed=30`) and Boulevard de la Robiquette
+(way `189217217`, `lanes=2`, `maxspeed=50`). These tags are evidence of a road,
+not verification of its actual highway classification. Reference/name validation
+still applies. No additional HTTP request is made; accepted ways follow the
+normal queued way-tag refresh, and the original reverse response is preserved.
 
 ### Road reference comparison
 
@@ -94,8 +104,8 @@ When a source identifier exists, `NEEDS_REVIEW` has reason `missing_osm_ref`
 if the OSM reference is absent, or `different_ref` if it differs. Without a
 source identifier, a suitable road way is accepted regardless of its reference.
 OSM references separated by `;` are compared individually; any normalized match
-is sufficient. `maxspeed`, `lanes`, and `admin_level` do not determine candidate
-acceptance.
+is sufficient. `maxspeed` and `lanes` are used together only for the administrative
+boundary heuristic above; `admin_level` does not determine candidate acceptance.
 
 Departmental prefixes `RD` and `D` are equivalent in both directions: `RD135`
 matches `D 135`, and `RD00135A` matches `D 135 A`. This also applies when a
