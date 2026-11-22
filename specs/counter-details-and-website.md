@@ -1,7 +1,7 @@
 # Counter details and TraficInfo website
 
-Updated: 2026-11-22. The webapp and canonical history export are implemented;
-history charts and uMap integration remain goals.
+Updated: 2026-11-22. The webapp, canonical history export, counter-details page
+and links from webapp popups are implemented. uMap integration remains a goal.
 
 ## Current state
 
@@ -16,8 +16,10 @@ supports navigating from territory polygons to the corresponding detailed map.
 See the [webapp README](../webapp/README.md) for implemented behavior and hosting.
 
 The canonical history export is implemented by `HistoryPublicationFunction`,
-invoked explicitly per datasource after preprocessing. Full-history charts and
-links from uMap popups to counter details are still to be implemented. Keep uMap as a supported integration goal alongside the webapp.
+invoked explicitly per datasource after preprocessing. The webapp details page
+shows complete campaign history and is linked from counter popups. Links from
+uMap popups remain to be implemented. Keep uMap as a supported integration goal
+alongside the webapp.
 
 ## Goals
 
@@ -68,7 +70,7 @@ flowchart LR
     P[Preprocessing] --> M[Private manifest and yearly records]
     M --> E[Canonical history export]
     E --> J[One public JSON object per datasource]
-    J --> H[Future webapp history and charts]
+    J --> H[Webapp history and charts]
     M --> G[GeoJSON generation]
     G --> W[Implemented webapp map and popups]
     W --> H
@@ -104,14 +106,14 @@ The counter object holds count-agnostic identity and site metadata. All
 measurement values belong inside `campaigns[].counts[]`; year, population,
 direction and measured speeds are not counter-level properties.
 
-| Counter field | Meaning |
-| --- | --- |
-| `codeCentrale` | String ID, identical to its key in `counters`; unique within the datasource |
-| `displayName`, `cityName` | Latest known descriptive metadata, or null |
-| `roadReference` | Official road reference when available, otherwise null |
-| `geometry` | GeoJSON geometry in longitude/latitude order, or null |
-| `osmWayId` | Associated OSM way ID as a decimal string, or null |
-| `campaigns` | Array of measurement campaigns, ordered by year, period and campaign ID |
+| Counter field             | Meaning                                                                     |
+| ------------------------- | --------------------------------------------------------------------------- |
+| `codeCentrale`            | String ID, identical to its key in `counters`; unique within the datasource |
+| `displayName`, `cityName` | Latest known descriptive metadata, or null                                  |
+| `roadReference`           | Official road reference when available, otherwise null                      |
+| `geometry`                | GeoJSON geometry in longitude/latitude order, or null                       |
+| `osmWayId`                | Associated OSM way ID as a decimal string, or null                          |
+| `campaigns`               | Array of measurement campaigns, ordered by year, period and campaign ID     |
 
 Counter metadata describes the latest known site, not its historical state in
 every campaign. Retain existing site identifiers when a publisher distinguishes
@@ -275,6 +277,16 @@ GeoJSON). Preserve IDs as strings, including leading zeros and site suffixes.
 Keep population, direction and campaign distinctions when displaying records;
 do not sum bidirectional totals with their component directions.
 
+Show the complete counter year range after its road reference, independent of
+population, direction and year filters, and indicate permanent/temporary/unknown
+operation (including changes or missing classifications across campaigns).
+
+Use Graphiques/Tableau tabs for switching between charts and exact measurements.
+Charts use a chronological year axis, bars for counts on a passages/day axis and
+lines for mean speed and V85 on a separate km/h axis. Keep multiple campaigns
+per year distinct and break lines across missing years or speed measurements.
+Tab selection and filter changes reuse the already loaded datasource history.
+
 Use annual bar charts for the history already retained. Show missing years as
 gaps, preserve missing values versus measured zero, and distinguish observed
 campaign averages from full-year measurements. Display speed and peak-hour
@@ -289,8 +301,9 @@ hourly history. Mean speed and V85 likewise cannot reconstruct speed distributio
 Add a “Plus de détails” link to both vehicle and bicycle popup templates, opening
 the counter details in the existing webapp. Generate a URL-encoded `details_url`
 GeoJSON property containing the datasource, counter ID and relevant population.
-Choose the counter route within the existing webapp navigation when implementing
-it; the earlier standalone `counter.html` proposal is not a required route.
+Reuse the implemented `counter.html?source=<datasourceId>&id=<codeCentrale>`
+route, with optional `type` for population and `map` for the return map. Encode
+query values using URL query parameters, as the webapp popup links already do.
 
 Update the shared map template, bicycle-layer template and parser popup resource,
 and regenerate affected map templates. Verify links in an actual uMap instance.
@@ -300,9 +313,7 @@ navigation is the initial goal.
 ## Remaining work
 
 1. Deploy and invoke the implemented export for the desired datasources.
-2. Add on-demand history loading, charts and direct counter navigation to the
-   implemented webapp.
-3. Add and verify uMap popup links to that view.
+2. Add and verify uMap popup links to the implemented webapp details view.
 
 Check sparse histories, multiple records per year, populations/directions,
 missing values, unknown counter IDs and unavailable data. Confirm that details

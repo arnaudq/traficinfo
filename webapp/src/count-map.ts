@@ -9,6 +9,7 @@ import { createCountClusters, counterIcon } from './count-clusters.ts';
 import { countLayers, createCountLoader } from './count-data.ts';
 import type { CountLayer, CounterProperties } from './count-data.ts';
 import { element } from './dom.ts';
+import { counterDetailsUrl } from './history-data.ts';
 import type { PublicMap, PublicMapConfig } from './types.ts';
 
 function countColor(properties: CounterProperties): string {
@@ -21,6 +22,7 @@ function countColor(properties: CounterProperties): string {
 function counterPopup(
   properties: CounterProperties,
   layer: CountLayer,
+  mapId: string,
 ): HTMLElement {
   const popup = element('section', null, 'counter-popup');
   if (layer.population === 'ACCIDENTS') {
@@ -77,6 +79,19 @@ function counterPopup(
     details.append(element('dt', label), element('dd', String(value)));
   }
   popup.append(details);
+  if (
+    typeof properties.code_centrale === 'string' &&
+    properties.code_centrale.trim()
+  ) {
+    const link = element('a', 'Plus de détails', 'counter-details-link');
+    link.href = counterDetailsUrl(new URL('./', document.baseURI), {
+      source: layer.sourceId,
+      id: properties.code_centrale,
+      population: layer.population,
+      mapId,
+    }).href;
+    popup.append(link);
+  }
   return popup;
 }
 
@@ -157,7 +172,7 @@ export function createCountMap(
             }),
           onEachFeature(feature, counter) {
             counter.bindPopup(
-              () => counterPopup(feature.properties, definition),
+              () => counterPopup(feature.properties, definition, selected.id),
               { maxWidth: 330 },
             );
             const population =

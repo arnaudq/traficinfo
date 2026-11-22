@@ -75,9 +75,10 @@ summed traffic volumes. Hover for a label and click or press Enter to zoom in.
 At maximum zoom, clicking spreads overlapping points so each popup stays
 accessible. Lines and polygons retain their original geometry and do not cluster.
 Clusters remain active at all zoom levels to keep coincident points accessible.
-Advanced filters and full history charts are not yet implemented; downloaded
-GeoJSON stays independent of the rendered groups so future filters can rebuild
-clusters from matching points without downloading again.
+Counter popups include **Plus de détails**, opening the complete published
+counter history. Advanced map filters are not yet implemented; downloaded GeoJSON
+stays independent of the rendered groups so future filters can rebuild clusters
+from matching points without downloading again.
 
 Detailed maps show an address/place search bar. Submit at least three characters
 with Enter or **Rechercher**, then select a result to zoom to its location.
@@ -140,6 +141,49 @@ prefix when hosted below a project path, for example `/traficinfo/Montpellier/`.
 Assets, configuration and the licences link resolve from the site root.
 Rebuild and deploy after adding or changing paths.
 
+## Counter details and complete history
+
+`counter.html?source=MMM&id=4584&type=VEHICULES&map=MMM` opens the selected
+counter's history. `source` and `id` are required; `type` selects the initial
+population and optional `map` provides the return link to the originating map.
+IDs are preserved as strings and encoded in popup links. The static HTML entry
+point supports direct visits and refreshes on GitHub Pages, including project
+paths. Accident popups do not receive counter-history links.
+
+The page loads `history/<source>.json` relative to the configured
+`geoJsonBaseUrl`, using the canonical schema defined by the parsers module.
+Publish it with `HistoryPublicationFunction` before opening counter histories;
+see the [export instructions](../dsfunctions/README.md#canonical-counter-history-export).
+Only the chosen datasource's file is fetched. A shared promise caches the file
+for the page session; changing population, direction or year uses the same data.
+New page visits can reuse the browser's HTTP cache, subject to the export's
+five-minute cache lifetime. Failed downloads remain retryable.
+
+The metadata shows whether the counter is permanent, temporary, unknown or
+varies between campaigns, plus the full year range across all populations and
+directions. This range stays unchanged when filters change.
+
+**Graphiques** and **Tableau** tabs switch locally between an annual chart and
+exact campaign measurements. The chart uses years on the horizontal axis,
+count bars against the left passages/day axis, and mean-speed/V85 lines against
+the right km/h axis. Multiple campaigns within a year have separate marks;
+missing years or speeds break lines. The table includes numeric/textual peak-hour
+measurements and coverage where available. Tabs support arrow keys, Home and End,
+retain the chosen view across filter changes, and trigger no extra download.
+Dataset attribution and the publication date are also displayed. Missing years and
+missing measurements are shown explicitly, separately from measured zero.
+Multiple campaigns in one year remain distinct. Combined directions are selected
+initially when available and are never added to their directional components.
+Population, direction and year controls filter measurements locally.
+
+The client validates schema/version, datasource identity, campaign references,
+unique IDs and nullable integer measurements before rendering. Unknown counters,
+empty selections and unavailable or invalid histories have explicit states.
+Descriptions and peak text are rendered as text, and attribution links accept
+only HTTP(S) URLs. Tables scroll horizontally on smaller screens.
+
+uMap popup links and embedding remain future work.
+
 ## Source layout
 
 - `index.html`: page structure and application entry point.
@@ -150,6 +194,11 @@ Rebuild and deploy after adding or changing paths.
 - `build/map-pages.ts`: static direct map pages and development routes.
 - `src/overview.ts`: loads overview layers and connects map selection controls.
 - `src/count-data.ts`: framework-independent layer URLs, validation and download cache.
+- `counter.html` and `src/counter-page.ts`: standalone counter-history view, chart,
+  local filters, exact measurements and coverage.
+- `src/history-data.ts`: canonical history types, validation, source download cache,
+  series selection and encoded popup URLs.
+- `src/counter-page.css`: counter-details layout and chart styles.
 - `src/count-map.ts`: Leaflet count-layer lifecycle and counter popups.
 - `src/count-clusters.ts`: population-specific clustering and point icons.
 - `src/icons/`: the original car and bicycle Osmic pictograms, downloaded from

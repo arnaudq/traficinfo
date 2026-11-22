@@ -13,6 +13,7 @@ export default defineConfig({
       input: {
         map: fileURLToPath(new URL('./index.html', import.meta.url)),
         licences: fileURLToPath(new URL('./licences.html', import.meta.url)),
+        counter: fileURLToPath(new URL('./counter.html', import.meta.url)),
       },
     },
     // Keep the deployed JavaScript readable while the prototype is small.

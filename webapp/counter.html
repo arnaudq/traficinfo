@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <base href="./" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#173c35" />
+    <title>Historique du compteur — TraficInfo</title>
+    <script type="module" src="./src/counter-page.ts"></script>
+  </head>
+  <body class="counter-page">
+    <header class="site-header">
+      <h1>
+        <a href="./">Trafic<span>Info</span></a>
+      </h1>
+      <a id="back-to-map" class="back-to-map" href="./">← Retour à la carte</a>
+    </header>
+    <main class="history-content" id="history-main">
+      <p class="history-eyebrow">Détail du compteur</p>
+      <h2 id="counter-title">Historique des comptages</h2>
+      <p id="history-status" role="status">Chargement de l’historique…</p>
+      <button id="history-retry" type="button" hidden>Réessayer</button>
+      <div id="history-content"></div>
+      <noscript
+        >Activez JavaScript pour afficher l’historique du compteur.</noscript
+      >
+    </main>
+    <footer class="site-footer">
+      <span>© 2026 Arnaud Quillaud</span>
+      <nav aria-label="Informations légales">
+        <a href="__SOURCE_URL__">Code source</a>
+        <a href="./licences.html">Licences</a>
+      </nav>
+    </footer>
+  </body>
+</html>

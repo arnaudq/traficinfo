@@ -397,3 +397,9 @@ a {
   font-size: 11px;
   text-decoration: underline;
 }
+
+.counter-popup .counter-details-link {
+  display: inline-block;
+  margin-top: 8px;
+  font-weight: 600;
+}
