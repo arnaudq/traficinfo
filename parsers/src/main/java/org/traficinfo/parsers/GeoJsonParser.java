@@ -1,5 +1,13 @@
 package org.traficinfo.parsers;
 
+import org.traficinfo.parsers.history.Canonicalizer;
+import org.traficinfo.parsers.m3m.M3MCanonicalizer;
+import org.traficinfo.parsers.dpt30.DPT30Canonicalizer;
+import org.traficinfo.parsers.dpt34.DPT34Canonicalizer;
+import org.traficinfo.parsers.dpt76.DPT76Canonicalizer;
+import org.traficinfo.parsers.mrn.MRNCanonicalizer;
+import org.traficinfo.parsers.nim.NIMCanonicalizer;
+import org.traficinfo.parsers.ren.RENCanonicalizer;
 import org.traficinfo.parsers.dpt34.DPT34Comptage;
 import org.traficinfo.parsers.dpt34.DPT34ComptageParser;
 import org.traficinfo.parsers.mrn.MRNComptage;
@@ -30,23 +38,26 @@ import java.util.stream.Collectors;
 public class GeoJsonParser {
 
     public enum DataSource {
-        M3MV2("MMM", new M3MComptageParser(), M3MComptage.class),
-        DPT34("DPT34", new DPT34ComptageParser(), DPT34Comptage.class),
-        DPT30("DPT30", new DPT30ComptageParser(), DPT30Comptage.class),
-        DPT76("DPT76", new DPT76ComptageParser(), DPT76Comptage.class),
-        REN("REN", new RENComptageParser(), RENComptage.class),
-        MRN("MRN", new MRNComptageParser(), MRNComptage.class),
-        NIM("NIM", new NIMComptageParser(), NIMComptage.class);
+        M3MV2("MMM", new M3MComptageParser(), M3MComptage.class, new M3MCanonicalizer()),
+        DPT34("DPT34", new DPT34ComptageParser(), DPT34Comptage.class, new DPT34Canonicalizer()),
+        DPT30("DPT30", new DPT30ComptageParser(), DPT30Comptage.class, new DPT30Canonicalizer()),
+        DPT76("DPT76", new DPT76ComptageParser(), DPT76Comptage.class, new DPT76Canonicalizer()),
+        REN("REN", new RENComptageParser(), RENComptage.class, new RENCanonicalizer()),
+        MRN("MRN", new MRNComptageParser(), MRNComptage.class, new MRNCanonicalizer()),
+        NIM("NIM", new NIMComptageParser(), NIMComptage.class, new NIMCanonicalizer());
 
-        private DataSource(String id, ComptageParser parser, Class<? extends Comptage> dsComptageClass) {
+        private DataSource(String id, ComptageParser parser, Class<? extends Comptage> dsComptageClass,
+                           Canonicalizer canonicalizer) {
             this.id = id;
             this.parser = parser;
             this.dsComptageClass = dsComptageClass;
+            this.canonicalizer = canonicalizer;
         }
 
         private final String id;
         private final ComptageParser parser;
         private final Class<? extends Comptage> dsComptageClass;
+        private final Canonicalizer canonicalizer;
 
         public String getId() {
             return id;
@@ -64,6 +75,11 @@ public class GeoJsonParser {
 
         public Class<? extends Comptage> getDsComptageClass() {
             return dsComptageClass;
+        }
+
+        /** Returns this datasource's stateless adapter to canonical counter history. */
+        public Canonicalizer getCanonicalizer() {
+            return canonicalizer;
         }
 
         public ComptageParser getParser() {

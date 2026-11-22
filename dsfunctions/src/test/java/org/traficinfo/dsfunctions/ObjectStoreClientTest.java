@@ -168,6 +168,26 @@ public class ObjectStoreClientTest {
     }
 
     @Test
+    public void publishesCompressedJsonWithExplicitCacheControl() throws Exception {
+        ObjectStorage storage = (ObjectStorage) Proxy.newProxyInstance(
+                ObjectStorage.class.getClassLoader(), new Class<?>[]{ObjectStorage.class},
+                (proxy, method, args) -> {
+                    assertEquals("putObject", method.getName());
+                    var request = (PutObjectRequest) args[0];
+                    assertEquals("public, max-age=300", request.getCacheControl());
+                    assertEquals("application/json", request.getContentType());
+                    assertEquals("gzip", request.getContentEncoding());
+                    try (var gzip = new GZIPInputStream(request.getPutObjectBody())) {
+                        assertEquals("{}", new String(gzip.readAllBytes(), StandardCharsets.UTF_8));
+                    }
+                    return PutObjectResponse.builder().build();
+                });
+        new ObjectStoreClient(storage, "namespace", "bucket").putResource("history/MMM.json",
+                "application/json", new OOSResourceMetadata(),
+                new ByteArrayInputStream("{}".getBytes(StandardCharsets.UTF_8)), "public, max-age=300");
+    }
+
+    @Test
     public void doesNotUploadWhenSourceCannotBeRead() {
         ObjectStorage storage = (ObjectStorage) Proxy.newProxyInstance(
                 ObjectStorage.class.getClassLoader(), new Class<?>[]{ObjectStorage.class},

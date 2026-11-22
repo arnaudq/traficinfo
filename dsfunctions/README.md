@@ -1209,3 +1209,81 @@ functions, reconcile events and schedules, and invoke `ds REN`, `preprocess REN`
 then `geojson REN` with `scripts/invoke.sh`. Rebuild the webapp or import the
 regenerated REN uMap template after the public output exists. Popup branding
 uses `REN_Logo.png` in the public output bucket when that asset is supplied.
+
+
+## Canonical counter history export
+
+`HistoryPublicationFunction` publishes the complete retained counter history for
+one datasource to `traficinfo/history/<datasourceId>.json` (or the configured
+`BUCKETNAME_OUT`). It reads the private manifest once and validates every
+referenced yearly object, including inactive datasets, before rendering and
+replacing the public file. It does not apply GeoJSON age, population or range
+filters and does not request OSM enrichment.
+
+After the normal shared setup, deploy and invoke it with:
+
+```sh
+./scripts/deploy-functions.sh history
+./scripts/invoke.sh history MMM
+```
+
+The function accepts `{"datasourceId":"MMM"}`. Its input bucket comes exclusively
+from the release's bundled `dsconfig.json`. Run it after preprocessing, including
+after importing an archive. This stage is invoked explicitly; existing Events
+rules and schedules are unchanged. Repeated invocations replace the same public
+object and set a new publication timestamp. Do not run overlapping publishers
+for the same datasource.
+
+The public format is defined in the
+[counter-history specification](../specs/counter-details-and-website.md).
+The history model, `HistoryInput`, `HistoryExport` and the `Canonicalizer`
+interface live in the parsers module's `org.traficinfo.parsers.history` package.
+Each canonicalizer implementation lives in its datasource package alongside the
+parser and model. `GeoJsonParser.DataSource` registers them together. This module retains manifest
+reading/validation and public-object publication; see the
+[parser usage](../parsers/README.md#canonical-counter-history).
+
+`counters` is keyed by exact string `codeCentrale`; each counter has site metadata
+and a `campaigns` array. Campaigns group counts by reporting year, dataset and
+available campaign descriptors. Counts share canonical population, direction,
+daily/peak averages, speed and coverage fields across publishers. Campaigns expose
+canonical `countingMode` (`PERMANENT`, `TEMPORARY`, `UNKNOWN`) from explicit source
+classifications, allowing a site's operation to change between campaigns. NIM
+always exports `PERMANENT`, including campaigns with partial coverage. REN has
+no retained mode classification and exports `UNKNOWN`. MMM records marked
+`ne pas tenir compte` are canonicalized as `DISREGARDED` and excluded before
+campaign grouping and site-metadata selection. Disregarded records cannot cause
+mode conflicts, and counters with no usable records are omitted. The private
+source history remains intact.
+Only canonical fields are published. All numeric count measurements are nullable
+integers, rounded to the nearest integer with half values rounded up. For
+example, Rennes' `123.5` peak is exported as `morningPeakAverage: 124`, with
+`morningPeakText: "123.5"` retaining its available source representation. Morning
+and evening peak text also preserve source hour intervals; unparseable text
+remains available with a null numeric value. NIM retains null averages and
+observed-day/hour coverage. DPT76's
+published directional values accompany its combined count without recomputation.
+
+Campaign and count IDs, ordering and metadata selection are deterministic.
+Identical canonical duplicates collapse; conflicting counts with the same
+campaign/channel/population fail the export instead of choosing a measurement.
+Historical metadata uses the latest nonblank value for each site field, with a
+deterministic tie-break for records in the same reporting period. No partial
+export is uploaded when input validation, campaign grouping or serialization
+fails. Upload failures are reported through the standard function error boundary.
+
+Files use `application/json`, `Content-Encoding: gzip`, and
+`Cache-Control: public, max-age=300`. A browser should cache/reuse a datasource
+file across counter visits. No bucket listing or query service is required.
+Charts and uMap links remain future work.
+
+The export can only normalize information retained in private yearly records.
+MMM currently stores daily averages and legacy speeds as primitive integers,
+which cannot distinguish source blanks from zero. Its nonpositive averages and
+legacy nonpositive speeds are exported as null; nullable source measurements
+preserve genuine zeros. MMM's average is marked as working-day data, with annual
+or campaign basis derived from counter type. Exact campaign dates and channel
+labels absent from stored MMM records cannot be reconstructed. MRN campaigns
+use retained type/details as discriminators; ambiguous records with no further
+campaign identity fail rather than being merged arbitrarily. These limitations
+do not change the private storage schema.

@@ -50,6 +50,56 @@ and `/uploads/pictogram/bicycle.svg`) per population.
 The model also supports `PIETONS_VELOS` (mixed pedestrian and bicycle counts)
 and `UNKNOWN`; these remain excluded by the export's existing type filter.
 
+## Canonical counter history
+
+`org.traficinfo.parsers.history` contains the complete history representation and
+its conversion from source records, independently of OCI and function code:
+
+- `CounterHistory` is the public datasource document: shared dataset attribution
+  and counters, each containing campaigns and canonical counts.
+- `HistoryInput` carries a source manifest and its records after storage validation.
+- `Canonicalizer` converts one source record into campaign descriptors and
+  measurements. Its `displayName` method supplies the count-agnostic site name.
+- `HistoryExport` assembles the complete hierarchy with deterministic grouping,
+  IDs, metadata selection and duplicate/conflict checks.
+
+Each `GeoJsonParser.DataSource` registers its parser, record class and a stateless
+canonicalizer in the datasource's Java package (`M3MCanonicalizer`, `DPT30Canonicalizer`, `DPT34Canonicalizer`,
+`DPT76Canonicalizer`, `MRNCanonicalizer`, `NIMCanonicalizer`, `RENCanonicalizer`).
+For example, `m3m.M3MCanonicalizer` lives beside `m3m.M3MComptageParser`; the
+interface, history models and shared normalization helpers stay in `history`.
+Use `source.getCanonicalizer().canonicalize(record)` for one record, or build a
+complete datasource history with:
+
+```java
+CounterHistory history = new HistoryExport().build(
+    new HistoryInput(manifest, records), Instant.now());
+```
+
+`HistoryExport` chooses the registered canonicalizer from the manifest's datasource
+ID. It preserves all supplied years and populations without applying map filters,
+except records explicitly marked unusable by the publisher: MMM's
+`ne pas tenir compte` classification becomes `CountingMode.DISREGARDED` and is
+excluded before campaign grouping and metadata selection. Other unknown
+classifications remain usable as `UNKNOWN`; an entirely disregarded counter is
+omitted. The `history/MMM_4584_2013.csv` test fixture reproduces the three pairs
+of valid/disregarded rows in the October 31, 2022 MMM archive.
+NIM campaigns are always permanent. Canonical numeric measurements use nullable
+`Integer` values, rounding source decimals to the nearest integer with half
+values rounded up. `morningPeakText` and `eveningPeakText` retain the available
+peak representation alongside `morningPeakAverage` and `eveningPeakAverage`,
+including unrounded source values and measurement intervals. Unparseable peak
+text is retained with a null numeric value. Coverage remains available. The common `CanonicalValues`
+helper handles value normalization without dispatching on source record types.
+
+The caller validates the manifest and referenced data before assembly, then handles
+serialization and I/O. In `dsfunctions`, `ManifestComptageReader` supplies this
+validated input and `HistoryPublisher` writes one compressed public object per
+datasource. See the [history specification](../specs/counter-details-and-website.md)
+and [publication commands](../dsfunctions/README.md#canonical-counter-history-export).
+When adding a datasource, implement and register its canonicalizer alongside its
+parser and record class, and test the source's canonical measurement semantics.
+
 ## Counter identity and measurement identity
 
 `Comptage.getCodeCentrale()` identifies a source-specific counter/site across

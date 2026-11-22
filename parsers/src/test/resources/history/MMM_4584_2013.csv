@@ -1,0 +1,7 @@
+objectid,id_centrale,code_centrale,annee,libelle_groupage,type_compteur,type_comptage,nb_canaux,nb_annee,code_canal,mja_jo,mja_tcj,mja_pl_tcj,hp_johvs_matin,hp_johvs_soir,tir_tcj,v85ma_tcj,vtma_tcj,descriptif_periode,time_days,name,oneway,ref_mmm,highway,nom_commune,cycles,osm_id
+6456,19,4584,2013,Sens cumulés,ne pas tenir compte,comptage bidirectionnel,3,10,Z,27501,25196,1391,,,,,,du 01/01/2013 au 31/12/2013,364, ,UNKNOWN, ,primary,Vendargues, ,22956962
+6455,19,4584,2013,Sens cumulés,compteur permanent,comptage bidirectionnel,3,10,Z,27501,25196,1391,,,,,,du 01/01/2013 au 31/12/2013,364, ,UNKNOWN, ,primary,Vendargues, ,22956962
+6454,19,4584,2013,RM610_RM613,ne pas tenir compte,comptage bidirectionnel,3,10,1,14433,13161,714,1052 (8h00 - 9h00),1384 (17h00 - 18h00),18,74,59,du 01/01/2013 au 31/12/2013,364, ,UNKNOWN, ,primary,Vendargues, ,22956962
+6453,19,4584,2013,RM610_RM613,compteur permanent,comptage bidirectionnel,3,10,1,14433,13161,714,1052 (8h00 - 9h00),1384 (17h00 - 18h00),18,74,59,du 01/01/2013 au 31/12/2013,364, ,UNKNOWN, ,primary,Vendargues, ,22956962
+6451,19,4584,2013,RM613_RM610,compteur permanent,comptage bidirectionnel,3,10,0,13068,12035,677,1083 (8h00 - 9h00),1036 (17h00 - 18h00),19,75,59,du 01/01/2013 au 31/12/2013,364, ,UNKNOWN, ,primary,Vendargues, ,22956962
+6452,19,4584,2013,RM613_RM610,ne pas tenir compte,comptage bidirectionnel,3,10,0,13068,12035,677,1083 (8h00 - 9h00),1036 (17h00 - 18h00),19,75,59,du 01/01/2013 au 31/12/2013,364, ,UNKNOWN, ,primary,Vendargues, ,22956962

@@ -133,13 +133,19 @@ public class ObjectStoreClient implements AutoCloseable {
 
     public void putResource(String resourceName, String contentType, OOSResourceMetadata metadata,
                               InputStream inputStream) throws IOException {
-        writeResource(resourceName, contentType, metadata, inputStream, false);
+        writeResource(resourceName, contentType, metadata, inputStream, false, null);
+    }
+
+    /** Publishes a browser-readable object with an explicit HTTP cache lifetime. */
+    public void putResource(String resourceName, String contentType, OOSResourceMetadata metadata,
+                            InputStream inputStream, String cacheControl) throws IOException {
+        writeResource(resourceName, contentType, metadata, inputStream, false, cacheControl);
     }
 
     /** Atomically creates an Object only if its name is absent. No ETag is involved. */
     public boolean createResource(String resourceName, String contentType, OOSResourceMetadata metadata,
                                   InputStream inputStream) throws IOException {
-        return writeResource(resourceName, contentType, metadata, inputStream, true);
+        return writeResource(resourceName, contentType, metadata, inputStream, true, null);
     }
 
     public void deleteResource(String resourceName) {
@@ -148,7 +154,7 @@ public class ObjectStoreClient implements AutoCloseable {
     }
 
     private boolean writeResource(String resourceName, String contentType, OOSResourceMetadata metadata,
-                                  InputStream inputStream, boolean createOnly) throws IOException {
+                                  InputStream inputStream, boolean createOnly, String cacheControl) throws IOException {
         // Stage compressed bytes on disk to avoid buffering an entire dataset in memory.
         Path compressedFile = Files.createTempFile("traficinfo-", ".gz");
         try {
@@ -162,6 +168,7 @@ public class ObjectStoreClient implements AutoCloseable {
                         .bucketName(bucketName)
                         .objectName(resourceName)
                         .contentType(contentType)
+                        .cacheControl(cacheControl)
                         .ifNoneMatch(createOnly ? "*" : null)
                         .contentEncoding("gzip")
                         .contentLength(Files.size(compressedFile))

@@ -63,9 +63,13 @@ inspect `dpt30/` or `dpt34/`. Keep source-specific models independent rather tha
 inheriting another department's model.
 
 Implement `Comptage` and `ComptageParser`, including Reader/file entry points and
-display-name overrides. Register the source ID, parser and model class in
-`GeoJsonParser.DataSource`. The registry also supports model storage and source
-selection by the comparison tools.
+display-name overrides. Implement `history.Canonicalizer` in the datasource's
+Java package beside its parser and model. Register the source ID, parser, model
+class and canonicalizer in `GeoJsonParser.DataSource`. The registry also supports
+model storage and source selection by the comparison tools. The canonicalizer
+normalizes source measurements, campaign identity, counting mode and site-name
+semantics for the shared history export; see the
+[parser usage](../parsers/README.md#canonical-counter-history).
 
 Keep a prefixed counter ID, explicit observation year and nullable source measures.
 Separate counter/site identity (the GeoJSON and OSM grouping key) from measurement

@@ -528,7 +528,8 @@ class OciScriptsTest(unittest.TestCase):
         self.script('invoke.sh', 'geojson', 'NIM', success=False)
         self.assertNotIn('calls', self.state)
         self.script('setup-events.sh')
-        self.assertEqual(len(self.state['rules']), 11)
+        expected_rules = len(config) + sum(source.get('geoJsonEnabled', True) for source in config.values())
+        self.assertEqual(expected_rules, len(self.state['rules']))
         self.assertEqual(['NIMRetrievalToPreprocessing'], [item['display-name'] for item in self.state['rules'] if 'NIM' in item['display-name']])
 
     def test_sources_without_geojson_still_have_preprocessing_events(self):
@@ -611,6 +612,23 @@ class OciScriptsTest(unittest.TestCase):
         self.script('invoke.sh', 'ds', 'DPT34')
         self.assertIn('--read-timeout', self.state['calls'][-1])
         self.script('invoke.sh', 'ds', 'UNKNOWN', success=False)
+
+    def test_history_deployment_and_manual_invocation(self):
+        self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main history')
+        function = next(f for f in self.state['functions'] if f['display-name'] == 'HistoryPublicationFunction')
+        self.assertEqual({'NAMESPACE': 'testnamespace', 'BUCKETNAME_OUT': 'traficinfo',
+                          'METRICS_COMPARTMENT_ID': 'ocid1.compartment.test'}, function['config'])
+        self.assertEqual(300, function['timeout-in-seconds'])
+        self.assertEqual({}, function['defined-tags'])
+        self.assertEqual([], self.state['schedules'])
+        self.script('invoke.sh', 'history', 'MMM')
+        call = self.state['calls'][-1]
+        self.assertEqual('ocid1.fnfunc.HistoryPublicationFunction', call[call.index('--function-id') + 1])
+        self.assertEqual({'datasourceId': 'MMM'}, json.loads(call[call.index('--body') + 1]))
+        self.assertEqual('360', call[call.index('--read-timeout') + 1])
+        self.script('invoke.sh', 'history', 'UNKNOWN', success=False)
+        for args in [(), ('MMM', 'extra')]:
+            self.assertIn('Usage:', self.script('invoke.sh', 'history', *args, success=False).stderr)
 
     def test_boundary_deployment_and_manual_invocation(self):
         self.deployment_common('build_jar() { :; }; validate_jar() { :; }; main boundaries')
@@ -709,7 +727,7 @@ class OciScriptsTest(unittest.TestCase):
                     self.state['writes'] = []
                     self.save()
                 self.deploy()
-                self.assertEqual(len(self.state['writes']), 7)
+                self.assertEqual(len(self.state['writes']), 8)
                 for function in self.state['functions']:
                     self.assertEqual('ocid1.compartment.test', function['config']['METRICS_COMPARTMENT_ID'])
                 functions = {f['display-name']: f for f in self.state['functions']}

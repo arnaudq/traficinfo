@@ -20,13 +20,14 @@ functions=(
   'DataSourceFunction|ds|org.traficinfo.dsfunctions.DataSourceFunction::handleRequest'
   'PreprocessingFunction|preprocess|org.traficinfo.dsfunctions.PreprocessingFunction::handleRequest'
   'GeoJsonFunction|geojson|org.traficinfo.dsfunctions.GeoJsonFunction::handleRequest'
+  'HistoryPublicationFunction|history|org.traficinfo.dsfunctions.HistoryPublicationFunction::handleRequest'
   'ONISRAccidentFunction|accidents|org.traficinfo.dsfunctions.ONISRAccidentFunction::handleRequest'
   'AccidentPublicationFunction|accident-publication|org.traficinfo.dsfunctions.AccidentPublicationFunction::handleRequest'
   'BoundaryFunction|boundaries|org.traficinfo.dsfunctions.BoundaryFunction::handleRequest'
 )
 
 usage() {
-  printf 'Usage: %s [ds | preprocess | geojson | osm | accidents | accident-publication | boundaries]\n' "$0" >&2
+  printf 'Usage: %s [ds | preprocess | geojson | history | osm | accidents | accident-publication | boundaries]\n' "$0" >&2
 }
 
 select_functions() {
@@ -45,6 +46,10 @@ select_functions() {
     geojson)
       if [ "$#" -ne 1 ]; then usage; return 1; fi
       functions=('GeoJsonFunction|geojson|org.traficinfo.dsfunctions.GeoJsonFunction::handleRequest')
+      ;;
+    history)
+      if [ "$#" -ne 1 ]; then usage; return 1; fi
+      functions=('HistoryPublicationFunction|history|org.traficinfo.dsfunctions.HistoryPublicationFunction::handleRequest')
       ;;
     accidents)
       if [ "$#" -ne 1 ]; then usage; return 1; fi
@@ -135,7 +140,7 @@ build_function_config() {
       '{NAMESPACE: $namespace, METRICS_COMPARTMENT_ID: $compartment}'
     return
   fi
-  if [ "$type" = accident-publication ]; then
+  if [ "$type" = accident-publication ] || [ "$type" = history ]; then
     validate_bucket_name "$output_bucket" BUCKETNAME_OUT || return
     jq -cn --arg namespace "$namespace" --arg output "$output_bucket" --arg compartment "$compartment" \
       '{NAMESPACE: $namespace, BUCKETNAME_OUT: $output, METRICS_COMPARTMENT_ID: $compartment}'
@@ -293,7 +298,7 @@ main() {
     defined_tags+=("$tags")
     timeout=''
     if [ "$type" = ds ]; then timeout="$(jq -r '[.[] | .datasets[.activeDatasetId].timeoutSeconds // 30] | max' <<< "$sources")"; fi
-    if [ "$type" = preprocess ] || [ "$type" = geojson ] || [ "$type" = accidents ] || [ "$type" = boundaries ] || [ "$type" = accident-publication ]; then timeout=300; fi
+    if [ "$type" = preprocess ] || [ "$type" = geojson ] || [ "$type" = accidents ] || [ "$type" = boundaries ] || [ "$type" = accident-publication ] || [ "$type" = history ]; then timeout=300; fi
     timeouts+=("$timeout")
   done
   application_id="$(resolve_application_id)"
