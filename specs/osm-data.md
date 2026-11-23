@@ -23,7 +23,7 @@ We use two APIs:
   finds an OSM object near a counter's latitude and longitude. We request road
   level results and accept only suitable road ways. A supported road classification
   may come from `category=highway` and `type`, or from `extratags.highway`; this
-  also accepts road ways classified as administrative boundaries by Nominatim.
+  also accepts road ways classified as administrative or political boundaries by Nominatim.
   Where available, the source road reference is compared with OSM's `namedetails.ref` (using `namedetails=1`), allowing formatting differences
   such as `D0011` versus `D 11` or `D0111E01` versus `D 111E1`. Source street
   names are also compared with the candidate's names. If both identifiers are
@@ -54,7 +54,7 @@ Use the first applicable row:
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `way` | Valid | `highway` | Supported road type | Any | Any | Any | Compare references below |
 | `way` | Valid | Any | Any | Supported road type | Any | Any | Compare references below |
-| `way` | Valid | `boundary` | `administrative` | Any | Present, nonblank | Present, nonblank | Compare references below (heuristic) |
+| `way` | Valid | `boundary` | `administrative` or `political` | Any | Present, nonblank | Present, nonblank | Compare references below (heuristic) |
 | `node`, `relation`, other, or missing | Any | Any | Any | Any | Any | Any | `NOT_FOUND` (`no_road_way`) |
 | `way` | Missing, zero, negative, fractional, malformed, or overflowing | Any | Any | Any | Any | Any | `NOT_FOUND` (`no_road_way`) |
 | `way` | Valid | Any remaining combination | Any | Unsupported or missing | Any | Any | `NOT_FOUND` (`no_road_way`) |
@@ -73,10 +73,11 @@ and `extratags.highway=primary` qualifies as a road. Its `namedetails.ref=D 925`
 matches source identifier `D0925`, producing `MATCHED`.
 
 Nominatim sometimes omits `highway` for a way classified as an administrative
-boundary. As a heuristic, such a way qualifies when both `extratags.lanes` and
+or political boundary. As a heuristic, such a way qualifies when both `extratags.lanes` and
 `extratags.maxspeed` have nonblank values. This covers Boulevard Pierre Le Moine
 (way `22935229`, `lanes=1`, `maxspeed=30`) and Boulevard de la Robiquette
-(way `189217217`, `lanes=2`, `maxspeed=50`). These tags are evidence of a road,
+(way `189217217`, `lanes=2`, `maxspeed=50`), and Boulevard Émile Combes
+(way `460526135`, political boundary, `lanes=2`, `maxspeed=50`). These tags are evidence of a road,
 not verification of its actual highway classification. Reference/name validation
 still applies. No additional HTTP request is made; accepted ways follow the
 normal queued way-tag refresh, and the original reverse response is preserved.
@@ -104,8 +105,8 @@ When a source identifier exists, `NEEDS_REVIEW` has reason `missing_osm_ref`
 if the OSM reference is absent, or `different_ref` if it differs. Without a
 source identifier, a suitable road way is accepted regardless of its reference.
 OSM references separated by `;` are compared individually; any normalized match
-is sufficient. `maxspeed` and `lanes` are used together only for the administrative
-boundary heuristic above; `admin_level` does not determine candidate acceptance.
+is sufficient. `maxspeed` and `lanes` are used together only for the administrative/
+political boundary heuristic above; `admin_level` does not determine candidate acceptance.
 
 Departmental prefixes `RD` and `D` are equivalent in both directions: `RD135`
 matches `D 135`, and `RD00135A` matches `D 135 A`. This also applies when a

@@ -688,11 +688,11 @@ All reverse interaction is initiated by `OSMInfoProviderImpl.refreshWayMappings(
 It uses valid cached coordinates and requests Nominatim with `format=jsonv2`,
 `zoom=17`, `layer=address`, `extratags=1`, and `namedetails=1`. Only positive OSM **way** IDs with
 road highway classifications are accepted, using `category=highway` with
-an accepted `type`, an accepted `extratags.highway` value, or the administrative
-boundary heuristic: `category=boundary`, `type=administrative`, and nonblank
+an accepted `type`, an accepted `extratags.highway` value, or the boundary
+heuristic: `category=boundary`, `type=administrative` or `political`, and nonblank
 `extratags.lanes` and `extratags.maxspeed`. The heuristic requires no extra lookup
 and still applies the reference/name checks below. This permits road
-ways classified by Nominatim as administrative boundaries. Nodes, relations,
+ways classified by Nominatim as administrative or political boundaries. Nodes, relations,
 and ways without a supported road classification (such as steps or buildings)
 are rejected. `footway`, `cycleway`, `path`, `pedestrian`, and `track` are accepted for every counter
 regardless of transport type or bicycle-access tags. When `REVIEW_ROAD_MISMATCHES=true`,

@@ -181,14 +181,19 @@ public class OSMReverseMappingTest {
     }
 
     @Test
-    public void acceptsAdministrativeBoundaryWaysWithLanesAndMaxspeedWithoutExtraLookup() throws Exception {
-        for (String scenario : List.of("pierre_le_moine", "robiquette", "matching_ref", "different_ref",
+    public void acceptsBoundaryWaysWithLanesAndMaxspeedWithoutExtraLookup() throws Exception {
+        for (String scenario : List.of("pierre_le_moine", "robiquette", "emile_combes",
+                "political_missing_lanes", "political_missing_maxspeed", "matching_ref", "different_ref",
                 "missing_lanes", "missing_maxspeed", "blank_lanes", "null_maxspeed", "no_tags",
                 "wrong_category", "wrong_type", "node", "relation", "invalid_id")) {
             var result = JSON.createObjectNode().put("osm_type", "way").put("osm_id", 22935229)
                     .put("category", "boundary").put("type", "administrative")
                     .put("name", "Boulevard Pierre Le Moine");
             var tags = result.putObject("extratags").put("lanes", "1").put("maxspeed", "30");
+            if (scenario.equals("emile_combes") || scenario.startsWith("political_")) {
+                result.put("osm_id", 460526135).put("type", "political").put("name", "Boulevard Émile Combes");
+                tags.put("lanes", "2").put("maxspeed", "50");
+            }
             switch (scenario) {
                 case "robiquette" -> {
                     result.put("osm_id", 189217217).put("name", "Boulevard de la Robiquette");
@@ -196,8 +201,8 @@ public class OSMReverseMappingTest {
                     result.putObject("namedetails").put("ref", "D 637");
                 }
                 case "matching_ref", "different_ref" -> result.putObject("namedetails").put("ref", "D 637");
-                case "missing_lanes" -> tags.remove("lanes");
-                case "missing_maxspeed" -> tags.remove("maxspeed");
+                case "missing_lanes", "political_missing_lanes" -> tags.remove("lanes");
+                case "missing_maxspeed", "political_missing_maxspeed" -> tags.remove("maxspeed");
                 case "blank_lanes" -> tags.put("lanes", " ");
                 case "null_maxspeed" -> tags.putNull("maxspeed");
                 case "no_tags" -> result.remove("extratags");
@@ -223,7 +228,7 @@ public class OSMReverseMappingTest {
             provider.loadCache();
             provider.refreshWayMappings(1);
             JsonNode saved = JSON.readTree(store.objects.get("mappings.json")).get("counter");
-            String expected = List.of("pierre_le_moine", "robiquette", "matching_ref").contains(scenario)
+            String expected = List.of("pierre_le_moine", "robiquette", "emile_combes", "matching_ref").contains(scenario)
                     ? "MATCHED" : scenario.equals("different_ref") ? "NEEDS_REVIEW" : "NOT_FOUND";
             assertEquals(scenario, expected, saved.get("status").asText());
             assertEquals(result, saved.get("reverseLookupResult"));
