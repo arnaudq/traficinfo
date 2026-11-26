@@ -1,10 +1,12 @@
 package org.traficinfo.dsfunctions.dpt34;
 
+import org.traficinfo.dsfunctions.StubObjectStore;
+
 import org.junit.Test;
-import org.traficinfo.dsfunctions.OOSResourceMetadata;
+import org.traficinfo.dsfunctions.ObjectMetadata;
 import org.traficinfo.dsfunctions.DataSourceSettings;
 import org.traficinfo.dsfunctions.DataSourceTestSettings;
-import org.traficinfo.dsfunctions.ObjectStoreClient;
+import org.traficinfo.dsfunctions.ObjectStore;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -39,7 +41,7 @@ public class SourceObjectPublisherTest {
         stub.publisher().publish(SETTINGS);
         assertEquals(List.of(OBJECT), stub.uploads);
         assertArrayEquals(CSV, stub.contents.get(OBJECT));
-        OOSResourceMetadata metadata = stub.metadata.get(OBJECT);
+        ObjectMetadata metadata = stub.metadata.get(OBJECT);
         assertEquals("\"" + ETAG + "\"", metadata.getETag());
         assertNotNull(metadata.getMetadata().get("downloaded-at"));
         assertEquals(LocalDate.now(ZoneOffset.UTC).format(DateTimeFormatter.BASIC_ISO_DATE),
@@ -134,7 +136,7 @@ public class SourceObjectPublisherTest {
 
     private static class SourceStub {
         final Map<String, byte[]> contents = new HashMap<>();
-        final Map<String, OOSResourceMetadata> metadata = new HashMap<>();
+        final Map<String, ObjectMetadata> metadata = new HashMap<>();
         final List<String> uploads = new ArrayList<>();
         byte[] downloadBytes = CSV;
         int downloads;
@@ -146,9 +148,9 @@ public class SourceObjectPublisherTest {
         boolean failCurrentUpload;
 
         SourceObjectPublisher publisher() {
-            ObjectStoreClient storage = new ObjectStoreClient(null, "namespace", "dsdpt34") {
+            ObjectStore storage = new StubObjectStore() {
                 @Override
-                public OOSResourceMetadata getResourceMetadata(String name) {
+                public ObjectMetadata getResourceMetadata(String name) {
                     return metadata.get(name);
                 }
 
@@ -159,7 +161,7 @@ public class SourceObjectPublisherTest {
                 }
 
                 @Override
-                public void putResource(String name, String type, OOSResourceMetadata meta,
+                public void putResource(String name, String type, ObjectMetadata meta,
                                         InputStream input) throws IOException {
                     assertEquals("text/csv", type);
                     if ((name.equals(OBJECT) && failCurrentUpload)
@@ -175,7 +177,7 @@ public class SourceObjectPublisherTest {
                 @Override
                 public EntityBody get(URI uri, String etag) throws IOException {
                     assertEquals(URI.create(CSV_INPUT.url()), uri);
-                    OOSResourceMetadata previous = metadata.get(OBJECT);
+                    ObjectMetadata previous = metadata.get(OBJECT);
                     assertEquals(previous == null ? null : previous.getETag(), etag);
                     downloads++;
                     if (failDownload) {

@@ -39,7 +39,7 @@ public class HttpClientTest {
                     MessageDigest.getInstance("SHA-256").digest(content.get()));
             for (String malformed : new String[]{"sd1099_-1549957653", "W/unquoted"}) {
                 serverEtag.set(malformed);
-                OOSResourceMetadata metadata = new OOSResourceMetadata();
+                ObjectMetadata metadata = new ObjectMetadata();
                 try (HttpClient.EntityBody body = client.get(uri, null)) {
                     assertEquals(expectedHash, body.getEtag());
                     assertEquals(LocalDate.of(2026, 10, 16), body.getLastModified());
@@ -94,7 +94,7 @@ public class HttpClientTest {
         server.start();
         try (HttpClient client = new HttpClient()) {
             URI uri = URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/resource");
-            OOSResourceMetadata metadata = new OOSResourceMetadata();
+            ObjectMetadata metadata = new ObjectMetadata();
             try (HttpClient.EntityBody body = client.get(uri, null)) {
                 assertArrayEquals(csv, body.getInputStream().readAllBytes());
                 metadata.setETag(body.getEtag());
@@ -127,7 +127,7 @@ public class HttpClientTest {
         server.start();
         try (HttpClient client = new HttpClient()) {
             URI uri = URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/csv");
-            OOSResourceMetadata metadata = new OOSResourceMetadata();
+            ObjectMetadata metadata = new ObjectMetadata();
             String hash = "sha256:" + HexFormat.of().formatHex(
                     MessageDigest.getInstance("SHA-256").digest(csv));
             try (HttpClient.EntityBody body = client.get(uri, null)) {

@@ -1,5 +1,8 @@
 package org.traficinfo.dsfunctions;
 
+import org.traficinfo.dsfunctions.oci.ObjectStoreClient;
+
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.oracle.bmc.model.BmcException;
@@ -178,7 +181,7 @@ public class ManifestComptageReaderTest {
         try {
             fixture.read();
             fail("Expected invalid publication to fail");
-        } catch (IOException | BmcException expected) {
+        } catch (IOException | StorageException expected) {
             assertNotNull(expected.getMessage());
         }
     }

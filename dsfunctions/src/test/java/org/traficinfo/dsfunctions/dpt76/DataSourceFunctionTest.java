@@ -1,5 +1,7 @@
 package org.traficinfo.dsfunctions.dpt76;
 
+import org.traficinfo.dsfunctions.StubObjectStore;
+
 import com.fnproject.fn.runtime.FunctionConfigurer;
 import com.fnproject.fn.runtime.FunctionLoader;
 import com.fnproject.fn.runtime.FunctionRuntimeContext;
@@ -7,8 +9,8 @@ import org.junit.Test;
 import org.traficinfo.dsfunctions.DataSourceFunction;
 import org.traficinfo.dsfunctions.DataSourceTestSettings;
 import org.traficinfo.dsfunctions.HttpClient;
-import org.traficinfo.dsfunctions.ObjectStoreClient;
-import org.traficinfo.dsfunctions.OOSResourceMetadata;
+import org.traficinfo.dsfunctions.ObjectStore;
+import org.traficinfo.dsfunctions.ObjectMetadata;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -36,7 +38,7 @@ public class DataSourceFunctionTest {
         assertEquals(List.of(GEOJSON_URI), function.requests);
         assertEquals(List.of("DPT76_Comptage_2022.geojson"), function.writes);
         assertArrayEquals(GEOJSON, function.contents.get("DPT76_Comptage_2022.geojson"));
-        OOSResourceMetadata metadata = function.metadata.get("DPT76_Comptage_2022.geojson");
+        ObjectMetadata metadata = function.metadata.get("DPT76_Comptage_2022.geojson");
         assertEquals(DataSourceTestSettings.settings("DPT76").datasetId(),
                 metadata.getMetadata().get("dataset-id"));
         assertEquals("DPT76", metadata.getMetadata().get("datasource-id"));
@@ -127,7 +129,7 @@ public class DataSourceFunctionTest {
         final List<String> validators = new ArrayList<>();
         final List<String> writes = new ArrayList<>();
         final Map<String, byte[]> contents = new HashMap<>();
-        final Map<String, OOSResourceMetadata> metadata = new HashMap<>();
+        final Map<String, ObjectMetadata> metadata = new HashMap<>();
 
         @Override protected HttpClient createHttpClient() {
             return new HttpClient() {
@@ -146,12 +148,12 @@ public class DataSourceFunctionTest {
             };
         }
 
-        @Override protected ObjectStoreClient createObjectStoreClient(String name) {
+        @Override protected ObjectStore createObjectStoreClient(String name) {
             bucket = namespace() + "/" + name;
-            return new ObjectStoreClient(null, namespace(), name) {
-                @Override public OOSResourceMetadata getResourceMetadata(String object) { return metadata.get(object); }
+            return new StubObjectStore() {
+                @Override public ObjectMetadata getResourceMetadata(String object) { return metadata.get(object); }
                 @Override public InputStream getResource(String object) { return new ByteArrayInputStream(contents.get(object)); }
-                @Override public void putResource(String object, String type, OOSResourceMetadata meta,
+                @Override public void putResource(String object, String type, ObjectMetadata meta,
                                                   InputStream input) throws IOException {
                     assertEquals("application/geo+json", type);
                     if (failArchive && !object.equals("DPT76_Comptage_2022.geojson")) throw new IOException("Archive failure");

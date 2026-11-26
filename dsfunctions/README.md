@@ -173,8 +173,21 @@ not generate preprocessing events. Archives do not match the event rule.
 
 ## Shared infrastructure
 
-`HttpClient`, `ObjectStoreClient` and `OOSResourceMetadata` implement the shared
-HTTP and Object Storage lifecycle.
+`HttpClient` implements the shared HTTP lifecycle. Processing code uses the
+`ObjectStore` interface and provider-neutral `ObjectMetadata` values for storage.
+The existing OCI implementation is `org.traficinfo.dsfunctions.oci.ObjectStoreClient`,
+constructed by the base function's storage factory. Object names, metadata keys,
+archival, gzip encoding, checksums and publication order are unchanged.
+
+The storage contract exposes reads, metadata inspection, writes with optional
+cache control, atomic create-if-absent, complete object-name listing and deletes.
+Callers close returned body streams and the store; writes do not close their
+input stream. A missing body throws `ObjectNotFoundException`, while missing
+metadata returns null. Other OCI request failures become `StorageException`,
+preserving the original exception as the cause and its request ID for diagnostics.
+Only the adapter interprets provider status codes, including create-if-absent
+conflicts. Tests can provide `ObjectStore` implementations without OCI clients.
+
 The HTTP client sends `If-None-Match` for real server ETags and returns no body
 for HTTP 304. When the server supplies no ETag or a malformed ETag (such as an
 unquoted ArcGIS validator), it stages the complete response

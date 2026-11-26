@@ -3,7 +3,6 @@ package org.traficinfo.dsfunctions;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.oracle.bmc.model.BmcException;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -18,22 +17,22 @@ class OSMWayMappingReviewStore {
     static final String NOT_FOUND_MERGED_OBJECT_NAME = "OSMWayMapping_NOT_FOUND_MERGED.json";
     static final String NOT_FOUND_OBJECT_NAME = "OSMWayMapping_NOT_FOUND.json";
     private final String objectName;
-    private final ObjectStoreClient client;
+    private final ObjectStore client;
     private final ObjectMapper mapper = new ObjectMapper()
             .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
     private Map<String, Map<String, OSMWayMapping>> previousReview;
 
     record SaveResult(boolean written, int added, int changed, int removed) { }
 
-    OSMWayMappingReviewStore(ObjectStoreClient client) {
+    OSMWayMappingReviewStore(ObjectStore client) {
         this(client, OSMWayMappingStatus.NEEDS_REVIEW);
     }
 
-    OSMWayMappingReviewStore(ObjectStoreClient client, OSMWayMappingStatus status) {
+    OSMWayMappingReviewStore(ObjectStore client, OSMWayMappingStatus status) {
         this(client, "OSMWayMapping_" + status.name() + ".json");
     }
 
-    OSMWayMappingReviewStore(ObjectStoreClient client, String objectName) {
+    OSMWayMappingReviewStore(ObjectStore client, String objectName) {
         this.client = client;
         this.objectName = objectName;
     }
@@ -57,12 +56,9 @@ class OSMWayMappingReviewStore {
             // Snapshot before approvals or cache refreshes can change any mapping records.
             previousReview = snapshot(review);
             return review;
-        } catch (BmcException failure) {
-            if (failure.getStatusCode() == 404) {
-                previousReview = null;
-                return new TreeMap<>();
-            }
-            throw failure;
+        } catch (ObjectNotFoundException missing) {
+            previousReview = null;
+            return new TreeMap<>();
         }
     }
 
@@ -110,7 +106,7 @@ class OSMWayMappingReviewStore {
         }
         byte[] json = mapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(review);
         try (InputStream input = new ByteArrayInputStream(json)) {
-            client.putResource(objectName, "application/json", new OOSResourceMetadata(), input);
+            client.putResource(objectName, "application/json", new ObjectMetadata(), input);
         }
         previousReview = current;
         return new SaveResult(true, added, changed, removed);

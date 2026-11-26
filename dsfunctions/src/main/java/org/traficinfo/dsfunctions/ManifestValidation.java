@@ -49,7 +49,7 @@ final class ManifestValidation {
      *
      * @throws IOException if reading, deserialization or any consistency check fails
      */
-    static List<? extends Comptage> readYearlyObject(ObjectStoreClient storage, int year,
+    static List<? extends Comptage> readYearlyObject(ObjectStore storage, int year,
                                                    DataManifest.YearData data, Class<? extends Comptage> countClass) throws IOException {
         MessageDigest digest = digest();
         try (InputStream raw = storage.getResource(data.object()); DigestInputStream input = new DigestInputStream(raw, digest)) {

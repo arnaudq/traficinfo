@@ -1,6 +1,5 @@
 package org.traficinfo.dsfunctions;
 
-import com.oracle.bmc.model.BmcException;
 import org.traficinfo.parsers.onisr.ONISRAccident;
 import org.traficinfo.parsers.onisr.ONISRAccidentJson;
 import org.traficinfo.parsers.onisr.ONISRAccidentParser;
@@ -30,23 +29,23 @@ import java.util.regex.Pattern;
 
 /** Local ONISR import/publication logic; clients can use real storage or an in-memory fake. */
 public final class ONISRAccidentProcessor {
-    private final ObjectStoreClient accidentStore;
+    private final ObjectStore accidentStore;
     private final Function<String, OSMInfoProviderImpl> providers;
     private final Set<String> regionalIds;
     private final ONISRAccidentJson json = new ONISRAccidentJson();
 
     /** Clients target onisrinfo and osminfo respectively; ownership stays with the caller. */
-    public ONISRAccidentProcessor(ObjectStoreClient accidentStore, ObjectStoreClient osmStore) {
+    public ONISRAccidentProcessor(ObjectStore accidentStore, ObjectStore osmStore) {
         this(accidentStore, osmStore, Set.of("30", "34", "35", "76"));
     }
 
-    public ONISRAccidentProcessor(ObjectStoreClient accidentStore, ObjectStoreClient osmStore, Set<String> regionalIds) {
+    public ONISRAccidentProcessor(ObjectStore accidentStore, ObjectStore osmStore, Set<String> regionalIds) {
         this(accidentStore, prefix -> new OSMInfoProviderImpl(osmStore, new OpenStreetMapClient(),
                 prefix + "_OSMInfo.json", prefix + "_OSMWayMapping.json"), regionalIds);
         Objects.requireNonNull(osmStore);
     }
 
-    ONISRAccidentProcessor(ObjectStoreClient accidentStore, Function<String, OSMInfoProviderImpl> providers,
+    ONISRAccidentProcessor(ObjectStore accidentStore, Function<String, OSMInfoProviderImpl> providers,
                            Set<String> regionalIds) {
         this.accidentStore = Objects.requireNonNull(accidentStore);
         this.providers = Objects.requireNonNull(providers);
@@ -216,11 +215,11 @@ public final class ONISRAccidentProcessor {
     private void putIfChanged(String name, byte[] bytes) throws IOException {
         try (InputStream existing = accidentStore.getResource(name)) {
             if (Arrays.equals(existing.readAllBytes(), bytes)) return;
-        } catch (BmcException missing) {
-            if (missing.getStatusCode() != 404) throw missing;
+        } catch (ObjectNotFoundException missing) {
+            // The initial publication has no previous object to compare.
         }
         try (InputStream input = new ByteArrayInputStream(bytes)) {
-            accidentStore.putResource(name, "application/json", new OOSResourceMetadata(), input);
+            accidentStore.putResource(name, "application/json", new ObjectMetadata(), input);
         }
     }
 

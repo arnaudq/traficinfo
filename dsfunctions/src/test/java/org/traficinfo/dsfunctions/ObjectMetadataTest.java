@@ -11,21 +11,21 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 
-public class OOSResourceMetadataTest {
+public class ObjectMetadataTest {
 
     @Test
     public void testGetETag() {
         Map<String, String> metadataMap = new HashMap<>();
-        OOSResourceMetadata metadata = new OOSResourceMetadata(metadataMap);
+        ObjectMetadata metadata = new ObjectMetadata(metadataMap);
         assertNull(metadata.getETag());
 
-        metadataMap.put(OOSResourceMetadata.OOS_RESOURCE_METADATA_CURRENT_ETAG, "12");
+        metadataMap.put(ObjectMetadata.RESOURCE_METADATA_CURRENT_ETAG, "12");
         assertEquals("\"12\"", metadata.getETag());
     }
 
     @Test
     public void testSetETag() {
-        OOSResourceMetadata metadata = new OOSResourceMetadata();
+        ObjectMetadata metadata = new ObjectMetadata();
 
         metadata.setETag(null);
         assertNull(metadata.getETag());
@@ -34,31 +34,31 @@ public class OOSResourceMetadataTest {
         assertEquals("", metadata.getETag());
 
         metadata.setETag("12");
-        assertEquals("12", metadata.getMetadata().get(OOSResourceMetadata.OOS_RESOURCE_METADATA_CURRENT_ETAG));
+        assertEquals("12", metadata.getMetadata().get(ObjectMetadata.RESOURCE_METADATA_CURRENT_ETAG));
         assertEquals("\"12\"", metadata.getETag());
 
         metadata.setETag("\"12\"");
-        assertEquals("12", metadata.getMetadata().get(OOSResourceMetadata.OOS_RESOURCE_METADATA_CURRENT_ETAG));
+        assertEquals("12", metadata.getMetadata().get(ObjectMetadata.RESOURCE_METADATA_CURRENT_ETAG));
         assertEquals("\"12\"", metadata.getETag());
 
         metadata.setETag(null);
         assertNull(metadata.getETag());
-        assertFalse(metadata.getMetadata().containsKey(OOSResourceMetadata.OOS_RESOURCE_METADATA_CURRENT_ETAG));
+        assertFalse(metadata.getMetadata().containsKey(ObjectMetadata.RESOURCE_METADATA_CURRENT_ETAG));
     }
 
     @Test
     public void testGetLastModified() {
         Map<String, String> metadataMap = new HashMap<>();
-        OOSResourceMetadata metadata = new OOSResourceMetadata(metadataMap);
+        ObjectMetadata metadata = new ObjectMetadata(metadataMap);
         assertNull(metadata.getLastModified());
 
-        metadataMap.put(OOSResourceMetadata.OOS_RESOURCE_METADATA_LAST_MODIFIED, "2007");
+        metadataMap.put(ObjectMetadata.RESOURCE_METADATA_LAST_MODIFIED, "2007");
         assertEquals("2007", metadata.getLastModified());
     }
 
     @Test
     public void testSetLastModified() {
-        OOSResourceMetadata metadata = new OOSResourceMetadata();
+        ObjectMetadata metadata = new ObjectMetadata();
 
         metadata.setLastModified(null);
         assertNull(metadata.getLastModified());

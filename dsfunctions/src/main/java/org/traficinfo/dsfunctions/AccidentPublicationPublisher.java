@@ -4,10 +4,10 @@ import java.io.*;
 
 /** Reads private way-grouped records and publishes the two public derivatives. */
 public final class AccidentPublicationPublisher {
-    private final ObjectStoreClient accidentStore;
-    private final ObjectStoreClient outputStore;
+    private final ObjectStore accidentStore;
+    private final ObjectStore outputStore;
 
-    public AccidentPublicationPublisher(ObjectStoreClient accidentStore, ObjectStoreClient outputStore) {
+    public AccidentPublicationPublisher(ObjectStore accidentStore, ObjectStore outputStore) {
         this.accidentStore = accidentStore;
         this.outputStore = outputStore;
     }
@@ -25,7 +25,7 @@ public final class AccidentPublicationPublisher {
 
     private void put(String name, String type, byte[] content) throws IOException {
         try (InputStream input = new ByteArrayInputStream(content)) {
-            outputStore.putResource(name, type, new OOSResourceMetadata(), input);
+            outputStore.putResource(name, type, new ObjectMetadata(), input);
         }
     }
 }

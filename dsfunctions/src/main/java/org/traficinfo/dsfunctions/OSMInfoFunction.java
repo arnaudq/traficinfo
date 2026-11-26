@@ -26,7 +26,7 @@ public class OSMInfoFunction extends TraficInfoBaseFunction {
     private int maxWayMappings = MAX_WAY_MAPPINGS_PER_RUN;
     private int maxScheduledLoopSeconds = MAX_SCHEDULED_LOOP_DURATION_SECONDS;
     private int maxScheduledWayMappings = MAX_SCHEDULED_WAY_MAPPINGS_PER_RUN;
-    private ObjectStoreClient osmCacheOSClient;
+    private ObjectStore osmCacheOSClient;
     private OpenStreetMapClient osmClient;
     private final LongSupplier nanoTime;
     private boolean reviewRoadMismatches;
@@ -35,11 +35,11 @@ public class OSMInfoFunction extends TraficInfoBaseFunction {
         this(null);
     }
 
-    OSMInfoFunction(ObjectStoreClient osmCacheOSClient) {
+    OSMInfoFunction(ObjectStore osmCacheOSClient) {
         this(osmCacheOSClient, new OpenStreetMapClient(), System::nanoTime);
     }
 
-    OSMInfoFunction(ObjectStoreClient osmCacheOSClient, OpenStreetMapClient osmClient, LongSupplier nanoTime) {
+    OSMInfoFunction(ObjectStore osmCacheOSClient, OpenStreetMapClient osmClient, LongSupplier nanoTime) {
         super("ALL");
         this.osmCacheOSClient = osmCacheOSClient;
         this.osmClient = osmClient;

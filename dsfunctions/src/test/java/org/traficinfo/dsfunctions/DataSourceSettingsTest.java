@@ -68,7 +68,7 @@ public class DataSourceSettingsTest {
     @Test
     public void legacyObjectsWithoutSourceIdentityAreRefreshedOnce() {
         Stub stub = new Stub();
-        OOSResourceMetadata metadata = new OOSResourceMetadata();
+        ObjectMetadata metadata = new ObjectMetadata();
         metadata.setETag("old");
         metadata.setLastModified(LocalDate.of(2026, 10, 1));
         stub.metadata.put(CSV.objectName(), metadata);
@@ -152,7 +152,7 @@ public class DataSourceSettingsTest {
 
     private static class Stub {
         final Map<String, byte[]> contents = new HashMap<>();
-        final Map<String, OOSResourceMetadata> metadata = new HashMap<>();
+        final Map<String, ObjectMetadata> metadata = new HashMap<>();
         final List<String> writes = new ArrayList<>();
         final List<URI> requests = new ArrayList<>();
         final List<String> validators = new ArrayList<>();
@@ -166,10 +166,10 @@ public class DataSourceSettingsTest {
                         "new content".getBytes(StandardCharsets.UTF_8)));
             }
         };
-        final ObjectStoreClient storage = new ObjectStoreClient(null, "namespace", "bucket") {
-            @Override public OOSResourceMetadata getResourceMetadata(String name) { return metadata.get(name); }
+        final ObjectStore storage = new StubObjectStore() {
+            @Override public ObjectMetadata getResourceMetadata(String name) { return metadata.get(name); }
             @Override public InputStream getResource(String name) { return new ByteArrayInputStream(contents.get(name)); }
-            @Override public void putResource(String name, String type, OOSResourceMetadata meta,
+            @Override public void putResource(String name, String type, ObjectMetadata meta,
                                               InputStream stream) throws IOException {
                 if (failArchive && name.startsWith("geometry_")) throw new IOException("Archive failure");
                 contents.put(name, stream.readAllBytes());

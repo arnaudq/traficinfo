@@ -1,4 +1,4 @@
-package org.traficinfo.dsfunctions;
+package org.traficinfo.dsfunctions.oci;
 
 import com.oracle.bmc.ConfigFileReader;
 import com.oracle.bmc.auth.BasicAuthenticationDetailsProvider;
@@ -21,6 +21,10 @@ import com.oracle.bmc.objectstorage.responses.PutObjectResponse;
 import com.oracle.bmc.objectstorage.responses.RenameObjectResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.traficinfo.dsfunctions.ObjectMetadata;
+import org.traficinfo.dsfunctions.ObjectNotFoundException;
+import org.traficinfo.dsfunctions.ObjectStore;
+import org.traficinfo.dsfunctions.StorageException;
 
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -29,13 +33,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.zip.GZIPOutputStream;
 import java.util.zip.GZIPInputStream;
 
 /**
  * ObjectStore client.
  */
-public class ObjectStoreClient implements AutoCloseable {
+public class ObjectStoreClient implements ObjectStore {
 
     private static final Logger LOG = LoggerFactory.getLogger(ObjectStoreClient.class);
 
@@ -97,9 +102,10 @@ public class ObjectStoreClient implements AutoCloseable {
         List<String> names = new ArrayList<>();
         String start = null;
         do {
-            ListObjects page = client.listObjects(ListObjectsRequest.builder()
-                    .namespaceName(namespaceName).bucketName(bucketName).start(start).build())
-                    .getListObjects();
+            var request = ListObjectsRequest.builder()
+                    .namespaceName(namespaceName).bucketName(bucketName).start(start).build();
+            ListObjects page = execute("list objects", () -> client.listObjects(request)
+                    .getListObjects());
             page.getObjects().forEach(object -> names.add(object.getName()));
             start = page.getNextStartWith();
         } while (start != null && !start.isEmpty());
@@ -114,7 +120,7 @@ public class ObjectStoreClient implements AutoCloseable {
                 .namespaceName(namespaceName)
                 .bucketName(bucketName)
                 .objectName(resourceName).build();
-        GetObjectResponse response = client.getObject(request);
+        GetObjectResponse response = execute("read " + resourceName, () -> client.getObject(request));
         InputStream input = response.getInputStream();
         if ("gzip".equalsIgnoreCase(response.getContentEncoding())) {
             try {
@@ -131,29 +137,29 @@ public class ObjectStoreClient implements AutoCloseable {
         return input;
     }
 
-    public void putResource(String resourceName, String contentType, OOSResourceMetadata metadata,
+    public void putResource(String resourceName, String contentType, ObjectMetadata metadata,
                               InputStream inputStream) throws IOException {
         writeResource(resourceName, contentType, metadata, inputStream, false, null);
     }
 
     /** Publishes a browser-readable object with an explicit HTTP cache lifetime. */
-    public void putResource(String resourceName, String contentType, OOSResourceMetadata metadata,
+    public void putResource(String resourceName, String contentType, ObjectMetadata metadata,
                             InputStream inputStream, String cacheControl) throws IOException {
         writeResource(resourceName, contentType, metadata, inputStream, false, cacheControl);
     }
 
     /** Atomically creates an Object only if its name is absent. No ETag is involved. */
-    public boolean createResource(String resourceName, String contentType, OOSResourceMetadata metadata,
+    public boolean createResource(String resourceName, String contentType, ObjectMetadata metadata,
                                   InputStream inputStream) throws IOException {
         return writeResource(resourceName, contentType, metadata, inputStream, true, null);
     }
 
     public void deleteResource(String resourceName) {
-        client.deleteObject(DeleteObjectRequest.builder().namespaceName(namespaceName)
-                .bucketName(bucketName).objectName(resourceName).build());
+        execute("delete " + resourceName, () -> client.deleteObject(DeleteObjectRequest.builder().namespaceName(namespaceName)
+                .bucketName(bucketName).objectName(resourceName).build()));
     }
 
-    private boolean writeResource(String resourceName, String contentType, OOSResourceMetadata metadata,
+    private boolean writeResource(String resourceName, String contentType, ObjectMetadata metadata,
                                   InputStream inputStream, boolean createOnly, String cacheControl) throws IOException {
         // Stage compressed bytes on disk to avoid buffering an entire dataset in memory.
         Path compressedFile = Files.createTempFile("traficinfo-", ".gz");
@@ -181,7 +187,7 @@ public class ObjectStoreClient implements AutoCloseable {
                     return true;
                 } catch (BmcException failure) {
                     if (createOnly && failure.getStatusCode() == 412) return false;
-                    throw failure;
+                    throw storageFailure("write " + resourceName, failure);
                 }
             }
         } finally {
@@ -189,7 +195,7 @@ public class ObjectStoreClient implements AutoCloseable {
         }
     }
 
-    public OOSResourceMetadata getResourceMetadata(String resourceName) {
+    public ObjectMetadata getResourceMetadata(String resourceName) {
         HeadObjectRequest request = HeadObjectRequest.builder()
                 .namespaceName(namespaceName)
                 .bucketName(bucketName)
@@ -199,8 +205,8 @@ public class ObjectStoreClient implements AutoCloseable {
             final HeadObjectResponse response = client.headObject(request);
             LOG.info("OOS HEAD response = {}", response.toString());
             // Objects without custom metadata can have a null opc-meta map, including manifests.
-            OOSResourceMetadata metadata = response.getOpcMeta() == null
-                    ? new OOSResourceMetadata() : new OOSResourceMetadata(response.getOpcMeta());
+            ObjectMetadata metadata = response.getOpcMeta() == null
+                    ? new ObjectMetadata() : new ObjectMetadata(response.getOpcMeta());
             LOG.info("OOS HEAD metadata = {}", metadata.getMetadata().entrySet());
 
             return metadata;
@@ -210,9 +216,24 @@ public class ObjectStoreClient implements AutoCloseable {
                return null;
            } else {
                LOG.info("Getting exception on HEAD", bmce);
-               throw bmce;
+               throw storageFailure("inspect " + resourceName, bmce);
            }
         }
+    }
+
+    private <T> T execute(String operation, Supplier<T> request) {
+        try {
+            return request.get();
+        } catch (BmcException failure) {
+            throw storageFailure(operation, failure);
+        }
+    }
+
+    private StorageException storageFailure(String operation, BmcException failure) {
+        String message = "Could not " + operation + ": " + failure.getMessage();
+        return failure.getStatusCode() == 404
+                ? new ObjectNotFoundException(message, failure, failure.getOpcRequestId())
+                : new StorageException(message, failure, failure.getOpcRequestId());
     }
 
     public void renameResource(String oldName, String newName) {

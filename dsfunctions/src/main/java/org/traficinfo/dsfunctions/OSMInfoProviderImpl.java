@@ -5,12 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.LinkedHashSet;
-import com.oracle.bmc.model.BmcException;
 import org.geojson.Point;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.traficinfo.dsfunctions.ObjectStoreClient;
-import org.traficinfo.dsfunctions.OOSResourceMetadata;
 import org.traficinfo.parsers.OSMWayInfo;
 import org.traficinfo.parsers.OSMInfoProvider;
 
@@ -37,7 +34,7 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
             "tertiary", "unclassified", "residential", "living_street", "service", "road", "motorway_link",
             "trunk_link", "primary_link", "secondary_link", "tertiary_link", "footway", "cycleway", "path", "pedestrian", "track");
 
-    private final ObjectStoreClient osmCacheOSClient;
+    private final ObjectStore osmCacheOSClient;
     private final OpenStreetMapClient osmClient;
     private final String osmCacheObject;
     private final Clock clock;
@@ -51,27 +48,27 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
     private final Set<String> missingMappings = new LinkedHashSet<>();
     private final Set<String> processedMappings = new LinkedHashSet<>();
 
-    public OSMInfoProviderImpl(ObjectStoreClient osmCacheOSClient, OpenStreetMapClient osmClient,
+    public OSMInfoProviderImpl(ObjectStore osmCacheOSClient, OpenStreetMapClient osmClient,
                            String osmCacheObject) {
         this(osmCacheOSClient, osmClient, osmCacheObject, Clock.systemUTC());
     }
 
-    public OSMInfoProviderImpl(ObjectStoreClient osmCacheOSClient, OpenStreetMapClient osmClient,
+    public OSMInfoProviderImpl(ObjectStore osmCacheOSClient, OpenStreetMapClient osmClient,
                            String osmCacheObject, Clock clock) {
         this(osmCacheOSClient, osmClient, osmCacheObject, null, clock);
     }
 
-    public OSMInfoProviderImpl(ObjectStoreClient osmCacheOSClient, OpenStreetMapClient osmClient,
+    public OSMInfoProviderImpl(ObjectStore osmCacheOSClient, OpenStreetMapClient osmClient,
                                String osmCacheObject, String mappingObject) {
         this(osmCacheOSClient, osmClient, osmCacheObject, mappingObject, Clock.systemUTC());
     }
 
-    public OSMInfoProviderImpl(ObjectStoreClient osmCacheOSClient, OpenStreetMapClient osmClient,
+    public OSMInfoProviderImpl(ObjectStore osmCacheOSClient, OpenStreetMapClient osmClient,
                                String osmCacheObject, String mappingObject, Clock clock) {
         this(osmCacheOSClient, osmClient, osmCacheObject, mappingObject, clock, false);
     }
 
-    public OSMInfoProviderImpl(ObjectStoreClient osmCacheOSClient, OpenStreetMapClient osmClient,
+    public OSMInfoProviderImpl(ObjectStore osmCacheOSClient, OpenStreetMapClient osmClient,
                                String osmCacheObject, String mappingObject, Clock clock,
                                boolean reviewRoadMismatches) {
         if (osmCacheObject.equals(mappingObject)) {
@@ -106,11 +103,8 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
                 throw new IOException("OSM cache must be a JSON object");
             }
             return loaded;
-        } catch (BmcException failure) {
-            if (failure.getStatusCode() == 404) {
-                return new LinkedHashMap<>();
-            }
-            throw failure;
+        } catch (ObjectNotFoundException missing) {
+            return new LinkedHashMap<>();
         }
     }
 
@@ -120,16 +114,15 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
             OSMRequests requests = mapper.readValue(input, OSMRequests.class);
             if (requests == null) throw new IOException("OSM requests must be a JSON object");
             return requests;
-        } catch (BmcException failure) {
-            if (failure.getStatusCode() == 404) return OSMRequests.empty();
-            throw failure;
+        } catch (ObjectNotFoundException missing) {
+            return OSMRequests.empty();
         }
     }
 
     /** Publish a complete source-owned snapshot, including empty sections to clear old requests. */
     void saveRequests(String sourceId, OSMRequests requests) throws IOException {
         try (InputStream input = new ByteArrayInputStream(mapper.writeValueAsBytes(requests))) {
-            osmCacheOSClient.putResource(sourceId + OSMRequests.SUFFIX, "application/json", new OOSResourceMetadata(), input);
+            osmCacheOSClient.putResource(sourceId + OSMRequests.SUFFIX, "application/json", new ObjectMetadata(), input);
         }
         LOG.info("Published OSM requests for {}: {} reverse lookups, {} way-tag refreshes",
                 sourceId, requests.reverseLookups().size(), requests.wayTagRefreshes().size());
@@ -502,7 +495,7 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
                 getUnknownWayMappingCount(), missingMappings.size());
         byte[] json = mapper.writeValueAsBytes(mappings);
         try (InputStream input = new ByteArrayInputStream(json)) {
-            osmCacheOSClient.putResource(mappingObject, "application/json", new OOSResourceMetadata(), input);
+            osmCacheOSClient.putResource(mappingObject, "application/json", new ObjectMetadata(), input);
         }
         LOG.info("Stored {} counter-to-way entries in {}", mappings.size(), mappingObject);
     }
@@ -549,7 +542,7 @@ public class OSMInfoProviderImpl implements OSMInfoProvider {
             byte[] json = new ObjectMapper().writeValueAsBytes(cache);
             try (InputStream input = new ByteArrayInputStream(json)) {
                 osmCacheOSClient.putResource(osmCacheObject, "application/json",
-                        new OOSResourceMetadata(), input);
+                        new ObjectMetadata(), input);
             }
             LOG.info("OSM cache: {} entries after writing to Object Storage object {}",
                     cache.size(), osmCacheObject);

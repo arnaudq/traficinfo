@@ -1,5 +1,7 @@
 package org.traficinfo.dsfunctions;
 
+import org.traficinfo.dsfunctions.oci.ObjectStoreClient;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fnproject.fn.api.RuntimeContext;
 import com.fnproject.fn.api.FnConfiguration;
@@ -71,7 +73,7 @@ public abstract class TraficInfoBaseFunction {
      * The caller owns the client and must close it when its work is complete.
      * Subclasses may override this factory to supply a different client implementation.
      */
-    protected ObjectStoreClient createObjectStoreClient(String bucket) {
+    protected ObjectStore createObjectStoreClient(String bucket) {
         return new ObjectStoreClient(useResourcePrincipal(), namespace(), bucket);
     }
 

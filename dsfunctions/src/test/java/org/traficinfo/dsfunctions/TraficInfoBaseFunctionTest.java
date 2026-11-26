@@ -185,7 +185,7 @@ public class TraficInfoBaseFunctionTest {
 
         var geojson = new GeoJsonFunction() {
             @Override protected MetricsPublisher createMetricsPublisher() { return samples::addAll; }
-            @Override protected ObjectStoreClient createObjectStoreClient(String bucket) {
+            @Override protected ObjectStore createObjectStoreClient(String bucket) {
                 throw new IllegalStateException("storage unavailable");
             }
         };
@@ -200,7 +200,7 @@ public class TraficInfoBaseFunctionTest {
 
         var publication = new AccidentPublicationFunction() {
             @Override protected MetricsPublisher createMetricsPublisher() { return samples::addAll; }
-            @Override protected ObjectStoreClient createObjectStoreClient(String bucket) {
+            @Override protected ObjectStore createObjectStoreClient(String bucket) {
                 throw new IllegalStateException("storage unavailable");
             }
         };
@@ -215,7 +215,7 @@ public class TraficInfoBaseFunctionTest {
 
         var osm = new OSMInfoFunction() {
             @Override protected MetricsPublisher createMetricsPublisher() { return samples::addAll; }
-            @Override protected ObjectStoreClient createObjectStoreClient(String bucket) { return null; }
+            @Override protected ObjectStore createObjectStoreClient(String bucket) { return null; }
         };
         osm.config(context);
         assertError(osm.handleRequest("{\"mode\":\"invalid\"}"),

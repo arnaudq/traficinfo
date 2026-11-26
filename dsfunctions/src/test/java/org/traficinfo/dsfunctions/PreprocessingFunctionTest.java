@@ -68,7 +68,7 @@ public class PreprocessingFunctionTest {
         final PreprocessingPublisherTest.Store store = new PreprocessingPublisherTest.Store();
         String bucket;
 
-        @Override protected ObjectStoreClient createObjectStoreClient(String bucket) {
+        @Override protected ObjectStore createObjectStoreClient(String bucket) {
             created++;
             this.bucket = namespace() + "/" + bucket;
             if (!store.objects.containsKey("NIM_Comptage.csv")) {

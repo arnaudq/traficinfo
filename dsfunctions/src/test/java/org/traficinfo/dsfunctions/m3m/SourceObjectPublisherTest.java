@@ -1,9 +1,11 @@
 package org.traficinfo.dsfunctions.m3m;
 
+import org.traficinfo.dsfunctions.StubObjectStore;
+
 import org.traficinfo.dsfunctions.HttpClient;
 import org.traficinfo.dsfunctions.SourceObjectPublisher;
-import org.traficinfo.dsfunctions.ObjectStoreClient;
-import org.traficinfo.dsfunctions.OOSResourceMetadata;
+import org.traficinfo.dsfunctions.ObjectStore;
+import org.traficinfo.dsfunctions.ObjectMetadata;
 import org.traficinfo.dsfunctions.DataSourceTestSettings;
 import org.traficinfo.dsfunctions.DataSourceSettings;
 
@@ -72,7 +74,7 @@ public class SourceObjectPublisherTest {
     private static class SourceStub {
         final List<String> downloads = new ArrayList<>();
         final List<String> uploads = new ArrayList<>();
-        final Map<String, OOSResourceMetadata> metadata = new HashMap<>();
+        final Map<String, ObjectMetadata> metadata = new HashMap<>();
         final Map<String, byte[]> contents = new HashMap<>();
         boolean unchanged;
         boolean failDownload;
@@ -92,9 +94,9 @@ public class SourceObjectPublisherTest {
                             : new ByteArrayInputStream(new byte[]{1, 2, 3}));
                 }
             };
-            ObjectStoreClient storage = new ObjectStoreClient(null, "namespace", "bucket") {
+            ObjectStore storage = new StubObjectStore() {
                 @Override
-                public OOSResourceMetadata getResourceMetadata(String resourceName) {
+                public ObjectMetadata getResourceMetadata(String resourceName) {
                     return metadata.get(resourceName);
                 }
 
@@ -104,7 +106,7 @@ public class SourceObjectPublisherTest {
                 }
 
                 @Override
-                public void putResource(String name, String type, OOSResourceMetadata metadata,
+                public void putResource(String name, String type, ObjectMetadata metadata,
                                         InputStream stream) throws IOException {
                     if (failUpload) {
                         throw new IOException("upload failed");

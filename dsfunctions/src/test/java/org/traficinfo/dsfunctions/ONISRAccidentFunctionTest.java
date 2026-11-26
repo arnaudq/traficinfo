@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fnproject.fn.runtime.FunctionConfigurer;
 import com.fnproject.fn.runtime.FunctionLoader;
 import com.fnproject.fn.runtime.FunctionRuntimeContext;
-import com.oracle.bmc.model.BmcException;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
@@ -153,8 +152,8 @@ public class ONISRAccidentFunctionTest {
         try {
             probe.handleRequest("{}");
             fail("Missing raw CSV must fail the function");
-        } catch (BmcException expected) {
-            assertEquals(404, expected.getStatusCode());
+        } catch (ObjectNotFoundException expected) {
+            assertEquals("test", expected.getRequestId());
             assertTrue(probe.accidentStore.closed);
             assertTrue(probe.osmStore.closed);
         }
@@ -198,8 +197,8 @@ public class ONISRAccidentFunctionTest {
         try {
             probe.handleRequest("{}");
             fail("Missing 2025 must fail the invocation");
-        } catch (BmcException expected) {
-            assertEquals(404, expected.getStatusCode());
+        } catch (ObjectNotFoundException expected) {
+            assertEquals("test", expected.getRequestId());
             assertTrue(probe.accidentStore.objects.containsKey("data/ONISR_DPT34/2024.json"));
             assertEquals(previous, new String(probe.accidentStore.objects.get("ONISR_DPT34_Accidents.json"), StandardCharsets.UTF_8));
             assertTrue(probe.osmStore.objects.isEmpty());
@@ -230,24 +229,24 @@ public class ONISRAccidentFunctionTest {
         final Store osmStore = new Store();
         final List<String> connections = new ArrayList<>();
 
-        @Override protected ObjectStoreClient createObjectStoreClient(String bucket) {
+        @Override protected ObjectStore createObjectStoreClient(String bucket) {
             connections.add(useResourcePrincipal() + "/" + namespace() + "/" + bucket);
             return bucket.equals("onisrinfo") ? accidentStore : osmStore;
         }
     }
 
-    private static class Store extends ObjectStoreClient {
+    private static class Store extends StubObjectStore {
         final Map<String, byte[]> objects = new LinkedHashMap<>();
         boolean closed;
         final List<String> writes = new ArrayList<>();
-        Store() { super(null, "test", "fake"); }
+        Store() { super(); }
         void text(String name, String value) { objects.put(name, value.getBytes(StandardCharsets.UTF_8)); }
         @Override public List<String> listResources() { return new ArrayList<>(objects.keySet()); }
         @Override public InputStream getResource(String name) {
-            if (!objects.containsKey(name)) throw new BmcException(404, "Missing", "No such object", "test");
+            if (!objects.containsKey(name)) throw new ObjectNotFoundException("No such object", null, "test");
             return new ByteArrayInputStream(objects.get(name));
         }
-        @Override public void putResource(String name, String type, OOSResourceMetadata metadata, InputStream input) throws IOException {
+        @Override public void putResource(String name, String type, ObjectMetadata metadata, InputStream input) throws IOException {
             objects.put(name, input.readAllBytes());
             writes.add(name);
         }

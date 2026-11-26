@@ -43,7 +43,7 @@ public class PreprocessingFunction extends TraficInfoBaseFunction {
         var active = registry.preprocessing(request.datasourceId(), null);
         var archive = request.datasetId() == null ? null : registry.preprocessing(request.datasourceId(), request.datasetId());
         try (var logging = LoggingContext.forSource("preprocess", request.datasourceId())) {
-            try (ObjectStoreClient storage = createObjectStoreClient(source.bucket())) {
+            try (ObjectStore storage = createObjectStoreClient(source.bucket())) {
                 var publisher = new PreprocessingPublisher(storage);
                 if (archive != null) publisher.publishArchive(archive, active);
                 else publisher.publish(active);

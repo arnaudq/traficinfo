@@ -16,20 +16,20 @@ import java.util.Objects;
  *
  * <p>{@link ManifestComptageReader} validates the complete input snapshot and
  * {@link HistoryExport} builds its {@link CounterHistory}. The result is serialized to
- * a temporary file before the single public object is replaced. {@link ObjectStoreClient}
+ * a temporary file before the single public object is replaced. {@link ObjectStore}
  * compresses the upload; this publisher sets JSON content type and a five-minute cache lifetime.
  * Clients are supplied by the caller and remain owned by that caller.
  */
 public final class HistoryPublisher {
-    private final ObjectStoreClient inputStore;
-    private final ObjectStoreClient outputStore;
+    private final ObjectStore inputStore;
+    private final ObjectStore outputStore;
     private final Clock clock;
 
-    public HistoryPublisher(ObjectStoreClient inputStore, ObjectStoreClient outputStore) {
+    public HistoryPublisher(ObjectStore inputStore, ObjectStore outputStore) {
         this(inputStore, outputStore, Clock.systemUTC());
     }
 
-    HistoryPublisher(ObjectStoreClient inputStore, ObjectStoreClient outputStore, Clock clock) {
+    HistoryPublisher(ObjectStore inputStore, ObjectStore outputStore, Clock clock) {
         this.inputStore = Objects.requireNonNull(inputStore);
         this.outputStore = Objects.requireNonNull(outputStore);
         this.clock = Objects.requireNonNull(clock);
@@ -49,7 +49,7 @@ public final class HistoryPublisher {
             new ObjectMapper().writeValue(file.toFile(), history);
             try (InputStream input = Files.newInputStream(file)) {
                 outputStore.putResource("history/" + datasourceId + ".json", "application/json",
-                        new OOSResourceMetadata(), input, "public, max-age=300");
+                        new ObjectMetadata(), input, "public, max-age=300");
             }
         } finally {
             Files.deleteIfExists(file);

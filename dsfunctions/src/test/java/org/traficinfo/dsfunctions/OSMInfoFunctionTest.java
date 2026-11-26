@@ -1,6 +1,5 @@
 package org.traficinfo.dsfunctions;
 
-import com.oracle.bmc.model.BmcException;
 import com.fnproject.fn.api.RuntimeContext;
 import org.junit.Test;
 
@@ -81,7 +80,7 @@ public class OSMInfoFunctionTest {
     public void failedRefreshOrReviewSaveDoesNotPublishMetrics() {
         for (boolean loadFailure : List.of(false, true)) {
             Store store = new Store() {
-                @Override public void putResource(String name, String type, OOSResourceMetadata metadata,
+                @Override public void putResource(String name, String type, ObjectMetadata metadata,
                                                   InputStream body) throws IOException {
                     if (name.equals(OSMWayMappingReviewStore.OBJECT_NAME)) throw new IOException("Save failed");
                     super.putResource(name, type, metadata, body);
@@ -170,7 +169,7 @@ public class OSMInfoFunctionTest {
         assertEquals("OK", new ConfiguredOSMFunction(new Store()).handleRequest(""));
         assertFunctionFailure(() -> new ConfiguredOSMFunction(new Store() {
             @Override public List<String> listResources() {
-                throw new BmcException(403, "Forbidden", "Denied", "request");
+                throw new StorageException("Denied", null, "request");
             }
         }).handleRequest(""));
     }
@@ -729,7 +728,7 @@ public class OSMInfoFunctionTest {
                 });
     }
 
-    private static OSMInfoFunction withMetrics(ObjectStoreClient store, OpenStreetMapClient client,
+    private static OSMInfoFunction withMetrics(ObjectStore store, OpenStreetMapClient client,
                                                java.util.function.LongSupplier nanoTime, MetricsPublisher publisher) {
         return new ConfiguredOSMFunction(store, client, nanoTime, publisher);
     }
@@ -742,21 +741,21 @@ public class OSMInfoFunctionTest {
         assertEquals(expected, matching.get(0).value(), 0);
     }
 
-    private static class Store extends ObjectStoreClient {
+    private static class Store extends StubObjectStore {
         final Map<String, String> objects = new LinkedHashMap<>();
         final List<String> read = new ArrayList<>();
         final List<String> closed = new ArrayList<>();
         int writes;
         int reviewWrites;
-        Store() { super(null, "namespace", "osminfo"); }
+        Store() { super(); }
         @Override public List<String> listResources() { return List.copyOf(objects.keySet()); }
         @Override public InputStream getResource(String name) {
             read.add(name);
             if (!objects.containsKey(name)) {
-                throw new BmcException(404, "NotFound", "Missing", "request");
+                throw new ObjectNotFoundException("Missing", null, "request");
             }
             if (objects.get(name) == null) {
-                throw new BmcException(403, "Forbidden", "Denied", "request");
+                throw new StorageException("Denied", null, "request");
             }
             return new ByteArrayInputStream(objects.get(name).getBytes(StandardCharsets.UTF_8)) {
                 @Override public void close() throws IOException {
@@ -770,7 +769,7 @@ public class OSMInfoFunctionTest {
         @Override public void deleteResource(String name) {
             objects.remove(name);
         }
-        @Override public void putResource(String name, String type, OOSResourceMetadata metadata, InputStream body)
+        @Override public void putResource(String name, String type, ObjectMetadata metadata, InputStream body)
                 throws IOException {
             objects.put(name, new String(body.readAllBytes(), StandardCharsets.UTF_8));
             writes++;

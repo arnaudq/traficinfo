@@ -1,6 +1,8 @@
 package org.traficinfo.dsfunctions.m3m;
 
-import org.traficinfo.dsfunctions.ObjectStoreClient;
+import org.traficinfo.dsfunctions.oci.ObjectStoreClient;
+
+import org.traficinfo.dsfunctions.ObjectStore;
 import org.traficinfo.dsfunctions.GeoJsonDataSource;
 import org.traficinfo.dsfunctions.ManifestTestPublication;
 import org.traficinfo.parsers.GeoJsonParser;

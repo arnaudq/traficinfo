@@ -19,7 +19,7 @@ import java.util.function.LongSupplier;
 final class OSMMappingRefresher {
     private static final Logger LOG = LoggerFactory.getLogger(OSMMappingRefresher.class);
     private static final String MAPPING_SUFFIX = "_OSMWayMapping.json";
-    private final ObjectStoreClient osmCacheOSClient;
+    private final ObjectStore osmCacheOSClient;
     private final OpenStreetMapClient osmClient;
     private final LongSupplier nanoTime;
     private final MetricsPublisher metrics;
@@ -31,7 +31,7 @@ final class OSMMappingRefresher {
     private int failures;
     private boolean completeReview;
 
-    OSMMappingRefresher(ObjectStoreClient osmCacheOSClient, OpenStreetMapClient osmClient,
+    OSMMappingRefresher(ObjectStore osmCacheOSClient, OpenStreetMapClient osmClient,
                         LongSupplier nanoTime, MetricsPublisher metrics, boolean reviewRoadMismatches) {
         this.osmCacheOSClient = osmCacheOSClient;
         this.osmClient = osmClient;

@@ -310,7 +310,7 @@ public class HistoryPublisherTest {
         }
 
         JsonNode publish() throws IOException {
-            var input = new ObjectStoreClient(null, "namespace", "input") {
+            var input = new StubObjectStore() {
                 @Override public InputStream getResource(String name) throws IOException {
                     reads.add(name);
                     byte[] bytes = objects.get(name);
@@ -318,8 +318,8 @@ public class HistoryPublisherTest {
                     return new ByteArrayInputStream(bytes);
                 }
             };
-            var destination = new ObjectStoreClient(null, "namespace", "traficinfo") {
-                @Override public void putResource(String name, String type, OOSResourceMetadata metadata,
+            var destination = new StubObjectStore() {
+                @Override public void putResource(String name, String type, ObjectMetadata metadata,
                                                    InputStream content, String cacheControl) throws IOException {
                     assertEquals("history/" + sourceId + ".json", name);
                     assertEquals("application/json", type);

@@ -5,15 +5,15 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.logging.Level;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class OOSResourceMetadata {
+/** Custom object metadata, including the existing publisher validator and archive date. */
+public class ObjectMetadata {
 
-    // metadata key returned in lower case by OOS
-    static final String OOS_RESOURCE_METADATA_CURRENT_ETAG = "Current-ETag".toLowerCase(Locale.US);
-    static final String OOS_RESOURCE_METADATA_LAST_MODIFIED = "Last-Modified".toLowerCase(Locale.US);
+    // Keep the existing persisted custom-metadata keys.
+    static final String RESOURCE_METADATA_CURRENT_ETAG = "Current-ETag".toLowerCase(Locale.US);
+    static final String RESOURCE_METADATA_LAST_MODIFIED = "Last-Modified".toLowerCase(Locale.US);
 
     private static final Pattern ETAG_PATTERN = Pattern.compile("\"([^\"]*)\"");
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMdd");
@@ -21,11 +21,11 @@ public class OOSResourceMetadata {
 
     private final Map<String, String> metadata;
 
-    public OOSResourceMetadata() {
+    public ObjectMetadata() {
         this.metadata = new HashMap<>();
     }
 
-    public OOSResourceMetadata(Map<String, String> metadata) {
+    public ObjectMetadata(Map<String, String> metadata) {
         this.metadata = metadata;
     }
 
@@ -34,18 +34,17 @@ public class OOSResourceMetadata {
      * @return quoted server ETag or synthetic sha256 validator.
      */
     public String getETag() {
-        String metadataETag = metadata.get(OOS_RESOURCE_METADATA_CURRENT_ETAG);
+        String metadataETag = metadata.get(RESOURCE_METADATA_CURRENT_ETAG);
         return metadataETag != null && !metadataETag.isEmpty() ? "\"" + metadataETag + "\"" : metadataETag;
     }
 
     /**
-     * set etag to metadata table after stripping the double quotes which are actually removed by OOS.
-     * We can not rely on that behaviour being consistent so removing them unconditionally.
+     * Stores the source validator without surrounding quotes, preserving the existing metadata format.
      * @param rawETag - can be null.
      */
     public void setETag(String rawETag) {
         if (rawETag == null) {
-            metadata.remove(OOS_RESOURCE_METADATA_CURRENT_ETAG);
+            metadata.remove(RESOURCE_METADATA_CURRENT_ETAG);
             return;
         }
         String metadataETag = rawETag;
@@ -55,16 +54,16 @@ public class OOSResourceMetadata {
                 metadataETag =  m.group(1);
             }
         }
-        metadata.put(OOS_RESOURCE_METADATA_CURRENT_ETAG, metadataETag);
+        metadata.put(RESOURCE_METADATA_CURRENT_ETAG, metadataETag);
     }
 
     public String getLastModified() {
-        return metadata.get(OOS_RESOURCE_METADATA_LAST_MODIFIED);
+        return metadata.get(RESOURCE_METADATA_LAST_MODIFIED);
     }
 
     public void setLastModified(LocalDate lastModified) {
         if (lastModified != null) {
-            metadata.put(OOS_RESOURCE_METADATA_LAST_MODIFIED, lastModified.format(DATE_TIME_FORMATTER));
+            metadata.put(RESOURCE_METADATA_LAST_MODIFIED, lastModified.format(DATE_TIME_FORMATTER));
         }
     }
 

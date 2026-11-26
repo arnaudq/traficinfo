@@ -44,14 +44,14 @@ import java.util.UUID;
 /** Publishes a complete manifest last, while retaining immutable Objects for unchanged years. */
 public final class PreprocessingPublisher {
     private static final Logger LOG = LoggerFactory.getLogger(PreprocessingPublisher.class);
-    private final ObjectStoreClient storage;
+    private final ObjectStore storage;
     private final Logger logger;
     private final ObjectMapper mapper = new ObjectMapper();
     private final ComptageJson countsJson = new ComptageJson();
 
-    public PreprocessingPublisher(ObjectStoreClient storage) { this(storage, LOG); }
+    public PreprocessingPublisher(ObjectStore storage) { this(storage, LOG); }
 
-    PreprocessingPublisher(ObjectStoreClient storage, Logger logger) {
+    PreprocessingPublisher(ObjectStore storage, Logger logger) {
         this.storage = storage;
         this.logger = logger;
     }
@@ -79,7 +79,7 @@ public final class PreprocessingPublisher {
         String lock = dataSourceId + "_Preprocessing.lock";
         byte[] owner = mapper.writeValueAsBytes(Map.of("owner", UUID.randomUUID().toString(),
                 "startedAt", Instant.now().toString()));
-        if (!storage.createResource(lock, "application/json", new OOSResourceMetadata(), new ByteArrayInputStream(owner))) {
+        if (!storage.createResource(lock, "application/json", new ObjectMetadata(), new ByteArrayInputStream(owner))) {
             throw new IOException("Preprocessing already locked for " + dataSourceId);
         }
         // Locks never expire automatically: a timed-out invocation must not race a replacement publisher.
@@ -210,7 +210,7 @@ public final class PreprocessingPublisher {
                         && parser.parserVersion.equals(old.parserVersion()) && old.recordCount() == entry.getValue().size()) continue;
 
                 String object = "data/" + revision + "/" + source.dataSourceId() + "_Comptage_" + entry.getKey() + ".json";
-                if (!storage.createResource(object, "application/json", new OOSResourceMetadata(), new ByteArrayInputStream(payload))) {
+                if (!storage.createResource(object, "application/json", new ObjectMetadata(), new ByteArrayInputStream(payload))) {
                     throw new IOException("Immutable yearly Object already exists: " + object);
                 }
                 years.put(entry.getKey(), new DataManifest.YearData(object, checksum, entry.getValue().size(),
@@ -267,7 +267,7 @@ public final class PreprocessingPublisher {
             }
 
             // Publish the manifest last, after every referenced Object has passed verification.
-            storage.putResource(manifestName, "application/json", new OOSResourceMetadata(),
+            storage.putResource(manifestName, "application/json", new ObjectMetadata(),
                     new ByteArrayInputStream(mapper.writeValueAsBytes(next)));
             logger.info("Published {}: {} years, revision {}", manifestName, years.size(), revision);
             return next;
@@ -279,7 +279,7 @@ public final class PreprocessingPublisher {
 
     private Map<String, String> sourceMetadata(DataSourceSettings source, DataSourceSettings.Input input,
                                               boolean archive) throws IOException {
-        OOSResourceMetadata metadata = storage.getResourceMetadata(input.objectName());
+        ObjectMetadata metadata = storage.getResourceMetadata(input.objectName());
         if (metadata == null) throw new IOException("Missing input: " + input.objectName());
         Map<String, String> values = metadata.getMetadata();
         boolean wrongDatasource = (!archive || values.containsKey("datasource-id"))

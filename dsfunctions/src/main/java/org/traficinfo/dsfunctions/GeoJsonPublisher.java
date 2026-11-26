@@ -23,18 +23,18 @@ import java.util.Objects;
 public final class GeoJsonPublisher {
     private static final Logger LOG = LoggerFactory.getLogger(GeoJsonPublisher.class);
     private final GeoJsonDataSource source;
-    private final ObjectStoreClient inputClient;
-    private final ObjectStoreClient outputClient;
+    private final ObjectStore inputClient;
+    private final ObjectStore outputClient;
     private final OSMInfoProviderImpl osmInfoProvider;
     private final MetricsPublisher metrics;
 
-    public GeoJsonPublisher(GeoJsonDataSource source, ObjectStoreClient inputClient,
-                            ObjectStoreClient outputClient, OSMInfoProviderImpl osmInfoProvider) {
+    public GeoJsonPublisher(GeoJsonDataSource source, ObjectStore inputClient,
+                            ObjectStore outputClient, OSMInfoProviderImpl osmInfoProvider) {
         this(source, inputClient, outputClient, osmInfoProvider, samples -> {});
     }
 
-    public GeoJsonPublisher(GeoJsonDataSource source, ObjectStoreClient inputClient,
-                            ObjectStoreClient outputClient, OSMInfoProviderImpl osmInfoProvider,
+    public GeoJsonPublisher(GeoJsonDataSource source, ObjectStore inputClient,
+                            ObjectStore outputClient, OSMInfoProviderImpl osmInfoProvider,
                             MetricsPublisher metrics) {
         this.source = Objects.requireNonNull(source);
         this.inputClient = Objects.requireNonNull(inputClient);
@@ -59,7 +59,7 @@ public final class GeoJsonPublisher {
                         }
                         try (InputStream mergedInput = Files.newInputStream(mergedFile)) {
                             outputClient.putResource(source.getGeoJsonObjectName(type), "application/geo+json",
-                                    new OOSResourceMetadata(), mergedInput);
+                                    new ObjectMetadata(), mergedInput);
                         }
                     } finally {
                         Files.deleteIfExists(mergedFile);

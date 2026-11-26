@@ -2,7 +2,6 @@ package org.traficinfo.dsfunctions;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.oracle.bmc.model.BmcException;
 import com.fnproject.fn.api.RuntimeContext;
 import org.geojson.Point;
 import org.junit.Test;
@@ -299,21 +298,21 @@ public class OSMRequestWorkflowTest {
         };
     }
 
-    private static class Store extends ObjectStoreClient {
+    private static class Store extends StubObjectStore {
         final Map<String, byte[]> objects = new LinkedHashMap<>();
         final List<String> writes = new ArrayList<>();
         final List<String> deleted = new ArrayList<>();
         String failWrite;
         String failDelete;
-        Store() { super(null, "namespace", "osminfo"); }
+        Store() { super(); }
         void put(String name, String json) throws IOException { objects.put(name, JSON.writeValueAsBytes(JSON.readTree(json))); }
         JsonNode json(String name) throws IOException { return JSON.readTree(objects.get(name)); }
         @Override public List<String> listResources() { return new ArrayList<>(objects.keySet()); }
         @Override public InputStream getResource(String name) {
-            if (!objects.containsKey(name)) throw new BmcException(404, "NotFound", "missing", "request");
+            if (!objects.containsKey(name)) throw new ObjectNotFoundException("missing", null, "request");
             return new ByteArrayInputStream(objects.get(name));
         }
-        @Override public void putResource(String name, String type, OOSResourceMetadata metadata, InputStream body) throws IOException {
+        @Override public void putResource(String name, String type, ObjectMetadata metadata, InputStream body) throws IOException {
             if (name.equals(failWrite)) throw new IOException("Write failed: " + name);
             writes.add(name);
             objects.put(name, body.readAllBytes());

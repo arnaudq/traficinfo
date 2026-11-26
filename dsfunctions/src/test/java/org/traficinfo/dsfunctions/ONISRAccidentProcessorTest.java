@@ -3,7 +3,6 @@ package org.traficinfo.dsfunctions;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.oracle.bmc.model.BmcException;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
@@ -234,8 +233,8 @@ public class ONISRAccidentProcessorTest {
         try {
             processor.refresh();
             fail("Access denied must not be treated as an absent object");
-        } catch (BmcException expected) {
-            assertEquals(403, expected.getStatusCode());
+        } catch (StorageException expected) {
+            assertNotNull(expected.getRequestId());
             assertArrayEquals(original, data.objects.get(output));
         }
         data.failRead = null;
@@ -316,8 +315,8 @@ public class ONISRAccidentProcessorTest {
         try {
             processor.importCsv("2025.csv", "users.csv", 2025);
             fail("Missing companion must fail");
-        } catch (BmcException expected) {
-            assertEquals(404, expected.getStatusCode());
+        } catch (StorageException expected) {
+            assertNotNull(expected.getRequestId());
         }
         data.text("users.csv", "Num_Acc;id_usager;id_vehicule;catu;grav;an_nais;sexe\n"
                 + "202500000001;123;456;1;3;2026;1\n");
@@ -384,8 +383,8 @@ public class ONISRAccidentProcessorTest {
         try {
             processor.importCsv("2025.csv", "users.csv", "vehicles.csv", 2025);
             fail("Missing vehicles CSV must fail");
-        } catch (BmcException expected) {
-            assertEquals(404, expected.getStatusCode());
+        } catch (StorageException expected) {
+            assertNotNull(expected.getRequestId());
         }
         for (String invalid : List.of("bad CSV", "Num_Acc;id_vehicule;catv;motor\n202500000001;999;7;1\n",
                 "Num_Acc;id_vehicule;catv;motor\n202500000002;456;7;1\n")) {
@@ -401,24 +400,24 @@ public class ONISRAccidentProcessorTest {
         }
     }
 
-    private static class Store extends ObjectStoreClient {
+    private static class Store extends StubObjectStore {
         final Map<String, byte[]> objects = new LinkedHashMap<>();
         final List<String> writes = new ArrayList<>();
         final Set<String> gzip = new java.util.HashSet<>();
         String failRead;
         String failWrite;
 
-        Store() { super(null, "test", "fake"); }
+        Store() { super(); }
         void text(String name, String value) { objects.put(name, value.getBytes(StandardCharsets.UTF_8)); }
         JsonNode json(String name) throws IOException { return JSON.readTree(objects.get(name)); }
         @Override public List<String> listResources() { return new ArrayList<>(objects.keySet()); }
         @Override public InputStream getResource(String name) throws IOException {
-            if (name.equals(failRead)) throw new BmcException(403, "Denied", "No access", "test");
-            if (!objects.containsKey(name)) throw new BmcException(404, "Missing", "No such object", "test");
+            if (name.equals(failRead)) throw new StorageException("No access", null, "test");
+            if (!objects.containsKey(name)) throw new ObjectNotFoundException("No such object", null, "test");
             InputStream input = new ByteArrayInputStream(objects.get(name));
             return gzip.contains(name) ? new GZIPInputStream(input) : input;
         }
-        @Override public void putResource(String name, String type, OOSResourceMetadata metadata, InputStream input) throws IOException {
+        @Override public void putResource(String name, String type, ObjectMetadata metadata, InputStream input) throws IOException {
             if (name.equals(failWrite)) throw new IOException("Injected write failure");
             assertEquals("application/json", type);
             objects.put(name, input.readAllBytes());

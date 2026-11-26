@@ -146,7 +146,7 @@ public class BoundaryFunction extends TraficInfoBaseFunction {
         Instant fetchedAt = clock.instant();
         Instant cutoff = fetchedAt.atZone(ZoneOffset.UTC).minusMonths(MAX_AGE_MONTHS).toInstant();
         List<ObjectNode> updates = new ArrayList<>();
-        try (ObjectStoreClient storage = createObjectStoreClient(bucket)) {
+        try (ObjectStore storage = createObjectStoreClient(bucket)) {
             ObjectNode dataset = request.epciCode() == null
                     ? refreshDepartements(storage, cutoff, fetchedAt, updates) : null;
             List<Boundary> selected = request.epciCode() == null
@@ -176,7 +176,7 @@ public class BoundaryFunction extends TraficInfoBaseFunction {
                         URI.create("https://geo.api.gouv.fr/epcis/" + code + "?format=geojson&geometry=contour")));
     }
 
-    private static Instant fetchDate(OOSResourceMetadata metadata) {
+    private static Instant fetchDate(ObjectMetadata metadata) {
         if (metadata == null) return null;
         String value = metadata.getMetadata().get("downloaded-at");
         if (value == null) return null;
@@ -191,14 +191,14 @@ public class BoundaryFunction extends TraficInfoBaseFunction {
         return fetchedAt != null && !fetchedAt.isBefore(cutoff);
     }
 
-    private static OOSResourceMetadata metadata(URI source, Instant fetchedAt) {
-        var metadata = new OOSResourceMetadata();
+    private static ObjectMetadata metadata(URI source, Instant fetchedAt) {
+        var metadata = new ObjectMetadata();
         metadata.getMetadata().put("source-url", source.toString());
         metadata.getMetadata().put("downloaded-at", fetchedAt.toString());
         return metadata;
     }
 
-    private ObjectNode refreshDepartements(ObjectStoreClient storage, Instant cutoff,
+    private ObjectNode refreshDepartements(ObjectStore storage, Instant cutoff,
                                            Instant now, List<ObjectNode> updates) throws IOException {
         Instant fetchedAt = fetchDate(storage.getResourceMetadata(DEPARTEMENTS_OBJECT));
         boolean download = !fresh(fetchedAt, cutoff);
@@ -228,7 +228,7 @@ public class BoundaryFunction extends TraficInfoBaseFunction {
                 .put("simplificationMetres", 100);
     }
 
-    private ObjectNode publishBoundary(ObjectStoreClient storage, Boundary boundary, byte[] feature,
+    private ObjectNode publishBoundary(ObjectStore storage, Boundary boundary, byte[] feature,
                                        Instant fetchedAt) throws IOException {
         var metadata = metadata(boundary.url(), fetchedAt);
         metadata.getMetadata().put("boundary-id", boundary.id());
@@ -241,7 +241,7 @@ public class BoundaryFunction extends TraficInfoBaseFunction {
         return file;
     }
 
-    private static void updateAttribution(ObjectStoreClient storage, List<ObjectNode> updates,
+    private static void updateAttribution(ObjectStore storage, List<ObjectNode> updates,
                                            ObjectNode dataset, Instant now) throws IOException {
         ObjectNode attribution;
         if (storage.getResourceMetadata(ATTRIBUTION_OBJECT) == null) {
@@ -266,7 +266,7 @@ public class BoundaryFunction extends TraficInfoBaseFunction {
         attribution.remove("downloadedAt");
         attribution.put("updatedAt", now.toString());
         if (dataset != null) attribution.set("departementDataset", dataset);
-        storage.putResource(ATTRIBUTION_OBJECT, "application/json", new OOSResourceMetadata(),
+        storage.putResource(ATTRIBUTION_OBJECT, "application/json", new ObjectMetadata(),
                 new ByteArrayInputStream(JSON.writeValueAsBytes(attribution)));
     }
 

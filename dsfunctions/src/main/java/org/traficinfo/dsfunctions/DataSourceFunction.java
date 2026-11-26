@@ -45,7 +45,7 @@ public class DataSourceFunction extends TraficInfoBaseFunction {
         var source = registry.source(request.datasourceId());
         try (var logging = LoggingContext.forSource("retrieval", request.datasourceId())) {
             try (HttpClient http = createHttpClient();
-                 ObjectStoreClient storage = createObjectStoreClient(source.bucket())) {
+                 ObjectStore storage = createObjectStoreClient(source.bucket())) {
                 new SourceObjectPublisher(http, storage).publish(source.settings());
                 return "OK";
             } catch (IOException | RuntimeException failure) {

@@ -290,11 +290,11 @@ public class BoundaryFunctionTest {
             return (response == null ? feature(code) : response).getBytes(StandardCharsets.UTF_8);
         }
 
-        @Override protected ObjectStoreClient createObjectStoreClient(String bucket) {
+        @Override protected ObjectStore createObjectStoreClient(String bucket) {
             assertTrue(useResourcePrincipal());
             clients.add(namespace() + "/" + bucket);
-            return new ObjectStoreClient(null, namespace(), bucket) {
-                @Override public void putResource(String name, String contentType, OOSResourceMetadata metadata,
+            return new StubObjectStore() {
+                @Override public void putResource(String name, String contentType, ObjectMetadata metadata,
                                                   InputStream input) throws IOException {
                     if (failUpload) throw new IOException("Upload failed");
                     assertEquals(name.endsWith(".geojson") ? "application/geo+json" : "application/json", contentType);
@@ -302,9 +302,9 @@ public class BoundaryFunctionTest {
                     Probe.this.metadata.put(name, new LinkedHashMap<>(metadata.getMetadata()));
                     writes++;
                 }
-                @Override public OOSResourceMetadata getResourceMetadata(String name) {
+                @Override public ObjectMetadata getResourceMetadata(String name) {
                     heads.add(name);
-                    return objects.containsKey(name) ? new OOSResourceMetadata(new LinkedHashMap<>(metadata.get(name))) : null;
+                    return objects.containsKey(name) ? new ObjectMetadata(new LinkedHashMap<>(metadata.get(name))) : null;
                 }
                 @Override public InputStream getResource(String name) throws IOException {
                     reads.add(name);

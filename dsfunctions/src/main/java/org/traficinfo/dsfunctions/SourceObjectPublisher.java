@@ -15,9 +15,9 @@ import java.time.ZoneOffset;
 public final class SourceObjectPublisher {
     private static final Logger LOG = LoggerFactory.getLogger(SourceObjectPublisher.class);
     private final HttpClient http;
-    private final ObjectStoreClient storage;
+    private final ObjectStore storage;
 
-    public SourceObjectPublisher(HttpClient http, ObjectStoreClient storage) {
+    public SourceObjectPublisher(HttpClient http, ObjectStore storage) {
         this.http = http;
         this.storage = storage;
     }
@@ -33,7 +33,7 @@ public final class SourceObjectPublisher {
     }
 
     private void publish(DataSourceSettings settings, DataSourceSettings.Input input) throws IOException {
-        OOSResourceMetadata previous = storage.getResourceMetadata(input.objectName());
+        ObjectMetadata previous = storage.getResourceMetadata(input.objectName());
         // A validator belongs to the datasource and input URL; multiple datasets can share that input.
         boolean sameSource = previous != null
                 && input.url().equals(previous.getMetadata().get("source-url"))
@@ -56,7 +56,7 @@ public final class SourceObjectPublisher {
                 }
             }
             Instant downloadedAt = Instant.now();
-            OOSResourceMetadata metadata = new OOSResourceMetadata();
+            ObjectMetadata metadata = new ObjectMetadata();
             metadata.setETag(body.getEtag());
             metadata.setLastModified(downloadedAt.atZone(ZoneOffset.UTC).toLocalDate());
             metadata.getMetadata().put("downloaded-at", downloadedAt.toString());

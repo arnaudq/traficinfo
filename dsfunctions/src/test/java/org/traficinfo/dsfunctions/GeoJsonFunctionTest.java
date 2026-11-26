@@ -113,9 +113,9 @@ public class GeoJsonFunctionTest {
             };
         }
 
-        @Override protected ObjectStoreClient createObjectStoreClient(String bucket) {
+        @Override protected ObjectStore createObjectStoreClient(String bucket) {
             clients.add(namespace() + "/" + bucket);
-            return new ObjectStoreClient(null, namespace(), bucket) {
+            return new StubObjectStore() {
                 @Override public InputStream getResource(String name) throws IOException {
                     assertEquals("geojson", MDC.get("stage"));
                     if (fail) throw new IOException("manifest unavailable");
@@ -125,7 +125,7 @@ public class GeoJsonFunctionTest {
                             : "{}".getBytes(StandardCharsets.UTF_8);
                     return new ByteArrayInputStream(body);
                 }
-                @Override public void putResource(String name, String type, OOSResourceMetadata metadata, InputStream input) throws IOException {
+                @Override public void putResource(String name, String type, ObjectMetadata metadata, InputStream input) throws IOException {
                     assertTrue(input.readAllBytes().length > 0);
                     writes.add(MDC.get("datasourceId") + ":" + name);
                 }

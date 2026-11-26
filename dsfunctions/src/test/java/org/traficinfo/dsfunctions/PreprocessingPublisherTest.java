@@ -1,5 +1,8 @@
 package org.traficinfo.dsfunctions;
 
+import org.traficinfo.dsfunctions.oci.ObjectStoreClient;
+
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.Test;
 import org.traficinfo.parsers.nim.NIMComptage;
@@ -90,7 +93,7 @@ public class PreprocessingPublisherTest {
     @Test
     public void dpt34DatasetSwitchRetainsEarlierYearsWhenManifestHeadHasNoCustomMetadata() throws Exception {
         Store store = new Store() {
-            @Override public OOSResourceMetadata getResourceMetadata(String name) {
+            @Override public ObjectMetadata getResourceMetadata(String name) {
                 var headClient = (com.oracle.bmc.objectstorage.ObjectStorage) java.lang.reflect.Proxy.newProxyInstance(
                         com.oracle.bmc.objectstorage.ObjectStorage.class.getClassLoader(),
                         new Class<?>[]{com.oracle.bmc.objectstorage.ObjectStorage.class},
@@ -432,7 +435,7 @@ public class PreprocessingPublisherTest {
         }
     }
 
-    static class Store extends ObjectStoreClient {
+    static class Store extends StubObjectStore {
         final Map<String, byte[]> objects = new HashMap<>();
         final Map<String, Map<String, String>> metadata = new HashMap<>();
         final List<String> writes = new ArrayList<>();
@@ -440,7 +443,7 @@ public class PreprocessingPublisherTest {
         boolean corruptYearRead;
         boolean mutateSourceOnYearRead;
 
-        Store() { super(null, "test", "test"); }
+        Store() { super(); }
 
         void source(PreprocessingSettings settings, String csv) {
             DataSourceSettings.Input input = settings.source().inputs().get(0);
@@ -451,8 +454,8 @@ public class PreprocessingPublisherTest {
 
         List<String> publications() { return writes.stream().filter(name -> !name.endsWith(".lock")).toList(); }
 
-        @Override public OOSResourceMetadata getResourceMetadata(String name) {
-            return !objects.containsKey(name) ? null : new OOSResourceMetadata(metadata.getOrDefault(name, Map.of()));
+        @Override public ObjectMetadata getResourceMetadata(String name) {
+            return !objects.containsKey(name) ? null : new ObjectMetadata(metadata.getOrDefault(name, Map.of()));
         }
 
         @Override public InputStream getResource(String name) throws IOException {
@@ -465,14 +468,14 @@ public class PreprocessingPublisherTest {
             return new ByteArrayInputStream(bytes);
         }
 
-        @Override public void putResource(String name, String type, OOSResourceMetadata meta, InputStream body) throws IOException {
+        @Override public void putResource(String name, String type, ObjectMetadata meta, InputStream body) throws IOException {
             if (failYearWrite && name.startsWith("data/")) throw new IOException("Year write failed");
             objects.put(name, body.readAllBytes());
             metadata.put(name, Map.copyOf(meta.getMetadata()));
             writes.add(name);
         }
 
-        @Override public synchronized boolean createResource(String name, String type, OOSResourceMetadata meta, InputStream body) throws IOException {
+        @Override public synchronized boolean createResource(String name, String type, ObjectMetadata meta, InputStream body) throws IOException {
             if (objects.containsKey(name)) return false;
             putResource(name, type, meta, body);
             return true;

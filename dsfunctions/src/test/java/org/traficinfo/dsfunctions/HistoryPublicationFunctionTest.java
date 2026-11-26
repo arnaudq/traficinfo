@@ -66,16 +66,16 @@ public class HistoryPublicationFunctionTest {
             return samples -> { throw new IllegalStateException("No test metrics backend"); };
         }
 
-        @Override protected ObjectStoreClient createObjectStoreClient(String bucket) {
+        @Override protected ObjectStore createObjectStoreClient(String bucket) {
             clients.add(namespace() + "/" + bucket);
-            return new ObjectStoreClient(null, namespace(), bucket) {
+            return new StubObjectStore() {
                 @Override public InputStream getResource(String name) throws IOException {
                     assertEquals("history", MDC.get("stage"));
                     if (failRead) throw new IOException("Unavailable manifest");
                     var source = GeoJsonDataSource.valueOf(MDC.get("datasourceId"));
                     return new ByteArrayInputStream(ManifestTestPublication.fromRecords(source, List.of()).get(name));
                 }
-                @Override public void putResource(String name, String type, OOSResourceMetadata metadata,
+                @Override public void putResource(String name, String type, ObjectMetadata metadata,
                                                    InputStream input, String cacheControl) throws IOException {
                     assertTrue(input.readAllBytes().length > 0);
                     writes.add(name);

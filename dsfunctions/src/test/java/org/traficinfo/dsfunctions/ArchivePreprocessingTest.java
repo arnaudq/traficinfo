@@ -56,7 +56,7 @@ public class ArchivePreprocessingTest {
         var registry = DataSourceRegistry.read(new java.io.ByteArrayInputStream(JSON.writeValueAsBytes(root)));
         var function = new PreprocessingFunction() {
             @Override protected DataSourceRegistry loadRegistry() { return registry; }
-            @Override protected ObjectStoreClient createObjectStoreClient(String bucket) { return store; }
+            @Override protected ObjectStore createObjectStoreClient(String bucket) { return store; }
         };
         function.config(new com.fnproject.fn.runtime.FunctionRuntimeContext(
                 new com.fnproject.fn.runtime.FunctionLoader().loadClass(PreprocessingFunction.class.getName(), "handleRequest"), Map.of()));

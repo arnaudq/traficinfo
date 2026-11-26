@@ -2,7 +2,6 @@ package org.traficinfo.dsfunctions;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.oracle.bmc.model.BmcException;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
@@ -739,15 +738,15 @@ public class OSMReverseMappingTest {
         return new OSMInfoProviderImpl(store, client, "tags.json", "mappings.json", Clock.fixed(NOW, ZoneOffset.UTC), true);
     }
 
-    private static class Store extends ObjectStoreClient {
+    private static class Store extends StubObjectStore {
         final Map<String, byte[]> objects = new LinkedHashMap<>();
         int writes;
-        Store() { super(null, "namespace", "osminfo"); }
+        Store() { super(); }
         @Override public InputStream getResource(String name) {
-            if (!objects.containsKey(name)) throw new BmcException(404, "NotFound", "Missing", "request");
+            if (!objects.containsKey(name)) throw new ObjectNotFoundException("Missing", null, "request");
             return new ByteArrayInputStream(objects.get(name));
         }
-        @Override public void putResource(String name, String type, OOSResourceMetadata metadata, InputStream body)
+        @Override public void putResource(String name, String type, ObjectMetadata metadata, InputStream body)
                 throws IOException {
             assertEquals("mappings.json", name);
             objects.put(name, body.readAllBytes());

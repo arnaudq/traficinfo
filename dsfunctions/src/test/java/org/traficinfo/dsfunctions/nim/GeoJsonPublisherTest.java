@@ -1,5 +1,11 @@
 package org.traficinfo.dsfunctions.nim;
 
+import org.traficinfo.dsfunctions.StubObjectStore;
+
+import org.traficinfo.dsfunctions.oci.ObjectStoreClient;
+
+import org.traficinfo.dsfunctions.ObjectMetadata;
+
 import org.traficinfo.dsfunctions.GeoJsonDataSource;
 import org.traficinfo.dsfunctions.ManifestTestPublication;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -11,7 +17,7 @@ import com.oracle.bmc.objectstorage.responses.GetObjectResponse;
 import com.oracle.bmc.objectstorage.responses.PutObjectResponse;
 import org.junit.Test;
 import org.traficinfo.dsfunctions.GeoJsonPublisher;
-import org.traficinfo.dsfunctions.ObjectStoreClient;
+import org.traficinfo.dsfunctions.ObjectStore;
 import org.traficinfo.dsfunctions.OSMInfoProviderImpl;
 import org.traficinfo.dsfunctions.OpenStreetMapClient;
 import java.io.InputStream;
@@ -285,7 +291,7 @@ public class GeoJsonPublisherTest {
                         }
                         return PutObjectResponse.builder().build();
                     });
-            ObjectStoreClient cacheStore = new ObjectStoreClient(null, "namespace", "osminfo") {
+            ObjectStore cacheStore = new StubObjectStore() {
                 @Override
                 public InputStream getResource(String name) {
                     if (name.equals("mappings.json") && mappings != null) {
@@ -297,7 +303,7 @@ public class GeoJsonPublisherTest {
                     return new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
                 }
                 @Override
-                public void putResource(String name, String type, org.traficinfo.dsfunctions.OOSResourceMetadata metadata,
+                public void putResource(String name, String type, org.traficinfo.dsfunctions.ObjectMetadata metadata,
                                         InputStream body) throws IOException {
                     assertNotNull("Cache must be saved after GeoJSON publication", output);
                     assertEquals("NIM_OSMRequests.json", name);

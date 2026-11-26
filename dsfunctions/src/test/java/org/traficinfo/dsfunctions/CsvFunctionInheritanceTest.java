@@ -142,22 +142,22 @@ public class CsvFunctionInheritanceTest {
     public static class SourceProbe extends DataSourceFunction {
         final List<String> clients = new ArrayList<>();
         final List<String> writes = new ArrayList<>();
-        final Map<String, OOSResourceMetadata> metadata = new HashMap<>();
+        final Map<String, ObjectMetadata> metadata = new HashMap<>();
         boolean unchanged;
         boolean empty;
         boolean closed;
 
         @Override
-        protected ObjectStoreClient createObjectStoreClient(String bucket) {
+        protected ObjectStore createObjectStoreClient(String bucket) {
             clients.add(useResourcePrincipal() + ":" + namespace() + ":" + bucket);
-            return new ObjectStoreClient(null, namespace(), bucket) {
-                @Override public OOSResourceMetadata getResourceMetadata(String name) {
+            return new StubObjectStore() {
+                @Override public ObjectMetadata getResourceMetadata(String name) {
                     return metadata.get(name);
                 }
                 @Override public InputStream getResource(String name) {
                     return new ByteArrayInputStream("old CSV".getBytes(StandardCharsets.UTF_8));
                 }
-                @Override public void putResource(String name, String type, OOSResourceMetadata meta,
+                @Override public void putResource(String name, String type, ObjectMetadata meta,
                                                   InputStream body) throws IOException {
                     assertEquals("text/csv", type);
                     assertTrue(body.readAllBytes().length > 0);
@@ -197,9 +197,9 @@ public class CsvFunctionInheritanceTest {
         Map<String, byte[]> publication;
 
         @Override
-        protected ObjectStoreClient createObjectStoreClient(String bucket) {
+        protected ObjectStore createObjectStoreClient(String bucket) {
             clients.add(useResourcePrincipal() + ":" + namespace() + ":" + bucket);
-            return new ObjectStoreClient(null, namespace(), bucket) {
+            return new StubObjectStore() {
                 @Override public InputStream getResource(String name) throws IOException {
                     reads.add(name);
                     assertFalse("Raw CSV must not be read by the GeoJSON handler", name.endsWith(".csv"));
@@ -215,7 +215,7 @@ public class CsvFunctionInheritanceTest {
                     }
                     return new ByteArrayInputStream(publication.getOrDefault(name, "{}".getBytes(StandardCharsets.UTF_8)));
                 }
-                @Override public void putResource(String name, String type, OOSResourceMetadata meta,
+                @Override public void putResource(String name, String type, ObjectMetadata meta,
                                                   InputStream body) throws IOException {
                     if (failUpload) throw new IOException("Upload failed");
                     writes.add(name);
@@ -238,9 +238,9 @@ public class CsvFunctionInheritanceTest {
         final List<String> writes = new ArrayList<>();
 
         @Override
-        protected ObjectStoreClient createObjectStoreClient(String bucket) {
+        protected ObjectStore createObjectStoreClient(String bucket) {
             clients.add(useResourcePrincipal() + ":" + namespace() + ":" + bucket);
-            return new ObjectStoreClient(null, namespace(), bucket) {
+            return new StubObjectStore() {
                 @Override public InputStream getResource(String name) throws IOException {
                     reads.add(name);
                     byte[] bytes = name.equals("MMM_Manifest.json")
@@ -249,7 +249,7 @@ public class CsvFunctionInheritanceTest {
                     return new ByteArrayInputStream(bytes);
                 }
 
-                @Override public void putResource(String name, String type, OOSResourceMetadata meta,
+                @Override public void putResource(String name, String type, ObjectMetadata meta,
                                                   InputStream body) throws IOException {
                     assertTrue(body.readAllBytes().length > 0);
                     writes.add(name);

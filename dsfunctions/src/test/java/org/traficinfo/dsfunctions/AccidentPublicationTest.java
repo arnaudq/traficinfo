@@ -1,7 +1,6 @@
 package org.traficinfo.dsfunctions;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.oracle.bmc.model.BmcException;
 import org.junit.Test;
 import org.traficinfo.parsers.AccidentParticipant.*;
 import org.traficinfo.parsers.AccidentVehicle.Motorization;
@@ -93,16 +92,16 @@ public class AccidentPublicationTest {
         try { publisher.publish("ONISR_DPT34"); fail(); } catch(IOException expected) { assertEquals(previous,out.objects); }
     }
 
-    static class Store extends ObjectStoreClient {
+    static class Store extends StubObjectStore {
         final Map<String,byte[]> objects = new HashMap<>();
         final Map<String,String> types = new HashMap<>();
         boolean fail;
-        Store(){super(null,"test","fake");}
+        Store(){super();}
         @Override public InputStream getResource(String name) {
-            if(!objects.containsKey(name)) throw new BmcException(404,"missing","missing","test");
+            if(!objects.containsKey(name)) throw new ObjectNotFoundException("missing", null, "test");
             return new ByteArrayInputStream(objects.get(name));
         }
-        @Override public void putResource(String name,String type,OOSResourceMetadata meta,InputStream input) throws IOException {
+        @Override public void putResource(String name,String type,ObjectMetadata meta,InputStream input) throws IOException {
             if(fail)throw new IOException("Injected failure");
             objects.put(name,input.readAllBytes());types.put(name,type);
         }

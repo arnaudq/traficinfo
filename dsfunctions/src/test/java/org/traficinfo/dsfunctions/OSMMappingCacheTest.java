@@ -2,7 +2,6 @@ package org.traficinfo.dsfunctions;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.oracle.bmc.model.BmcException;
 import org.junit.Test;
 import org.geojson.Point;
 import org.traficinfo.parsers.OSMWayInfo;
@@ -131,8 +130,8 @@ public class OSMMappingCacheTest {
         try {
             provider(store, NOW).loadCache();
             fail("Forbidden cache must fail");
-        } catch (BmcException expected) {
-            assertEquals(403, expected.getStatusCode());
+        } catch (StorageException expected) {
+            assertNotNull(expected.getRequestId());
             assertEquals(0, store.writes);
         }
     }
@@ -179,17 +178,17 @@ public class OSMMappingCacheTest {
         }, "tags.json", "mappings.json", Clock.fixed(now, ZoneOffset.UTC));
     }
 
-    private static class Store extends ObjectStoreClient {
+    private static class Store extends StubObjectStore {
         final Map<String, byte[]> objects = new LinkedHashMap<>();
         boolean forbidden;
         int writes;
-        Store() { super(null, "namespace", "osminfo"); }
+        Store() { super(); }
         @Override public InputStream getResource(String name) {
-            if (forbidden) throw new BmcException(403, "Forbidden", "Denied", "request");
-            if (!objects.containsKey(name)) throw new BmcException(404, "NotFound", "Missing", "request");
+            if (forbidden) throw new StorageException("Denied", null, "request");
+            if (!objects.containsKey(name)) throw new ObjectNotFoundException("Missing", null, "request");
             return new ByteArrayInputStream(objects.get(name));
         }
-        @Override public void putResource(String name, String type, OOSResourceMetadata metadata, InputStream body)
+        @Override public void putResource(String name, String type, ObjectMetadata metadata, InputStream body)
                 throws IOException {
             assertTrue("mappings.json".equals(name) || "tags.json".equals(name));
             assertEquals("application/json", type);

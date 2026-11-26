@@ -1,4 +1,9 @@
-package org.traficinfo.dsfunctions;
+package org.traficinfo.dsfunctions.oci;
+
+import org.traficinfo.dsfunctions.ObjectMetadata;
+import org.traficinfo.dsfunctions.StorageException;
+import org.traficinfo.dsfunctions.ObjectNotFoundException;
+import org.traficinfo.dsfunctions.ObjectStore;
 
 import com.oracle.bmc.objectstorage.ObjectStorage;
 import com.oracle.bmc.objectstorage.requests.PutObjectRequest;
@@ -11,6 +16,7 @@ import com.oracle.bmc.retrier.Retriers;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Proxy;
@@ -19,10 +25,96 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.List;
 import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 import static org.junit.Assert.*;
 
 public class ObjectStoreClientTest {
+    @Test
+    public void normalizesProviderFailuresAcrossStorageOperations() throws Exception {
+        for (String operation : List.of("read", "metadata", "list", "write", "create", "delete")) {
+            var cause = new com.oracle.bmc.model.BmcException(403, "Forbidden", "Denied", "request-id");
+            ObjectStorage client = (ObjectStorage) Proxy.newProxyInstance(ObjectStorage.class.getClassLoader(),
+                    new Class<?>[]{ObjectStorage.class}, (proxy, method, args) -> { throw cause; });
+            ObjectStore store = new ObjectStoreClient(client, "namespace", "bucket");
+            StorageException failure = assertThrows(StorageException.class, () -> {
+                switch (operation) {
+                    case "read" -> store.getResource("object");
+                    case "metadata" -> store.getResourceMetadata("object");
+                    case "list" -> store.listResources();
+                    case "write" -> store.putResource("object", "application/json", new ObjectMetadata(),
+                            new ByteArrayInputStream(new byte[0]));
+                    case "create" -> store.createResource("object", "application/json", new ObjectMetadata(),
+                            new ByteArrayInputStream(new byte[0]));
+                    case "delete" -> store.deleteResource("object");
+                    default -> fail("Unknown operation");
+                }
+            });
+            assertFalse(failure instanceof ObjectNotFoundException);
+            assertSame(cause, failure.getCause());
+            assertEquals("request-id", failure.getRequestId());
+        }
+    }
+
+    @Test
+    public void missingBodyIsDistinctFromOtherReadFailures() {
+        var cause = new com.oracle.bmc.model.BmcException(404, "NotFound", "Missing", "request-id");
+        ObjectStorage client = (ObjectStorage) Proxy.newProxyInstance(ObjectStorage.class.getClassLoader(),
+                new Class<?>[]{ObjectStorage.class}, (proxy, method, args) -> { throw cause; });
+        ObjectStore store = new ObjectStoreClient(client, "namespace", "bucket");
+        var failure = assertThrows(ObjectNotFoundException.class, () -> store.getResource("object"));
+        assertSame(cause, failure.getCause());
+        assertEquals("request-id", failure.getRequestId());
+    }
+
+    @Test
+    public void readsPlainAndGzipBodiesAndClosesStreamsAndClient() throws Exception {
+        byte[] original = "stored contents".getBytes(StandardCharsets.UTF_8);
+        for (boolean compressed : List.of(false, true)) {
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            if (compressed) {
+                try (var gzip = new GZIPOutputStream(bytes)) { gzip.write(original); }
+            } else {
+                bytes.write(original);
+            }
+            AtomicBoolean streamClosed = new AtomicBoolean();
+            AtomicBoolean clientClosed = new AtomicBoolean();
+            var body = new ByteArrayInputStream(bytes.toByteArray()) {
+                @Override public void close() throws IOException { streamClosed.set(true); super.close(); }
+            };
+            ObjectStorage client = (ObjectStorage) Proxy.newProxyInstance(ObjectStorage.class.getClassLoader(),
+                    new Class<?>[]{ObjectStorage.class}, (proxy, method, args) -> {
+                        if (method.getName().equals("close")) { clientClosed.set(true); return null; }
+                        assertEquals("getObject", method.getName());
+                        return com.oracle.bmc.objectstorage.responses.GetObjectResponse.builder()
+                                .inputStream(body).contentEncoding(compressed ? "gzip" : null).build();
+                    });
+            try (ObjectStore store = new ObjectStoreClient(client, "namespace", "bucket")) {
+                try (InputStream decoded = store.getResource("object")) {
+                    assertArrayEquals(original, decoded.readAllBytes());
+                    assertFalse(streamClosed.get());
+                }
+                assertTrue(streamClosed.get());
+            }
+            assertTrue(clientClosed.get());
+        }
+    }
+
+    @Test
+    public void closesBodyWhenGzipCannotBeDecoded() {
+        AtomicBoolean closed = new AtomicBoolean();
+        var body = new ByteArrayInputStream("not gzip".getBytes(StandardCharsets.UTF_8)) {
+            @Override public void close() throws IOException { closed.set(true); super.close(); }
+        };
+        ObjectStorage client = (ObjectStorage) Proxy.newProxyInstance(ObjectStorage.class.getClassLoader(),
+                new Class<?>[]{ObjectStorage.class}, (proxy, method, args) ->
+                        com.oracle.bmc.objectstorage.responses.GetObjectResponse.builder()
+                                .inputStream(body).contentEncoding("gzip").build());
+        ObjectStore store = new ObjectStoreClient(client, "namespace", "bucket");
+        assertThrows(IOException.class, () -> store.getResource("object"));
+        assertTrue(closed.get());
+    }
+
     @Test
     public void existingObjectsWithoutCustomMetadataReturnAnEmptyMetadataObject() {
         for (java.util.Map<String, String> values : java.util.Arrays.<java.util.Map<String, String>>asList(
@@ -37,7 +129,7 @@ public class ObjectStoreClientTest {
                         assertEquals("DPT34_Manifest.json", request.getObjectName());
                         return com.oracle.bmc.objectstorage.responses.HeadObjectResponse.builder().opcMeta(values).build();
                     });
-            OOSResourceMetadata metadata = new ObjectStoreClient(storage, "namespace", "dsdpt34")
+            ObjectMetadata metadata = new ObjectStoreClient(storage, "namespace", "dsdpt34")
                     .getResourceMetadata("DPT34_Manifest.json");
             assertNotNull(metadata);
             assertEquals(values == null ? java.util.Map.of() : values, metadata.getMetadata());
@@ -65,8 +157,9 @@ public class ObjectStoreClientTest {
                 try {
                     store.getResourceMetadata("DPT34_Manifest.json");
                     fail("Expected HEAD failure");
-                } catch (com.oracle.bmc.model.BmcException expected) {
-                    assertEquals(status, expected.getStatusCode());
+                } catch (StorageException expected) {
+                    assertEquals(status, ((com.oracle.bmc.model.BmcException) expected.getCause()).getStatusCode());
+                    assertEquals("request", expected.getRequestId());
                 }
             }
         }
@@ -121,19 +214,20 @@ public class ObjectStoreClientTest {
                     return PutObjectResponse.builder().build();
                 });
         ObjectStoreClient store = new ObjectStoreClient(storage, "namespace", "bucket");
-        assertTrue(store.createResource("lock", "application/json", new OOSResourceMetadata(), new ByteArrayInputStream(new byte[0])));
-        assertFalse(store.createResource("lock", "application/json", new OOSResourceMetadata(), new ByteArrayInputStream(new byte[0])));
+        assertTrue(store.createResource("lock", "application/json", new ObjectMetadata(), new ByteArrayInputStream(new byte[0])));
+        assertFalse(store.createResource("lock", "application/json", new ObjectMetadata(), new ByteArrayInputStream(new byte[0])));
         try {
-            store.createResource("lock", "application/json", new OOSResourceMetadata(), new ByteArrayInputStream(new byte[0]));
+            store.createResource("lock", "application/json", new ObjectMetadata(), new ByteArrayInputStream(new byte[0]));
             fail("Expected storage failure");
-        } catch (com.oracle.bmc.model.BmcException expected) {
-            assertEquals(500, expected.getStatusCode());
+        } catch (StorageException expected) {
+            assertEquals(500, ((com.oracle.bmc.model.BmcException) expected.getCause()).getStatusCode());
+            assertEquals("request", expected.getRequestId());
         }
     }
 
     private void assertCompressedUpload(String name, String contentType, String content) throws IOException {
         byte[] original = content.getBytes(StandardCharsets.UTF_8);
-        OOSResourceMetadata metadata = new OOSResourceMetadata();
+        ObjectMetadata metadata = new ObjectMetadata();
         metadata.setETag("\"source-etag\"");
         AtomicBoolean uploaded = new AtomicBoolean();
         ObjectStorage storage = (ObjectStorage) Proxy.newProxyInstance(
@@ -183,7 +277,7 @@ public class ObjectStoreClientTest {
                     return PutObjectResponse.builder().build();
                 });
         new ObjectStoreClient(storage, "namespace", "bucket").putResource("history/MMM.json",
-                "application/json", new OOSResourceMetadata(),
+                "application/json", new ObjectMetadata(),
                 new ByteArrayInputStream("{}".getBytes(StandardCharsets.UTF_8)), "public, max-age=300");
     }
 
@@ -203,7 +297,7 @@ public class ObjectStoreClientTest {
         };
         try {
             new ObjectStoreClient(storage, "namespace", "bucket").putResource(
-                    "data.csv", "text/csv", new OOSResourceMetadata(), source);
+                    "data.csv", "text/csv", new ObjectMetadata(), source);
             fail("Expected source failure");
         } catch (IOException expected) {
             assertEquals("source failed", expected.getMessage());

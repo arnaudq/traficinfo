@@ -19,10 +19,10 @@ import java.util.TreeMap;
  * {@link #read(String)} exposes only the records for consumers such as GeoJSON generation.
  */
 public final class ManifestComptageReader {
-    private final ObjectStoreClient storage;
+    private final ObjectStore storage;
     private final ObjectMapper mapper = new ObjectMapper();
 
-    public ManifestComptageReader(ObjectStoreClient storage) {
+    public ManifestComptageReader(ObjectStore storage) {
         this.storage = Objects.requireNonNull(storage);
     }
 
