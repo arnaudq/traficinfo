@@ -8,7 +8,18 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Custom object metadata, including the existing publisher validator and archive date. */
+/**
+ * Custom object metadata shared by retrieval, validation and publication code.
+ * This is an application-owned map, not a provider SDK response. HTTP content type,
+ * content encoding and cache control are handled separately by {@link ObjectStore}.
+ *
+ * <p>The convenience accessors preserve the existing {@code current-etag} and
+ * {@code last-modified} custom-metadata keys. The former holds a publisher HTTP
+ * validator or synthetic {@code sha256:...} validator, not an Object Storage ETag.
+ * It must not be treated as a provider-independent checksum of the stored object;
+ * publication checksums are validated separately. Map keys are case-sensitive
+ * and are not normalized by this class.
+ */
 public class ObjectMetadata {
 
     // Keep the existing persisted custom-metadata keys.
@@ -21,17 +32,27 @@ public class ObjectMetadata {
 
     private final Map<String, String> metadata;
 
+    /** Creates an empty, mutable custom-metadata map. */
     public ObjectMetadata() {
         this.metadata = new HashMap<>();
     }
 
+    /**
+     * Wraps the supplied map without copying it. Changes through either reference
+     * are visible through the other; setters require the map to support mutation.
+     *
+     * @param metadata non-null backing map of custom-metadata keys and values
+     */
     public ObjectMetadata(Map<String, String> metadata) {
         this.metadata = metadata;
     }
 
     /**
-     * Get the stored validator, adding back double quotes.
-     * @return quoted server ETag or synthetic sha256 validator.
+     * Reads the source validator, restoring surrounding double quotes for nonempty values.
+     * Synthetic validators are returned in the same quoted form; the HTTP client determines
+     * whether a validator is suitable for a conditional publisher request.
+     *
+     * @return quoted source or synthetic validator; null when absent, or an empty string when stored empty
      */
     public String getETag() {
         String metadataETag = metadata.get(RESOURCE_METADATA_CURRENT_ETAG);
@@ -40,7 +61,9 @@ public class ObjectMetadata {
 
     /**
      * Stores the source validator without surrounding quotes, preserving the existing metadata format.
-     * @param rawETag - can be null.
+     * A null value removes the key; an empty value is retained as an empty string.
+     *
+     * @param rawETag source or synthetic validator, optionally quoted, or null to remove it
      */
     public void setETag(String rawETag) {
         if (rawETag == null) {
@@ -57,16 +80,34 @@ public class ObjectMetadata {
         metadata.put(RESOURCE_METADATA_CURRENT_ETAG, metadataETag);
     }
 
+    /**
+     * Reads the date used by the existing retrieval/archive lifecycle. This is custom
+     * application metadata, not the storage service's Last-Modified response header.
+     * The stored string is returned without parsing or validation.
+     *
+     * @return stored date, conventionally {@code yyyyMMdd}, or null when absent
+     */
     public String getLastModified() {
         return metadata.get(RESOURCE_METADATA_LAST_MODIFIED);
     }
 
+    /**
+     * Stores the supplied date in the existing {@code yyyyMMdd} archive-date format.
+     *
+     * @param lastModified date to store; null leaves the current entry unchanged
+     */
     public void setLastModified(LocalDate lastModified) {
         if (lastModified != null) {
             metadata.put(RESOURCE_METADATA_LAST_MODIFIED, lastModified.format(DATE_TIME_FORMATTER));
         }
     }
 
+    /**
+     * Returns the backing map directly so callers can read/write datasource identity,
+     * provenance and other application metadata. No defensive copy is made.
+     *
+     * @return backing custom-metadata map
+     */
     public Map<String, String> getMetadata() {
         return metadata;
     }
